@@ -1,19 +1,3 @@
-🚀 AHOS: The Agentic Harness Operating System
-
-"One Prompt to Rule Them All. Build Anything, Anywhere, with Any AI." 
-
-🧠 The Problem
-
-You’re crushing a project with Claude Code and suddenly... BOOM. You hit your daily message limit. 🛑
-
-You want to switch to Gemini CLI or OpenCode to keep the momentum going, but the new AI has no idea what you were doing. You spend an hour re-explaining the project, or worse, the AI makes a mistake because it lacks context.
-
-✨ The Solution (AHOS)
-
-AHOS turns your GitHub repo into the Brain. The AI is just the Muscle.
-
-By keeping all "memory," "rules," and "todo lists" inside specific files in your repo, you can swap AIs like changing a battery. The new AI reads the repo, sees exactly where the last one left off, and gets straight back to work.
-
 # AHOS — AI Handoff Operating System
 ## Any AI. Any Project. Any Time. Zero Lost Work.
 ### Version 2.0 | Solomon Christ Holdings Inc.
