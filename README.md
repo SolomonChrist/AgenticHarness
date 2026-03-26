@@ -288,14 +288,17 @@ A clean shutdown means any agent — on any system, any model — picks up exact
 
 The same nine files that coordinate software agents can coordinate characters in a virtual world.
 
-| Harness Concept | Virtual World Equivalent |
-|----------------|------------------------|
-| `SOUL.md` | Character sheet |
-| `PROJECT.md` | World rulebook |
-| `LAYER_MEMORY.MD` | World history |
-| `LAYER_TASK_LIST.MD` | Events queue |
-| `LAYER_SHARED_TEAM_CONTEXT.MD` | Character dialogue log |
-| `LAYER_HEARTBEAT.MD` | World clock |
+| Harness File | Virtual World Equivalent |
+|-------------|------------------------|
+| `SOUL.md` | Character sheet — who this agent/character is |
+| `PROJECT.md` | World rulebook — laws of the world, win conditions |
+| `LAYER_ACCESS.MD` | Faction/clearance system — who can enter which areas |
+| `LAYER_CONFIG.MD` | World registry — all characters, their factions, last locations |
+| `LAYER_MEMORY.MD` | World history — everything that has ever happened |
+| `LAYER_TASK_LIST.MD` | Events queue — pending actions and world events |
+| `LAYER_SHARED_TEAM_CONTEXT.MD` | Public record — character dialogue, announcements |
+| `LAYER_HEARTBEAT.MD` | World clock — tick system, time passing |
+| `LAYER_LAST_ITEMS_DONE.MD` | Chronicle — one-line record of every action taken |
 
 The Harness becomes the logic backend. A renderer (2D canvas, Three.js, Godot) reads `WORLD_STATE.md` and draws the environment. Agents write their actions. The world updates. NPCs with genuine memory, real reasoning, and persistent histories.
 
@@ -323,47 +326,161 @@ The Harness is a standard, not a platform. It works with:
 
 ---
 
-## Recommended Model Setup (Ollama)
+## Model Setup
 
-For running locally with tool calling support:
+The Harness works with any model. The right setup depends on where you're running it.
 
-**coder.modelfile** — executor, 16k context
+---
+
+### Option A — Cloud Models (Best capability, recommended for production)
+
+When running inside **Claude Code** natively, no model configuration is needed — Claude handles tool execution, file writes, and bash commands with full reliability. This is the highest-capability setup.
+
+```bash
+# Just use Claude Code directly — no env vars needed
+claude
 ```
+
+For **OpenCode with cloud models via OpenRouter or direct API:**
+```bash
+# opencode.json (place in project root)
+{
+  "model": "anthropic/claude-sonnet-4-5",
+  "temperature": 0.2
+}
+```
+
+Cloud model capability guide:
+| Model | Best for | Context |
+|-------|---------|---------|
+| `claude-sonnet-4-5` | Full harness execution, complex reasoning, writing | 200k |
+| `claude-haiku-4-5` | Fast routing, simple tasks, frontend interface | 200k |
+| `gemini-1.5-pro` | Research tasks, long context projects | 1M |
+| `gpt-4o` | General execution, good tool calling | 128k |
+
+---
+
+### Option B — Local Models via Ollama (Privacy-first, free to run)
+
+Local models are ideal for sensitive projects, offline work, or when you want zero data leaving your machine. The tradeoff is capability and VRAM.
+
+**Important:** Local models run inside **OpenCode** or via the Claude Code + Ollama proxy setup. They do NOT run inside standard Claude Code — Claude Code always routes to Anthropic's API unless you override the base URL.
+
+#### Full Setup (16GB+ VRAM — best local experience)
+
+```
+# coder.modelfile — full capability local executor
+FROM qwen2.5-coder:7b
+PARAMETER num_ctx 32768
+PARAMETER num_gpu 99
+PARAMETER temperature 0.2
+```
+
+```
+# frontend.modelfile — interface model
+FROM qwen2.5-coder:3b
+PARAMETER num_ctx 16384
+PARAMETER num_gpu 99
+PARAMETER temperature 0.7
+```
+
+#### Constrained Setup (6GB VRAM — e.g. GTX 1660 Ti, RTX 3060)
+
+The 6GB constraint is real. A 7b model at full quality needs ~4.5GB just for weights, leaving little room for a large context window. This is the practical sweet spot:
+
+```
+# coder.modelfile — fits in 6GB, still useful
 FROM qwen2.5-coder:3b
 PARAMETER num_ctx 16384
 PARAMETER num_gpu 99
 PARAMETER temperature 0.2
 ```
 
-**frontend.modelfile** — interface, 4k context
 ```
+# frontend.modelfile — lightweight interface
 FROM qwen2.5-coder:1.5b
 PARAMETER num_ctx 4096
 PARAMETER num_gpu 99
 PARAMETER temperature 0.7
 ```
 
-**Windows launcher (claude-local.bat)**
+> **Note on 4k context:** The `frontend` model at 4096 context is intentionally minimal — it only reads `LAYER_CONFIG.MD` and `LAYER_TASK_LIST.MD` on boot (not all 9 files) to stay within its window. It's the interface layer, not the executor. The `coder` model at 16k does the real work.
+
+#### Local model capability guide
+
+| Model | VRAM needed | Context | Best for |
+|-------|------------|---------|---------|
+| `qwen2.5-coder:7b` | ~5GB | 4k-8k | Best local code quality |
+| `qwen2.5-coder:3b` | ~2GB | 16k | Best balance on 6GB GPU |
+| `qwen2.5-coder:1.5b` | ~1.5GB | 32k | Max context, lower quality |
+| `mistral:7b` | ~5GB | 8k | Best local tool calling |
+| `llama3.1:8b` | ~6GB | 8k | Strong general capability |
+
+#### Windows launcher for Claude Code + Ollama proxy
+
 ```batch
 @echo off
+echo Starting LOCAL Claude Code...
 set ANTHROPIC_BASE_URL=http://localhost:11434/v1
 set ANTHROPIC_AUTH_TOKEN=ollama
 set ANTHROPIC_DEFAULT_HAIKU_MODEL=frontend
 set ANTHROPIC_DEFAULT_SONNET_MODEL=coder
-set CLAUDE_CODE_SUBAGENT_MODEL=coder
 set ANTHROPIC_MODEL=sonnet
 set OLLAMA_KEEP_ALIVE=-1
 claude
 ```
 
+> **Important:** Use `set` not `setx`. `setx` saves to the registry but doesn't apply to the current session — Claude Code won't see the values. Double-click the `.bat` file directly; don't run from PowerShell.
+
+#### Build and warm up
+
 ```bash
-# Build and warm up
-ollama pull qwen2.5-coder:3b && ollama pull qwen2.5-coder:1.5b
+# Pull base models
+ollama pull qwen2.5-coder:3b
+ollama pull qwen2.5-coder:1.5b
+
+# Build custom models with your parameters
 ollama create coder -f coder.modelfile
 ollama create frontend -f frontend.modelfile
-ollama run coder "hello" && ollama run frontend "hello"
+
+# Warm up (loads models into GPU memory)
+ollama run coder "hello"
+ollama run frontend "hello"
+
+# Verify GPU usage — you want 100% GPU, not CPU/GPU split
 ollama ps
 ```
+
+Expected output on a 6GB GPU:
+```
+NAME              SIZE     PROCESSOR    CONTEXT
+coder:latest      1.9 GB   100% GPU     16384
+frontend:latest   ~1 GB    100% GPU     4096
+```
+
+If you see CPU/GPU split: close Chrome, LM Studio, and other GPU-heavy apps.
+
+---
+
+### Option C — OpenCode with Local Models (Best local tool execution)
+
+OpenCode has native tool execution for Ollama models — it doesn't require the API proxy trick that Claude Code needs. This is the recommended setup when running fully local:
+
+```bash
+# Install OpenCode
+npm install -g opencode-ai
+
+# Configure in your project (opencode.json)
+{
+  "model": "ollama/coder",
+  "temperature": 0.2
+}
+
+# Run
+opencode
+```
+
+OpenCode handles `Read()`, `Write()`, and `Bash()` tool calls natively with local Ollama models. No proxy needed. No env var tricks.
 
 ---
 
@@ -371,15 +488,11 @@ ollama ps
 
 ```
 AgenticHarness/
-├── README.md                          # This file
+├── README.md                          # This file — start here
 ├── HARNESS_PROMPT.md                  # The master prompt — paste into any agent
-├── versions/
-│   ├── AGENTIC_HARNESS_v7.0.md        # Current full version
-│   ├── AGENTIC_HARNESS_v6.0.md
-│   └── ...                            # Full version history
-├── scaffolds/
-│   ├── SOUL.md
-│   ├── PROJECT.md
+├── scaffolds/                         # Reference copies of all 9 files
+│   ├── SOUL.md                        # ← the agent auto-creates these on first boot
+│   ├── PROJECT.md                     #   you don't need to create them manually
 │   ├── LAYER_ACCESS.MD
 │   ├── LAYER_CONFIG.MD
 │   ├── LAYER_MEMORY.MD
@@ -387,17 +500,10 @@ AgenticHarness/
 │   ├── LAYER_SHARED_TEAM_CONTEXT.MD
 │   ├── LAYER_HEARTBEAT.MD
 │   └── LAYER_LAST_ITEMS_DONE.MD
-├── examples/
-│   ├── solo-project/                  # Single agent example
-│   ├── power-pair/                    # Planner + Builder example
-│   ├── full-team/                     # 5-agent swarm example
-│   └── virtual-world/                 # Simulation example
-├── modelfiles/
-│   ├── coder.modelfile
-│   └── frontend.modelfile
-└── book/
-    └── COURSEBOOK_NOTES_v1.0.md       # University program notes
+└── LEARNING/                          # Learning resources — growing over time
 ```
+
+**The two files that matter:** `README.md` and `HARNESS_PROMPT.md`. That's it. Read one, paste the other. Everything else — all 9 layer files, all scaffolds — gets created automatically by the agent on first boot. The scaffolds folder exists as reference only, so you can see what each file looks like before running anything.
 
 ---
 
@@ -423,18 +529,9 @@ These never change. Every agent follows them.
 
 ## Learn It
 
-### The Book
+A full university-level program is in development at [AgenticHarness.io](https://AgenticHarness.io). Learning resources, real-world use cases, student testimonials, and structured courses will be built out there over time — drawn from real projects, real problems, and real results.
 
-A full university-level book is in development — coming soon at [AgenticHarness.io](https://AgenticHarness.io).
-
-A full university-level program covering:
-- What agents are and how LLMs think
-- Every file, every rule, every reason behind the architecture
-- Running real agent swarms on real projects
-- Security, trust tiers, and the approval system
-- Advanced swarm patterns and optimization
-- Building 2D and 3D virtual worlds powered by Harness agents
-- A capstone project that proves you understand the whole system
+For now, the `LEARNING/` folder in this repo is the starting point. It will grow as the community grows.
 
 ### Community
 
