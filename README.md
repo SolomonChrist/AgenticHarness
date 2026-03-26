@@ -13,7 +13,7 @@
 *Simple enough to teach. Secure enough to trust. Powerful enough to run a company.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-7.0-blue.svg)](https://github.com/SolomonChrist/AgenticHarness)
+[![Version](https://img.shields.io/badge/version-7.1-blue.svg)](https://github.com/SolomonChrist/AgenticHarness)
 [![Works With](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20OpenCode%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Any%20Agent-green.svg)](https://github.com/SolomonChrist/AgenticHarness)
 
 </div>
@@ -38,7 +38,7 @@ Every serious agent system ever built needs the same nine things:
 
 | What Every Agent Needs | The Harness File |
 |------------------------|-----------------|
-| Who the agent is | `SOUL.md` |
+| Who the agent is | `SOUL_[AGENT_ID].md` (per-agent, not shared) |
 | What the project is | `PROJECT.md` |
 | Who is allowed in | `LAYER_ACCESS.MD` |
 | Infrastructure & registry | `LAYER_CONFIG.MD` |
@@ -71,33 +71,45 @@ The agent handles everything else — identity, file creation, git commits, hear
 
 ### The Nine Files
 
-Every Harness project is a folder with nine files. Create them yourself or let the agent create them on first boot.
+Every Harness project is a folder with nine files. The agent creates them automatically on first boot — you never need to create them manually.
 
 ```
 your-project/
-├── SOUL.md                        # Agent identity & capabilities
-├── PROJECT.md                     # Mission, mode, milestones
-├── LAYER_ACCESS.MD                # 🔒 Who is allowed. Trust tiers.
-├── LAYER_CONFIG.MD                # Agent registry, rotation list
-├── LAYER_MEMORY.MD                # Permanent decisions (append only)
-├── LAYER_TASK_LIST.MD             # Work queue
-├── LAYER_SHARED_TEAM_CONTEXT.MD   # Team whiteboard
-├── LAYER_HEARTBEAT.MD             # Liveness signals
-└── LAYER_LAST_ITEMS_DONE.MD       # One-line audit trail
+├── SOUL_Claude-Builder-01.md          # This agent's identity (per-agent, not shared)
+├── SOUL_Qwen-Coder-DevOps-01.md       # Another agent's identity (if they've worked here)
+├── PROJECT.md                         # Mission, mode, milestones
+├── LAYER_ACCESS.MD                    # 🔒 Who is allowed. Trust tiers.
+├── LAYER_CONFIG.MD                    # Agent registry, rotation list
+├── LAYER_MEMORY.MD                    # Permanent decisions (append only)
+├── LAYER_TASK_LIST.MD                 # Work queue
+├── LAYER_SHARED_TEAM_CONTEXT.MD       # Team whiteboard
+├── LAYER_HEARTBEAT.MD                 # Liveness signals
+└── LAYER_LAST_ITEMS_DONE.MD           # One-line audit trail
 ```
 
-### The Agent Identity
+Multiple `SOUL_[AGENT_ID].md` files in a project folder is normal — it means multiple agents have worked there. Each agent only reads and writes its own.
 
-Every agent that joins a project builds an `AGENT_ID`:
+### Agent Identity Resolution
+
+Every agent that boots resolves its identity in this order before doing anything else:
 
 ```
-[MODEL]-[ROLE]-[##]
+1. Was I given a name by a human?
+   "You are Claude-Research-Finance-01"  → use that name, find that SOUL file
 
-Claude-Builder-01
-Qwen-Coder-DevOps-01
-OpenCode-Reviewer-02
-Agent-Research-01-a3f7    ← unknown model gets random hex suffix
+2. Not named? Detect model + build a candidate ID:
+   [MODEL]-[ROLE]-[##]
+   Claude-Builder-01 | Qwen-Coder-DevOps-01 | Agent-Research-01-a3f7
+
+3. Find my SOUL file:
+   First: ~/.harness/souls/[AGENT_ID].md        ← global (travels across projects)
+   Then:  HARNESS_ROOT/SOUL_[AGENT_ID].md        ← project-local fallback
+
+4. Found? → I am a returning agent. Load my history.
+   Not found? → I am new. Create my SOUL file. Begin.
 ```
+
+**The soul file is personal and global.** It lives outside the project folder so it travels with the agent everywhere. A `Claude-Research-Finance-01` agent built over 6 months carries its full accumulated knowledge into every new project it joins — just say its name.
 
 This ID appears in every log entry, every task claim, every team message. You always know who did what.
 
@@ -193,6 +205,21 @@ Gemini          → research, long context, multimodal
 OpenCode        → codebase-wide refactoring
 OpenClaw/Claw   → multi-channel, scheduled, 24/7 monitoring
 ```
+
+### Specialized Agents — Your AI Bench
+
+Human-assigned names unlock the most powerful feature of the Harness: a bench of specialized agents that compounds over time.
+
+```bash
+# In Claude Code, just tell the agent its name at the start:
+"You are Claude-Research-Finance-01"
+
+# The agent finds ~/.harness/souls/Claude-Research-Finance-01.md
+# Loads 6 months of: working style, lessons learned, project history
+# Boots into your new project as a fully formed specialist
+```
+
+Build specialists over time. Name them. Assign them. Their soul files grow with every session — tasks completed, decisions made, lessons learned. An agent you've run 200 times is fundamentally different from one you just spawned.
 
 ### Takeover Protocol
 
@@ -555,6 +582,7 @@ For now, the `LEARNING/` folder in this repo is the starting point. It will grow
 | v5.0 | SOUL.md, STANDBY mode, multi-project rotation |
 | v6.0 | Project MODE system, capacity math, rotation strategies |
 | v7.0 | LAYER_ACCESS.MD, trust tiers, approval gate, full security |
+| v7.1 | Per-agent SOUL files, identity resolution, human-assigned names, specialized agent bench |
 
 ---
 
