@@ -1,248 +1,504 @@
-# AHOS — AI Handoff Operating System
-## Any AI. Any Project. Any Time. Zero Lost Work.
-### Version 2.0 | Solomon Christ Holdings Inc.
+# 🦂 Agentic Harness
+
+**The Universal Standard for Autonomous AI Agent Swarms**
+
+*By Solomon Christ | [AgenticHarness.io](https://AgenticHarness.io) | [SolomonChrist.com](https://SolomonChrist.com)*
+
+---
+
+<div align="center">
+
+**Paste it. Boot it. Build it.**
+
+*Simple enough to teach. Secure enough to trust. Powerful enough to run a company.*
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-7.0-blue.svg)](https://github.com/SolomonChrist/AgenticHarness)
+[![Works With](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20OpenCode%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Any%20Agent-green.svg)](https://github.com/SolomonChrist/AgenticHarness)
+
+</div>
 
 ---
 
 ## What Is This?
 
-AHOS is a simple system that lets you work on any project using any AI tool — and switch between tools anytime without losing a single thing.
+The AI agent ecosystem has a fragmentation problem. There are dozens of agent systems — Claude Code, OpenCode, OpenClaw, Cursor, Windsurf, Antigravity, Codex, Gemini CLI, GSD, CrewAI, LangChain — and none of them speak the same language. Every project gets locked in. Every migration is a rewrite. Every agent swarm requires a custom architecture.
 
-**The problem it solves:** Every AI tool has a memory that disappears when the session ends. When you switch tools or come back after a break, you have to re-explain everything from scratch. That's a huge waste of time.
+**The Agentic Harness solves this with nine plain Markdown files and a single prompt.**
 
-**The solution:** AHOS saves all of your project's knowledge into files in your project folder — not in the AI. When you open a new AI tool or start a new session, the AI reads those files and picks up exactly where you left off.
+Drop the prompt into any agent system. It boots, reads the files, picks up where the last agent left off, and starts working. Whether the previous agent was Claude Code, an Ollama local model, or OpenClaw — it doesn't matter. The files are the protocol. The files are the handoff. The files are the memory.
 
----
-
-## The Simple Version
-
-Imagine you're writing a book and you have a notebook full of your plot, characters, and next chapters. If your writer gets sick, you hire a new one — they read the notebook and keep writing from the exact right place. The notebook is what matters, not the writer.
-
-AHOS is that notebook. Your AI tools are the writers.
+> *"The complexity is in the system. Not in your workflow."*
 
 ---
 
-## How It Works — In 3 Steps
+## The Core Idea
 
-**Step 1:** You have a project folder. Inside it is a `docs/` folder with files that describe everything about your project.
+Every serious agent system ever built needs the same six things:
 
-**Step 2:** Any AI tool you use — Claude Code, Gemini CLI, OpenCode, Antigravity, or anything else — reads those files first. It instantly knows what the project is, where you left off, and what to do next.
+| What Every Agent Needs | The Harness File |
+|------------------------|-----------------|
+| Who the agent is | `SOUL.md` |
+| What the project is | `PROJECT.md` |
+| Who is allowed in | `LAYER_ACCESS.MD` |
+| Infrastructure & registry | `LAYER_CONFIG.MD` |
+| Long-term memory | `LAYER_MEMORY.MD` |
+| The work queue | `LAYER_TASK_LIST.MD` |
+| Team coordination | `LAYER_SHARED_TEAM_CONTEXT.MD` |
+| Is the agent alive? | `LAYER_HEARTBEAT.MD` |
+| What just happened? | `LAYER_LAST_ITEMS_DONE.MD` |
 
-**Step 3:** When the AI finishes working, it updates those files before it stops. The next AI (or the same one, next time) reads the updates and continues seamlessly.
-
----
-
-## Who This Is For
-
-**Anyone.** You don't need to know how to code. You don't need any technical background. If you can copy, paste, and answer a few questions, you can use AHOS.
-
-This is for people who:
-- Use AI tools to build projects and want to switch between them freely
-- Come back to projects after days or weeks and don't want to re-explain everything
-- Are working on multiple projects at the same time (Project A today, Project C tomorrow)
-- Run out of credits on one AI tool and need to keep going with a different one
+Plain Markdown. Version-controlled with Git. Readable by any human. Writable by any agent. That's it.
 
 ---
 
-## Supported AI Tools
+## Quick Start
 
-AHOS works with any AI tool that can read and write files. This includes:
-
-| Tool | How to Use It |
-|------|-------------|
-| Claude Code | Use `CLAUDE.md` — read it into your session |
-| Gemini CLI | Use `GEMINI.md` — use `@filename` syntax |
-| OpenCode | Use `AGENTS.md` |
-| Antigravity | Use `AGENTS.md` |
-| Any future tool | Use `AGENTS.md` — works with anything |
-
----
-
-## Getting Started — 3 Ways
-
-### Option 1: Just Paste the Prompt (Easiest)
-1. Create a new folder for your project
-2. Open any AI tool
-3. Copy `AHOS_PROMPT.md` and paste the whole thing into the AI
-4. Answer 3 questions when it asks
-5. You're building
-
-### Option 2: Run the Setup Script
-If you're comfortable with a terminal:
 ```bash
-bash ahos-init.sh my-project-name
-```
-The script creates everything in under 30 seconds.
+# 1. Navigate to your project folder
+cd /your/project/folder
 
-### Option 3: Use as a GitHub Template
-Fork this repo and use it as a template. Every new project starts ready to go.
-
----
-
-## Switching Between AI Tools
-
-This is the whole point. Here's exactly what you do:
-
-1. Make sure the current AI finished its session (all files updated, work saved)
-2. Open your project folder in the new AI tool
-3. Paste `CLAUDE.md`, `AGENTS.md`, or `GEMINI.md` into it (whichever matches your new tool)
-4. The AI reads the files and says where things are
-5. Keep building
-
-No explanation needed. No starting over. Zero wasted time.
-
----
-
-## Working on Multiple Projects
-
-You can have as many AHOS projects as you want. Each has its own folder with its own `docs/` folder.
-
-When you want to work on Project A: open that folder, paste the prompt or the adapter file, go.
-
-When you feel like switching to Project F: close that session, open Project F's folder, paste the prompt, go.
-
-Each project remembers exactly where it left off — indefinitely.
-
----
-
-## What's In Your Project Folder
-
-Every AHOS project has this structure. Here's what each piece does, in plain language:
-
-### The 3 Adapter Files (at the root)
-These tell each AI tool how to get started. One for Claude, one for Gemini, one for everyone else.
-
-| File | For |
-|------|-----|
-| `CLAUDE.md` | Claude Code and Claude.ai |
-| `GEMINI.md` | Gemini CLI and Google AI tools |
-| `AGENTS.md` | OpenCode, Antigravity, and everything else |
-
-### The docs/ Folder — The Project Brain
-
-| File | What It Does | Updated |
-|------|-------------|---------|
-| `PROJECT_RULES.md` | The rulebook — all AIs read this first | When rules change |
-| `QUICK_SUMMARY.md` | Fast catch-up — what's happening right now | Every session |
-| `WHAT_I_KNOW.md` | Stable facts about this project | When facts change |
-| `WHATS_HAPPENING_NOW.md` | The handoff — where we left off | Every session |
-| `NEXT_STEPS.md` | The to-do list | Every session |
-| `HOW_IT_WORKS.md` | How the project is designed | When design changes |
-| `DECISIONS_WE_MADE.md` | Why we chose to do things this way | When decisions are made |
-| `HOW_TO_TEST.md` | How to check everything works | When tests change |
-| `TOOLS_AVAILABLE.md` | What tools, apps, and APIs the AI can use | When tools change |
-| `WHAT_IS_ALLOWED.md` | What the AI can do without asking | When rules change |
-| `SESSION_HISTORY.md` | A log of every work session | Every session |
-| `ERRORS_WE_HIT.md` | Problems we hit and how we fixed them | When errors happen |
-| `SETUP_GUIDE.md` | How to set the project up from scratch | When setup changes |
-| `VERSION_HISTORY.md` | What changed and when — milestone log | When milestones hit |
-| `PASSWORDS_NEEDED.md` | What keys/passwords are needed (never values) | When secrets change |
-
----
-
-## The End-of-Session Rule
-
-This is what makes the whole system work. Every time an AI finishes a session — whether it's 5 minutes or 5 hours — it must do these 6 things before stopping:
-
-1. Update `WHATS_HAPPENING_NOW.md` with a full summary
-2. Update `NEXT_STEPS.md` — check off done, add new tasks
-3. Add a new entry to `SESSION_HISTORY.md`
-4. Rewrite `QUICK_SUMMARY.md` with the current state
-5. Save: `git add . && git commit -m "[tool-name] what was done"`
-6. Push: `git push`
-
-That's the seal. If these 6 things happened, the next AI — on any platform, any time — can pick this up in under 60 seconds.
-
----
-
-## What AI Tools Can and Can't Do
-
-Every AHOS project has a `WHAT_IS_ALLOWED.md` file that defines clear rules:
-
-**Green light — do freely:**
-Read files, write to the docs folder, run tests, install dev tools, create new files, commit to branches
-
-**Yellow light — ask first:**
-Delete files, change the database, push to the main branch, install new packages, rename folders
-
-**Red light — never without written permission:**
-Touch passwords/keys, deploy to production, delete database tables, change payment code, force-push
-
-If an AI isn't sure which category something falls into, it stops, documents the situation in `WHATS_HAPPENING_NOW.md`, and waits for instruction.
-
----
-
-## The Git Commit Format
-
-Every time an AI saves work, it uses this format so you can see exactly who did what:
-
-```
-[claude] added user login page
-[gemini] fixed the broken API connection
-[opencode] updated architecture docs
-[antigravity] completed checkout flow
+# 2. Paste the contents of HARNESS_PROMPT.md into your agent
+# 3. The agent boots, creates all files, asks you to define the project
+# 4. You answer 7 questions. Agent starts building.
 ```
 
----
-
-## Common Questions
-
-**Do I need to know how to code?**
-No. The prompt handles all the setup. You just answer questions about your project.
-
-**What if I don't use GitHub?**
-The git parts are optional but recommended. The core AHOS system works with just the files — git is just how you back up and track changes.
-
-**Can I have different rules for different projects?**
-Yes. Each project has its own `docs/` folder with its own rules. Project A can have completely different settings from Project B.
-
-**What if an AI doesn't follow the rules?**
-Paste the adapter file again and tell it to read `docs/PROJECT_RULES.md` first. The files always have the correct state.
-
-**Can multiple people use this?**
-Yes. Each person's AI reads the same files. As long as everyone follows the end-of-session rule, the project stays in sync.
-
-**What if I forget to tell the AI to save at the end?**
-Just do it at the start of the next session — ask the AI to update `WHATS_HAPPENING_NOW.md` with what it remembers from last time before moving on.
+The agent handles everything else — identity, file creation, git commits, heartbeat, handoffs.
 
 ---
 
-## Version History
+## How It Works
 
-**v2.0** — Current
-- Renamed all files to plain English (no jargon)
-- Added `QUICK_SUMMARY.md` for fast catch-up in any tool
-- Added `ERRORS_WE_HIT.md` to prevent repeating mistakes
-- Added `SETUP_GUIDE.md` and `VERSION_HISTORY.md`
-- Added `PASSWORDS_NEEDED.md` to safely track required credentials
-- Simplified all language to work for non-technical users
-- Added support notes for Antigravity and OpenCode
+### The Nine Files
 
-**v1.0** — Original
-- Core 10-file structure
-- Three adapter files
-- Session lifecycle protocol
+Every Harness project is a folder with nine files. Create them yourself or let the agent create them on first boot.
+
+```
+your-project/
+├── SOUL.md                        # Agent identity & capabilities
+├── PROJECT.md                     # Mission, mode, milestones
+├── LAYER_ACCESS.MD                # 🔒 Who is allowed. Trust tiers.
+├── LAYER_CONFIG.MD                # Agent registry, rotation list
+├── LAYER_MEMORY.MD                # Permanent decisions (append only)
+├── LAYER_TASK_LIST.MD             # Work queue
+├── LAYER_SHARED_TEAM_CONTEXT.MD   # Team whiteboard
+├── LAYER_HEARTBEAT.MD             # Liveness signals
+└── LAYER_LAST_ITEMS_DONE.MD       # One-line audit trail
+```
+
+### The Agent Identity
+
+Every agent that joins a project builds an `AGENT_ID`:
+
+```
+[MODEL]-[ROLE]-[##]
+
+Claude-Builder-01
+Qwen-Coder-DevOps-01
+OpenCode-Reviewer-02
+Agent-Research-01-a3f7    ← unknown model gets random hex suffix
+```
+
+This ID appears in every log entry, every task claim, every team message. You always know who did what.
+
+### The Task System
+
+```
+[ ] TODO              → available
+[→] IN PROGRESS [ID]  → claimed by Claude-Builder-01
+[✓] DONE              → complete (never deleted)
+[✗] BLOCKED           → needs human input
+[⏸] STANDBY          → no tasks, waiting
+```
+
+**Lane locks** prevent two agents claiming the same task — the first agent to write its ID owns it. No semaphores. No distributed consensus. Just a convention that scales.
+
+### Project Modes
+
+Tell the agent how to work based on what matters for your project:
+
+| Mode | What it means |
+|------|--------------|
+| 💰 **SAVINGS** | Minimize tokens. Smaller models. Batch operations. |
+| ✅ **COMPLETION** | Quality first. Best models. Verify everything. |
+| ⚡ **SPEED** | Fastest path. Parallel where possible. Skip polish. |
+| 🧠 **CAPABILITIES** | Match tasks to best agent type. |
+| 🎯 **MIX** | Custom blend — e.g. `60% COMPLETION + 40% SAVINGS` |
+
+---
+
+## Security: The Approval Gate
+
+Agent security is broken across the industry. [Only 14.4% of organizations send agents to production with full security approval.](https://www.gravitee.io/blog/state-of-ai-agent-security-2026-report-when-adoption-outpaces-control)
+
+The Harness solves this with one file and four tiers.
+
+### Trust Tiers
+
+```
+🔴 GUEST    → Read only. Cannot claim tasks or write files.
+🟡 TRUSTED  → Standard worker. Can read, write, commit.
+🟢 OPERATOR → Team lead. Can manage config and approve TRUSTED agents.
+⭐ OWNER    → Full control. Sets security level. Approves all tiers.
+```
+
+### Security Levels
+
+```
+OPEN    → Any agent joins automatically. Good for learning.
+MANAGED → New agents start as GUEST. Human approves upgrades. (Recommended)
+STRICT  → Pre-approved only. Unknown agents are hard-blocked.
+LOCKED  → Roster frozen. No new agents. Good for archives.
+```
+
+### The Approval Flow
+
+1. Unknown agent boots into your project
+2. It reads `LAYER_ACCESS.MD` — it's not listed
+3. It posts a request with: model, system, capabilities, reason
+4. **It stops completely.** Cannot read files. Cannot claim tasks.
+5. You open `LAYER_ACCESS.MD`, review, approve with a tier
+6. Agent resumes from where it stopped
+
+One file edit. That's all approval takes. No dashboard. No infrastructure.
+
+**The OpenClaw problem:** An OpenClaw agent (or any untrusted agent) that boots into a `STRICT` project gets: `"⚠️ Project is STRICT. Not pre-approved."` — hard stop. Zero access.
+
+---
+
+## Multi-Agent Swarms
+
+Agents don't communicate directly — they coordinate through files. This asynchronous pattern works across any system, any model, any language.
+
+### Swarm Patterns
+
+**Solo** — One agent, all roles. Good for learning and small projects.
+
+**Power Pair** — Planner breaks down the project, Builder executes tasks.
+
+**Full Team**
+```
+Claude-Planner-01   → PROJECT.md + task breakdown
+Claude-Builder-01   → writing code
+Qwen-Reviewer-01    → reviewing work
+Claude-DevOps-01    → git + deployment
+Claude-Research-01  → gathering context
+```
+
+**Heterogeneous Swarm** — Match models to what they're best at:
+```
+Claude          → reports, writing, complex reasoning
+Qwen-Coder      → code generation, debugging
+Gemini          → research, long context, multimodal
+OpenCode        → codebase-wide refactoring
+OpenClaw/Claw   → multi-channel, scheduled, 24/7 monitoring
+```
+
+### Takeover Protocol
+
+When an agent crashes or disconnects, the next agent to boot:
+- Detects the stale heartbeat (>10 minutes, no SESSION_CLOSE)
+- Logs a takeover event
+- Resets orphaned `IN PROGRESS` tasks to `TODO`
+- Claims them under its own ID
+- Continues without missing a beat
+
+---
+
+## Project Capacity & Rotation
+
+One agent can serve multiple projects. The math:
+
+```
+5-minute time slices × 288 slices/day = 1,440 minutes/day
+Default capacity: 8 projects (~90 min/project/day)
+Maximum capacity: 256 projects (~5 min/project/day)
+```
+
+### Rotation Strategies
+
+```
+EQUAL      → Equal time across all projects
+WEIGHTED   → Custom percentages (40% client-a, 30% client-b...)
+PRIORITY   → HIGH first, then MED, then LOW
+COMPLETION → Finish one project before moving to next
+TRIAGE     → Check all projects, work most urgent
+CUSTOM     → Agent decides based on project modes and urgency
+```
+
+**Security note:** Being approved in project-a grants zero access to project-b. Each project has its own gate.
+
+---
+
+## The Boot Sequence
+
+Every agent runs this exact sequence, in order, every session:
+
+```
+1.  pwd / cd              → Lock HARNESS_ROOT
+2.  Read SOUL.md          → Know who you are
+3.  Read LAYER_ACCESS.MD  → APPROVAL GATE — not approved? Stop.
+4.  Read PROJECT.md       → Know what you're building
+5.  Read all LAYER files  → Load full context
+6.  Takeover check        → Detect and claim orphaned work
+7.  Register              → Write to agent registry
+8.  Open heartbeat        → Signal you're alive
+9.  Git check + commit    → Version control from the start
+10. Read task list        → Find your first task
+```
+
+Agents **do not narrate** this sequence. They execute it.
+
+---
+
+## The Runtime Loop
+
+```
+→ Do the work
+→ Log every action to LAYER_LAST_ITEMS_DONE (one line per action)
+→ Every  5 min: write PULSE to LAYER_HEARTBEAT
+→ Every 15 min: git commit
+→ Meaningful decision → one line to LAYER_MEMORY
+→ Task done → mark [✓] DONE, write handoff, commit, claim next
+→ Blocked → mark [✗] BLOCKED, post in team context, ask user
+→ All done → enter STANDBY, pulse every 5 min, rotate or wait
+```
+
+---
+
+## Session Close
+
+**Always.** Before shutting down, every agent runs:
+
+```bash
+# Update task states
+# Update SOUL.md (increment tasks done, add notes)
+# Write handoff note to LAYER_SHARED_TEAM_CONTEXT
+# Mark INACTIVE in registry
+# Write HEARTBEAT CLOSE
+# Write SESSION_CLOSE to audit log
+git add -A && git commit -m "🔒 session close: [AGENT_ID]"
+```
+
+A clean shutdown means any agent — on any system, any model — picks up exactly where you left off.
+
+---
+
+## The Vision: From Projects to Worlds
+
+The same nine files that coordinate software agents can coordinate characters in a virtual world.
+
+| Harness Concept | Virtual World Equivalent |
+|----------------|------------------------|
+| `SOUL.md` | Character sheet |
+| `PROJECT.md` | World rulebook |
+| `LAYER_MEMORY.MD` | World history |
+| `LAYER_TASK_LIST.MD` | Events queue |
+| `LAYER_SHARED_TEAM_CONTEXT.MD` | Character dialogue log |
+| `LAYER_HEARTBEAT.MD` | World clock |
+
+The Harness becomes the logic backend. A renderer (2D canvas, Three.js, Godot) reads `WORLD_STATE.md` and draws the environment. Agents write their actions. The world updates. NPCs with genuine memory, real reasoning, and persistent histories.
+
+**Text simulation → 2D visual world → 3D virtual environment → persistent civilization.**
+
+---
+
+## Compatible Systems
+
+The Harness is a standard, not a platform. It works with:
+
+| System | Status |
+|--------|--------|
+| Claude Code | ✅ Native |
+| OpenCode | ✅ Native |
+| OpenClaw | ✅ With MANAGED security level |
+| Cursor / Windsurf | ✅ Native |
+| Antigravity | ✅ Native |
+| Codex | ✅ Native |
+| Gemini CLI | ✅ Native |
+| Ollama (local models) | ✅ With llama-server + `--jinja` flag |
+| GSD | ✅ Can run inside GSD projects |
+| GitAgent | ✅ Export-compatible |
+| Any system with file + shell access | ✅ |
+
+---
+
+## Recommended Model Setup (Ollama)
+
+For running locally with tool calling support:
+
+**coder.modelfile** — executor, 16k context
+```
+FROM qwen2.5-coder:3b
+PARAMETER num_ctx 16384
+PARAMETER num_gpu 99
+PARAMETER temperature 0.2
+```
+
+**frontend.modelfile** — interface, 4k context
+```
+FROM qwen2.5-coder:1.5b
+PARAMETER num_ctx 4096
+PARAMETER num_gpu 99
+PARAMETER temperature 0.7
+```
+
+**Windows launcher (claude-local.bat)**
+```batch
+@echo off
+set ANTHROPIC_BASE_URL=http://localhost:11434/v1
+set ANTHROPIC_AUTH_TOKEN=ollama
+set ANTHROPIC_DEFAULT_HAIKU_MODEL=frontend
+set ANTHROPIC_DEFAULT_SONNET_MODEL=coder
+set CLAUDE_CODE_SUBAGENT_MODEL=coder
+set ANTHROPIC_MODEL=sonnet
+set OLLAMA_KEEP_ALIVE=-1
+claude
+```
+
+```bash
+# Build and warm up
+ollama pull qwen2.5-coder:3b && ollama pull qwen2.5-coder:1.5b
+ollama create coder -f coder.modelfile
+ollama create frontend -f frontend.modelfile
+ollama run coder "hello" && ollama run frontend "hello"
+ollama ps
+```
 
 ---
 
 ## Repository Structure
 
 ```
-ahos/
-├── README.md                ← You are here
-├── AHOS_PROMPT.md           ← The single paste prompt — start here
-├── ahos-init.sh             ← One-command setup script
-├── AHOS_Complete_Guide.pdf  ← Full documentation (PDF)
-└── AHOS_Report.md           ← Full documentation (Markdown)
+AgenticHarness/
+├── README.md                          # This file
+├── HARNESS_PROMPT.md                  # The master prompt — paste into any agent
+├── versions/
+│   ├── AGENTIC_HARNESS_v7.0.md        # Current full version
+│   ├── AGENTIC_HARNESS_v6.0.md
+│   └── ...                            # Full version history
+├── scaffolds/
+│   ├── SOUL.md
+│   ├── PROJECT.md
+│   ├── LAYER_ACCESS.MD
+│   ├── LAYER_CONFIG.MD
+│   ├── LAYER_MEMORY.MD
+│   ├── LAYER_TASK_LIST.MD
+│   ├── LAYER_SHARED_TEAM_CONTEXT.MD
+│   ├── LAYER_HEARTBEAT.MD
+│   └── LAYER_LAST_ITEMS_DONE.MD
+├── examples/
+│   ├── solo-project/                  # Single agent example
+│   ├── power-pair/                    # Planner + Builder example
+│   ├── full-team/                     # 5-agent swarm example
+│   └── virtual-world/                 # Simulation example
+├── modelfiles/
+│   ├── coder.modelfile
+│   └── frontend.modelfile
+└── book/
+    └── COURSEBOOK_NOTES_v1.0.md       # University program notes
 ```
+
+---
+
+## The Hard Rules
+
+These never change. Every agent follows them.
+
+```
+0.  APPROVAL GATE FIRST. Not approved? Stop. Post request. Wait.
+1.  HARNESS_ROOT first. No banned paths (/tmp, C:\Users alone, etc).
+2.  Log everything. LAYER_LAST_ITEMS_DONE. One line. Write() or it didn't happen.
+3.  Never delete memory. LAYER_MEMORY is append only.
+4.  Lane locks. One agent per task.
+5.  Always SESSION_CLOSE. Clean shutdowns keep the swarm alive.
+6.  SOUL.md is sacred. Read on boot. Update on close.
+7.  Never fake success. Tool fails = report exact error. Fail loudly.
+8.  STANDBY not silence. No tasks = standby mode + rotation check.
+9.  Respect PROJECT MODE. SAVINGS = lean. COMPLETION = thorough.
+10. No secrets in git. .env refs only in LAYER_CONFIG.
+```
+
+---
+
+## Learn It
+
+### The Book
+
+*The Agentic Harness: Build, Deploy, and Command AI Agent Swarms* — coming soon at [AgenticHarness.io](https://AgenticHarness.io).
+
+A full university-level program covering:
+- What agents are and how LLMs think
+- Every file, every rule, every reason behind the architecture
+- Running real agent swarms on real projects
+- Security, trust tiers, and the approval system
+- Advanced swarm patterns and optimization
+- Building 2D and 3D virtual worlds powered by Harness agents
+- A capstone project that proves you understand the whole system
+
+### The Course
+
+Live bootcamp sessions with Solomon Christ on [Leland](https://www.leland.com).
+Hands-on. Project-based. Real agents on real work.
+
+### Community
+
+- **Website:** [AgenticHarness.io](https://AgenticHarness.io)
+- **Author:** [SolomonChrist.com](https://SolomonChrist.com)
+- **Issues & Discussion:** [GitHub Issues](https://github.com/SolomonChrist/AgenticHarness/issues)
+
+---
+
+## Contributing
+
+The Harness is an open standard. Contributions welcome.
+
+**What we're looking for:**
+- Example projects using the Harness
+- Adapter configs for new agent systems
+- Bug reports from real usage
+- Extensions to the virtual world architecture
+- Translations of the prompt for non-English speakers
+
+**How to contribute:**
+1. Fork the repo
+2. Create a branch: `git checkout -b feature/your-contribution`
+3. Make your changes
+4. Submit a PR with a clear description
+
+**Core prompt changes** require discussion in Issues first. The nine-file architecture and approval gate are stable. Extensions are welcome. Breaking changes need consensus.
+
+---
+
+## Version History
+
+| Version | Key Addition |
+|---------|-------------|
+| v1.0 | Initial harness concept — 6 layers, boot sequence |
+| v2.0 | Agent swarm support, AGENT_ID system |
+| v2.5 | Sandbox enforcement, banned path detection |
+| v3.0 | Single compact prompt for 4096 context windows |
+| v4.0 | Staged multi-message boot for small context windows |
+| v5.0 | SOUL.md, STANDBY mode, multi-project rotation |
+| v6.0 | Project MODE system, capacity math, rotation strategies |
+| v7.0 | LAYER_ACCESS.MD, trust tiers, approval gate, full security |
 
 ---
 
 ## License
 
-Open source. Use it, fork it, share it, build on it.
+MIT License — free to use, modify, and distribute.
+
+Attribution appreciated: *"Built on the Agentic Harness by Solomon Christ — AgenticHarness.io"*
 
 ---
 
-*AHOS v2.0 — Any AI, Any Project, Any Time.*
-*Solomon Christ Holdings Inc.*
+<div align="center">
+
+**🦂 Agentic Harness**
+
+*The complexity is in the system. Not in your workflow.*
+
+[AgenticHarness.io](https://AgenticHarness.io) · [SolomonChrist.com](https://SolomonChrist.com) · [GitHub](https://github.com/SolomonChrist/AgenticHarness)
+
+</div>
