@@ -34,7 +34,7 @@ Drop the prompt into any agent system. It boots, reads the files, picks up where
 
 ## The Core Idea
 
-Every serious agent system ever built needs the same six things:
+Every serious agent system ever built needs the same nine things:
 
 | What Every Agent Needs | The Harness File |
 |------------------------|-----------------|
@@ -425,7 +425,7 @@ These never change. Every agent follows them.
 
 ### The Book
 
-*The Agentic Harness: Build, Deploy, and Command AI Agent Swarms* — coming soon at [AgenticHarness.io](https://AgenticHarness.io).
+A full university-level book is in development — coming soon at [AgenticHarness.io](https://AgenticHarness.io).
 
 A full university-level program covering:
 - What agents are and how LLMs think
@@ -436,11 +436,6 @@ A full university-level program covering:
 - Building 2D and 3D virtual worlds powered by Harness agents
 - A capstone project that proves you understand the whole system
 
-### The Course
-
-Live bootcamp sessions with Solomon Christ on [Leland](https://www.leland.com).
-Hands-on. Project-based. Real agents on real work.
-
 ### Community
 
 - **Website:** [AgenticHarness.io](https://AgenticHarness.io)
@@ -448,25 +443,6 @@ Hands-on. Project-based. Real agents on real work.
 - **Issues & Discussion:** [GitHub Issues](https://github.com/SolomonChrist/AgenticHarness/issues)
 
 ---
-
-## Contributing
-
-The Harness is an open standard. Contributions welcome.
-
-**What we're looking for:**
-- Example projects using the Harness
-- Adapter configs for new agent systems
-- Bug reports from real usage
-- Extensions to the virtual world architecture
-- Translations of the prompt for non-English speakers
-
-**How to contribute:**
-1. Fork the repo
-2. Create a branch: `git checkout -b feature/your-contribution`
-3. Make your changes
-4. Submit a PR with a clear description
-
-**Core prompt changes** require discussion in Issues first. The nine-file architecture and approval gate are stable. Extensions are welcome. Breaking changes need consensus.
 
 ---
 
@@ -482,6 +458,56 @@ The Harness is an open standard. Contributions welcome.
 | v5.0 | SOUL.md, STANDBY mode, multi-project rotation |
 | v6.0 | Project MODE system, capacity math, rotation strategies |
 | v7.0 | LAYER_ACCESS.MD, trust tiers, approval gate, full security |
+
+---
+
+## The Origin Story
+
+This didn't start as a framework. It started as frustration.
+
+I was running AI agents on real client projects — trying to get actual work done, not demos. And I kept hitting the same walls:
+
+**The fragmentation wall.** I'd build something in Claude Code and it would be stuck there. Switch to OpenCode for a project that needed local models — start over. Try OpenClaw for a client who needed WhatsApp integration — completely different architecture. Every tool I used spoke a different language. Every project was a silo. Moving between them meant rewriting everything.
+
+**The context wall.** Claude Code is exceptional — but it has limits. Long sessions drift. Context windows fill up. The agent loses the thread of what it was building. I needed a way for an agent to pick up exactly where another left off, even after a crash, even after switching models entirely.
+
+**The privacy wall.** Some of my projects can't go to Anthropic's API. Client data. Sensitive workflows. Personal systems I want running on my own hardware. But running local models meant losing the tool execution that makes agents actually useful. The gap between "cloud agent that works" and "local agent that's private" was enormous.
+
+**The cost wall.** Running capable models 24/7 on multiple projects isn't cheap. I needed a way to be smart about which models do which tasks — use Claude when you need Claude's brain, use a local Qwen-Coder when you just need to write a function.
+
+The Agentic Harness is what I built to solve my own problems. It's still what I use to solve my own problems — and now my students' problems too. Every version change in this repo traces back to something that broke in a real project, a real client situation, or a real teaching session where a student hit a wall I hadn't anticipated.
+
+It's not done. It never will be. That's the point.
+
+---
+
+## Inspiration & Credit
+
+The Harness didn't emerge from nothing. It was built by studying what every other team was trying to solve and distilling the patterns that showed up everywhere. Full credit to the builders whose work shaped this thinking:
+
+### Agent Systems
+
+| Project | What it taught us | License |
+|---------|------------------|---------|
+| [OpenClaw](https://github.com/openclaw/openclaw) | Gateway architecture, heartbeat pattern, skill-based Markdown files, multi-channel routing | MIT |
+| [GSD — Get Shit Done](https://github.com/gsd-build/get-shit-done) | Spec-first development, no work before the spec is defined, subagent orchestration | MIT |
+| [GitAgent](https://github.com/open-gitagent/gitagent) | Agent identity as git-native files, SOUL.md concept, framework-agnostic portability | MIT |
+| [OpenCode](https://github.com/opencode-ai/opencode) | Open source Claude Code alternative, multi-model support | MIT |
+| [GSD for OpenCode](https://github.com/rokicool/gsd-opencode) | Adapting GSD patterns for non-Claude runtimes | MIT |
+| [GSD for Antigravity](https://github.com/toonight/get-shit-done-for-antigravity) | Cross-runtime adaptation patterns, PROJECT_RULES.md as a model-agnostic single source of truth | MIT |
+
+### Research & Reading
+
+| Resource | Key Insight |
+|----------|------------|
+| [ReAct: Synergizing Reasoning and Acting](https://arxiv.org/abs/2210.03629) | The foundational Reason → Act → Observe loop every agent runtime implements |
+| [State of AI Agent Security 2026 — Gravitee](https://www.gravitee.io/blog/state-of-ai-agent-security-2026-report-when-adoption-outpaces-control) | Only 14.4% of orgs ship agents with full security approval — the problem the Approval Gate solves |
+| [Securing AI Agents — Bessemer Venture Partners](https://www.bvp.com/atlas/securing-ai-agents-the-defining-cybersecurity-challenge-of-2026) | "Give agents an identity, scope their access, audit what they do the same way you would any other actor" |
+| [OpenClaw Architecture Deep Dive](https://ppaolo.substack.com/p/openclaw-system-architecture-overview) | Lane queues, serial execution, semantic snapshots — engineering reliability into agent systems |
+
+### The Pattern Nobody Owns
+
+Every system above discovered the same thing independently: agents need identity, memory, a task queue, a coordination layer, a liveness signal, and a log. The Harness names these explicitly and makes them portable. The insight isn't new. The standardization is.
 
 ---
 
