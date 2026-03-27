@@ -1,6 +1,6 @@
 # 🦂 Agentic Harness
 
-**The Universal Standard for Autonomous AI Agent Swarms**
+**The OPC Stack. One person. Virtual team. Real results.**
 
 *By Solomon Christ | [AgenticHarness.io](https://AgenticHarness.io) | [SolomonChrist.com](https://SolomonChrist.com)*
 
@@ -10,10 +10,10 @@
 
 **Paste it. Boot it. Build it.**
 
-*Simple enough to teach. Secure enough to trust. Powerful enough to run a company.*
+*The OPC Stack. One person. Virtual team. Real results.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-7.1-blue.svg)](https://github.com/SolomonChrist/AgenticHarness)
+[![Version](https://img.shields.io/badge/version-10.0-blue.svg)](https://github.com/SolomonChrist/AgenticHarness)
 [![Works With](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20OpenCode%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Any%20Agent-green.svg)](https://github.com/SolomonChrist/AgenticHarness)
 
 </div>
@@ -24,9 +24,9 @@
 
 The AI agent ecosystem has a fragmentation problem. There are dozens of agent systems — Claude Code, OpenCode, OpenClaw, Cursor, Windsurf, Antigravity, Codex, Gemini CLI, GSD, CrewAI, LangChain — and none of them speak the same language. Every project gets locked in. Every migration is a rewrite. Every agent swarm requires a custom architecture.
 
-**The Agentic Harness solves this with nine plain Markdown files and a single prompt.**
+**The Agentic Harness solves this with ten plain Markdown files, a Skills folder, and a single prompt.**
 
-Drop the prompt into any agent system. It boots, reads the files, picks up where the last agent left off, and starts working. Whether the previous agent was Claude Code, an Ollama local model, or OpenClaw — it doesn't matter. The files are the protocol. The files are the handoff. The files are the memory.
+Drop the prompt into any agent system. It detects the situation — new project, existing Harness, or an existing codebase that needs converting — and handles it automatically. The files are the protocol. The files are the handoff. The files are the memory.
 
 > *"The complexity is in the system. Not in your workflow."*
 
@@ -47,6 +47,9 @@ Every serious agent system ever built needs the same nine things:
 | Team coordination | `LAYER_SHARED_TEAM_CONTEXT.MD` |
 | Is the agent alive? | `LAYER_HEARTBEAT.MD` |
 | What just happened? | `LAYER_LAST_ITEMS_DONE.MD` |
+| Human action needed? | `LAYER_HUMAN_QUEUE.MD` |
+
+Plus a `SKILLS/` folder where agents store discovered techniques, n8n workflows, and automations — compounding across every session and every agent that ever works on the project.
 
 Plain Markdown. Version-controlled with Git. Readable by any human. Writable by any agent. That's it.
 
@@ -67,11 +70,35 @@ The agent handles everything else — identity, file creation, git commits, hear
 
 ---
 
+## Drop It Anywhere — Three Scenarios Handled Automatically
+
+The agent detects which situation it's in and executes the right flow. No human decision needed.
+
+**Scenario A — New empty project**
+Creates all files, runs the setup wizard, starts building.
+
+**Scenario B — Existing Harness project**
+Reads all layers, checks for crashed agents, registers itself, continues from the last handoff.
+
+**Scenario C — Converting an existing codebase** ← most common
+```bash
+# Agent automatically:
+1. mkdir BACKUP/ → copies ALL existing files there first
+2. Reads every .md, README, config, and key code file
+3. Writes findings to LAYER_MEMORY.MD
+4. Creates all 10 LAYER files based on what it found
+5. Runs setup wizard (pre-filled with findings)
+6. Writes handoff note → asks user to review
+```
+Your existing work is preserved in `BACKUP/`. The Harness layers are created on top. Nothing is deleted.
+
+---
+
 ## How It Works
 
-### The Nine Files
+### The Ten Files + Skills
 
-Every Harness project is a folder with nine files. The agent creates them automatically on first boot — you never need to create them manually.
+Every Harness project is a folder with ten files plus a Skills folder. The agent creates them automatically on first boot — you never need to create them manually.
 
 ```
 your-project/
@@ -79,12 +106,17 @@ your-project/
 ├── SOUL_Qwen-Coder-DevOps-01.md       # Another agent's identity (if they've worked here)
 ├── PROJECT.md                         # Mission, mode, milestones
 ├── LAYER_ACCESS.MD                    # 🔒 Who is allowed. Trust tiers.
-├── LAYER_CONFIG.MD                    # Agent registry, rotation list
+├── LAYER_CONFIG.MD                    # Agent registry, rotation list, model budget
 ├── LAYER_MEMORY.MD                    # Permanent decisions (append only)
-├── LAYER_TASK_LIST.MD                 # Work queue
+├── LAYER_TASK_LIST.MD                 # Work queue with lane locks + human checkout
 ├── LAYER_SHARED_TEAM_CONTEXT.MD       # Team whiteboard
 ├── LAYER_HEARTBEAT.MD                 # Liveness signals
-└── LAYER_LAST_ITEMS_DONE.MD           # One-line audit trail
+├── LAYER_LAST_ITEMS_DONE.MD           # One-line audit trail
+├── LAYER_HUMAN_QUEUE.MD               # 🧑 Human action required — feeds dashboard + Telegram
+├── BACKUP/                            # Created by Scenario C — original files preserved
+└── SKILLS/
+    ├── SKILL_INDEX.md                 # Master list — agents read on boot
+    └── SKILL_[name].md                # Individual discovered techniques
 ```
 
 Multiple `SOUL_[AGENT_ID].md` files in a project folder is normal — it means multiple agents have worked there. Each agent only reads and writes its own.
@@ -220,6 +252,52 @@ Human-assigned names unlock the most powerful feature of the Harness: a bench of
 ```
 
 Build specialists over time. Name them. Assign them. Their soul files grow with every session — tasks completed, decisions made, lessons learned. An agent you've run 200 times is fundamentally different from one you just spawned.
+
+### The Skills System
+
+When an agent discovers a reusable technique, it writes a SKILL file. Every future agent reads `SKILL_INDEX.md` on boot and inherits that knowledge.
+
+```
+SKILLS/SKILL_parse-csv-pipeline.md
+  Discovered by: Claude-Builder-01 | Date: 2026-03-25
+  ## What it does: Fast CSV to JSON pipeline
+  ## How to use it: [exact steps]
+  ## Gotchas: Watch for encoding issues on Windows
+```
+
+n8n workflows, automation scripts, API tricks, code patterns — anything reusable goes here. The Skills folder compounds across every agent and every session for the lifetime of the project.
+
+### Human Agents + Checkout
+
+Humans are first-class agents. They claim tasks with CHECKOUT — no AI may touch a checked-out task:
+
+```
+[⏸ HUMAN] Design the login flow  [Human-Developer-01]  CHECKOUT: 2026-03-25
+```
+
+When an AI hits a blocker that needs human input, it posts to `LAYER_HUMAN_QUEUE.MD` and moves on to the next available task — never idles:
+
+```
+[TS] [AGENT_ID] 🧑 HUMAN_REQUIRED — Task: approve DB schema | Urgency: HIGH
+```
+
+`LAYER_HUMAN_QUEUE.MD` is the notification feed. Your future Telegram bot and dashboard watch this file to alert you from anywhere in the world.
+
+### Model Resilience — Swap Anytime
+
+Running out of credits? Context window at 75%? The layers survive any model swap:
+
+```
+Context at 75% → save all logs → commit "⚡ context save: [ID]" → fresh session
+Out of credits → SESSION_CLOSE → open OpenCode + local model → Scenario B → continue
+```
+
+```
+## Model Budget (in LAYER_CONFIG.MD)
+Primary:    claude-haiku (Claude Code)
+Fallback 1: opencode + qwen2.5-coder:3b (local, free)
+Fallback 2: opencode + mistral (local, free)
+```
 
 ### Takeover Protocol
 
@@ -582,7 +660,10 @@ For now, the `LEARNING/` folder in this repo is the starting point. It will grow
 | v5.0 | SOUL.md, STANDBY mode, multi-project rotation |
 | v6.0 | Project MODE system, capacity math, rotation strategies |
 | v7.0 | LAYER_ACCESS.MD, trust tiers, approval gate, full security |
-| v7.1 | Per-agent SOUL files, identity resolution, human-assigned names, specialized agent bench |
+| v7.1 | Per-agent SOUL files, identity resolution, human-assigned names |
+| v8.0 | Three-scenario auto-detection, BACKUP on conversion, SKILLS/ folder, LAYER_HUMAN_QUEUE.MD, human checkout, model budget + swap resilience |
+| v9.0 | Management layer: MASTER_STATUS, TELEGRAM_QUEUE, REPUTATION, WORLD_STATE, Telegram bot, web dashboard |
+| v10.0 | **The OPC Stack.** Personalities, autonomous mode, Scenario D upgrade path, file consolidation (14→10), nightly retrospective, AGENT_CARD, context save ritual, universal skills format, .claude/settings.json, subagents, OPC model |
 
 ---
 
