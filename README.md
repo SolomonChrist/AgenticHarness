@@ -20,6 +20,8 @@
 
 ---
 
+WATCH THE VIDEO HERE: 
+
 [![Watch the video](https://img.youtube.com/vi/00d4VirHhao/maxresdefault.jpg)](https://youtu.be/00d4VirHhao)
 
 ## What Is This?
