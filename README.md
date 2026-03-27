@@ -20,6 +20,8 @@
 
 ---
 
+[![Watch the video](https://img.youtube.com/vi/00d4VirHhao/maxresdefault.jpg)](https://youtu.be/00d4VirHhao)
+
 ## What Is This?
 
 The AI agent ecosystem has a fragmentation problem. There are dozens of agent systems — Claude Code, OpenCode, OpenClaw, Cursor, Windsurf, Antigravity, Codex, Gemini CLI, GSD, CrewAI, LangChain — and none of them speak the same language. Every project gets locked in. Every migration is a rewrite. Every agent swarm requires a custom architecture.
