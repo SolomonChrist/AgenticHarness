@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Write(LAYER_*.MD)",
+      "Write(AGENT_CARD.md)",
+      "Write(SKILLS/**)",
+      "Write(.harness_wake)",
+      "Write(LAYER_HEARTBEAT.MD)",
+      "Write(LAYER_LAST_ITEMS_DONE.MD)",
+      "Write(LAYER_TASK_LIST.MD)",
+      "Write(LAYER_SHARED_TEAM_CONTEXT.MD)",
+      "Write(LAYER_MEMORY.MD)",
+      "Write(LAYER_CONFIG.MD)",
+      "Write(LAYER_ACCESS.MD)"
+    ]
+  }
+}

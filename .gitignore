@@ -1,0 +1,48 @@
+# 🦂 Agentic Harness — .gitignore
+
+# ── CREDENTIALS (NEVER COMMIT) ──────────────────────────────────────
+.env
+.env.telegram
+.env.bots
+*.key
+*.pem
+
+# ── HARNESS RUNTIME DATA ─────────────────────────────────────────────
+BACKUP/
+.tmp/
+data/
+logs/
+*.log
+.harness_wake
+
+# ── SOUL FILES (global — personal to each user) ─────────────────────
+# Note: Users store soul files at ~/.harness/souls/ not in this repo
+SOUL_*.md
+!SOUL_example.md
+
+# ── PYTHON ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# ── NODE / NPM ───────────────────────────────────────────────────────
+node_modules/
+dist/
+.next/
+
+# ── OS ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── EDITORS ──────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
