@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Harness</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div id="workspace-select" class="view">
+        <div class="card centered">
+            <h2>Select Workspace</h2>
+            <p>Enter the absolute path to your Agentic Harness workspace.</p>
+            <input type="text" id="ws-path" placeholder="C:\...\MyHarness" onkeypress="if(event.key === 'Enter') setWorkspace(false)">
+            <button onclick="setWorkspace(false)" class="w-full">Connect</button>
+            <button id="ws-create-btn" onclick="setWorkspace(true)" class="btn-secondary w-full hidden mt-1">Create new workspace here</button>
+            <div id="ws-error" class="error mt-1"></div>
+        </div>
+    </div>
+
+    <div id="onboarding" class="view hidden">
+        <div class="card centered large">
+            <h2 id="ftue-title">Welcome to Agentic Harness</h2>
+            <div id="ftue-content"></div>
+            <button onclick="nextFtueStep()">Continue</button>
+        </div>
+    </div>
+
+    <div id="dashboard" class="view hidden">
+        <nav class="sidebar">
+            <h2>Agentic Harness</h2>
+            <div id="nav-board" class="nav-item active" onclick="switchTab('board')">Command Center</div>
+            <div id="nav-tasks" class="nav-item" onclick="switchTab('tasks')" style="display:flex;justify-content:space-between;align-items:center;">Master Tasks <span id="task-nav-count" style="font-size:0.75em;background:#4a9eff22;color:#4a9eff;padding:1px 7px;border-radius:99px;"></span></div>
+            <div id="nav-swarm" class="nav-item" onclick="switchTab('swarm')">Swarm Status</div>
+            <div id="nav-visualizer" class="nav-item" onclick="switchTab('visualizer')">3D Visualizer</div>
+            <div id="nav-logs" class="nav-item" onclick="switchTab('logs')">System Logs</div>
+            <div id="nav-bots" class="nav-item" onclick="switchTab('bots')">Bot Management</div>
+            <div id="nav-system" class="nav-item" onclick="switchTab('system')">Configuration</div>
+            <div class="status-indicator">
+                <span class="dot online"></span>
+                <span>Workspace Connected</span>
+            </div>
+        </nav>
+
+        <main class="content">
+            <header>
+                <div class="header-left">
+                    <h1 id="current-tab-title">Command Center</h1>
+                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 2px;">
+                        <div id="next-action-tip" class="subtle small" style="color: var(--accent-hover);">Next Action: Awaiting instructions.</div>
+                        <div class="subtle small" style="opacity: 0.5;">| Sync: <span id="last-sync-time">never</span></div>
+                    </div>
+                </div>
+                <div class="header-right" style="display: flex; align-items: center; gap: 12px;">
+                    <div id="ready-indicator" class="ready-badge" title="System Readiness Status">Initializing...</div>
+                    <button onclick="toggleTutorial()" class="btn-secondary small" style="border-radius: 99px; padding: 4px 12px; font-size: 0.7rem;">Quick Start</button>
+                    <button onclick="toggleOperatorConsole(true)" class="btn-secondary small" style="border-radius: 99px; padding: 4px 12px; font-size: 0.7rem;">Open Console</button>
+                    <button id="tour-restart-btn" onclick="confirmRestartSwarm()" class="btn-danger small" style="border-radius: 99px; padding: 4px 12px; font-size: 0.7rem;" title="Reset entire daemon fleet">Restart Swarm</button>
+                    <span id="swarm-bot-mode" style="background: var(--bg-deep); padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; border: 1px solid var(--border); font-weight: bold; color: var(--accent);">FAST</span>
+                    <div id="health-tag-container" class="health-tag health-healthy">HEALTHY</div>
+                    <button onclick="refreshData()" class="btn-secondary">Refresh</button>
+                </div>
+            </header>
+            
+            <div id="workspace-info" style="padding: 10px; background: var(--bg-deep); border-bottom: 1px solid var(--border); font-family: monospace; display: flex; justify-content: space-between;">
+                <div>Workspace: <span id="ws-current-path" class="subtle">none</span></div>
+                <div>Last Sync: <span id="ws-last-sync" class="subtle">never</span></div>
+            </div>
+
+            <div id="tab-board" class="tab-content active">
+                <div id="board-tutorial" class="helper-box">
+                    <span class="helper-close" onclick="dismissTutorial('board-tutorial')">×</span>
+                    <strong style="color: var(--accent);">Command Center Overview</strong>
+                    <p style="margin: 5px 0 0 0;">This page summarizes the entire swarm. Use it to check bot pulses, project health, and execution history at a glance.</p>
+                </div>
+                <div class="board-grid">
+                    <section class="board-section">
+                        <div class="board-section-title"><span>📊</span> System Vital Signs</div>
+                        <div class="summary-grid" id="board-health-summary">
+                            <div class="summary-card"><div class="summary-val" id="sv-bots">0</div><div class="summary-label">Specialists Online</div></div>
+                            <div class="summary-card"><div class="summary-val" id="sv-active">0</div><div class="summary-label">Tasks Processing</div></div>
+                            <div class="summary-card"><div class="summary-val" id="sv-blocked" style="color:var(--error)">0</div><div class="summary-label">Blocked Tasks</div></div>
+                            <div class="summary-card"><div class="summary-val" id="sv-stale" style="color:var(--warning)">0</div><div class="summary-label">Stale Heartbeats</div></div>
+                        </div>
+                    </section>
+
+                    <section class="board-section">
+                        <div class="board-section-title"><span>⚡</span> Currently Processing</div>
+                        <div id="board-active-work">
+                            <div class="subtle small p-1">No active tasks being executed.</div>
+                        </div>
+                    </section>
+
+                    <section class="board-section">
+                        <div class="board-section-title"><span>📜</span> Recent History</div>
+                        <div id="board-history">
+                            <div class="subtle small p-1">History is empty.</div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <div id="tab-tasks" class="tab-content">
+                <div id="tasks-tutorial" class="helper-box">
+                    <span class="helper-close" onclick="dismissTutorial('tasks-tutorial')">×</span>
+                    <strong>Task Execution Board</strong>
+                    <p style="margin: 5px 0 0 0;">This is the source of truth for all orchestration. Tasks flow from New to Done. Blocked tasks need your help.</p>
+                </div>
+                <div class="panel" style="display:flex;flex-direction:column;height:100%;padding:0;">
+                    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+                        <h3 style="margin:0;font-size:1em;font-weight:600;">Active Tasks</h3>
+                        <div class="archive-toggle-container" style="border:none;background:transparent;padding:0;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="archive-toggle" onchange="toggleArchive()">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="subtle small">Show History</span>
+                        </div>
+                    </div>
+                    <div id="task-board" style="flex:1;overflow-y:auto;">
+                        <div class="subtle p-2">Loading Task Board...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-swarm" class="tab-content">
+                <div class="panel" id="content-bots">Loading Specialist Roster...</div>
+            </div>
+
+            <div id="tab-visualizer" class="tab-content">
+                <div class="panel" style="padding: 0; height: 100%; overflow: hidden;">
+                    <iframe
+                        id="visualizer-frame"
+                        src="/visualizer.html"
+                        title="3D Visualizer"
+                        style="width: 100%; height: 100%; border: 0; background: #070b13;"
+                    ></iframe>
+                </div>
+            </div>
+
+            <div id="tab-terminal" class="tab-content">
+                <div style="display: flex; flex-direction: column; height: 100%;">
+                    <div class="chat-room" id="content-comms" style="flex: 1; overflow-y: auto; margin-bottom: 0;">Loading...</div>
+                </div>
+            </div>
+
+            <div id="tab-logs" class="tab-content">
+                <div class="panel" style="padding:0; height:100%; display:flex; flex-direction:column;">
+                    <div style="padding:10px 15px; border-bottom:1px solid var(--border); font-size:0.8em; font-weight:bold; color:var(--accent);">
+                        SYSTEM DIAGNOSTICS & RUNTIME LOGS
+                    </div>
+                    <div id="content-logs" class="log-stream" style="flex:1; overflow-y:auto;">
+                        <div class="subtle p-1">No log entries.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-bots" class="tab-content">
+                <div class="bot-mgmt-layout">
+                    <div class="bot-mgmt-rail">
+                        <div class="panel list-panel">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h3 style="margin: 0;">Bots</h3>
+                                <button onclick="showCreateBotModal()" class="btn-secondary small">+ Spawn Specialist</button>
+                            </div>
+                            <div class="subtle small bot-mgmt-hint">Pick a specialist to inspect its live identity, files, and provider setup.</div>
+                            <div class="bot-mgmt-control-panel">
+                                <label class="subtle small" for="bot-select-dropdown">Active Bot</label>
+                                <select id="bot-select-dropdown" class="w-full" onchange="onBotDropdownChange()">
+                                    <option value="">Select a bot...</option>
+                                </select>
+                            </div>
+                            <div id="bot-overview-card" class="bot-overview-card">
+                                <div class="subtle small">Choose a bot to see its role, provider, model, and live focus.</div>
+                            </div>
+                        </div>
+                        <div class="panel list-panel">
+                            <h3>Bot Files</h3>
+                            <div class="subtle small bot-mgmt-hint">Open a grouped bot file from a single clean dropdown instead of scrolling through a broken list.</div>
+                            <div class="bot-mgmt-control-panel">
+                                <label class="subtle small" for="bot-file-dropdown">Open File</label>
+                                <select id="bot-file-dropdown" class="w-full" onchange="onBotFileDropdownChange()">
+                                    <option value="">Select a file...</option>
+                                </select>
+                            </div>
+                    <div id="bot-file-list" class="bot-file-summary">
+                        <div class="subtle small p-1">Pick a bot to load a file. The dropdown above is the main control.</div>
+                    </div>
+                        </div>
+                    </div>
+                    <div class="panel editor-panel bot-editor-shell" style="display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 id="bot-editor-title" style="margin: 0;">Editor</h3>
+                            <button onclick="saveBotFile()" id="bot-save-btn" style="display: none;" class="btn-secondary">Save Changes</button>
+                        </div>
+                        <div id="bot-editor-container" style="flex: 1; display: flex; flex-direction: column; position: relative;">
+                            <textarea id="bot-file-editor" style="flex: 1; font-family: monospace; display: none; white-space: pre; overflow-wrap: normal; overflow-x: auto;"></textarea>
+                            <div id="bot-provider-form" style="display: none; flex-direction: column; gap: 10px; background: var(--bg-deep); padding: 15px; border-radius: 4px;">
+                                <div>
+                                    <label class="subtle small">Enabled</label>
+                                    <input type="checkbox" id="prov-enabled">
+                                </div>
+                                <div>
+                                    <label class="subtle small">Provider Type</label>
+                                    <select id="prov-provider" class="w-full">
+                                        <option value="openai">OpenAI</option>
+                                        <option value="lmstudio">LM Studio</option>
+                                        <option value="anthropic">Anthropic</option>
+                                        <option value="PLACEHOLDER">PLACEHOLDER</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="subtle small">Model</label>
+                                    <input type="text" id="prov-model" class="w-full" placeholder="gpt-4-turbo">
+                                </div>
+                                <div>
+                                    <label class="subtle small">API Base URL (Optional)</label>
+                                    <input type="text" id="prov-base" class="w-full" placeholder="http://localhost:1234/v1">
+                                </div>
+                                <div style="margin-top: 5px; padding: 10px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 4px;">
+                                    <div class="subtle small">Current Key Status</div>
+                                    <div id="prov-status-text" style="font-weight: bold; margin-top: 4px; font-size: 0.9em;">Unknown</div>
+                                </div>
+                                <div>
+                                    <label class="subtle small">API Key Plaintext <span class="subtle">(saves over legacy fallbacks)</span></label>
+                                    <input type="password" id="prov-key" class="w-full" placeholder="sk-..." onfocus="this.type='text'" onblur="this.type='password'">
+                                </div>
+                            </div>
+                        </div>
+                        <div id="bot-save-feedback" class="success small mt-1" style="text-align: right; height: 1rem;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-system" class="tab-content">
+                <div class="grid-2">
+                    <div class="panel min-height">
+                        <h3>System Status</h3>
+                        <div class="markdown-render" id="content-status">Loading...</div>
+                    </div>
+                    <div class="panel">
+                        <h3>Project Registration</h3>
+                        <p class="subtle mb-1">Add a project wrapper and pointer.</p>
+                        <input type="text" id="proj-name" placeholder="Name (e.g. Research)">
+                        <input type="text" id="proj-path" placeholder="Absolute Disk Path (optional)" class="mt-1">
+                        <button onclick="registerProject()" class="w-full mt-1 btn-secondary">Register Project</button>
+                        <div id="proj-list" class="mt-1 subtle small"></div>
+                    </div>
+
+                    <div class="panel">
+                        <h3>Data Management</h3>
+                        <p class="subtle mb-1">Backup/Restore workspace state.</p>
+                        <select id="backup-type" class="mb-1 w-full">
+                            <option value="full">Full Workspace</option>
+                            <option value="masterbot">MasterBot Only</option>
+                        </select>
+                        <button onclick="triggerBackup()" class="w-full btn-secondary mb-1">Execute Backup</button>
+                        
+                        <input type="text" id="restore-path" placeholder="Path to Backup folder..." class="mb-1">
+                        <label class="mb-1 subtle small" style="display:block; margin-bottom:10px;">
+                            <input type="checkbox" id="restore-overwrite"> Allow overwriting existing files
+                        </label>
+                        <button onclick="triggerRestore()" class="w-full btn-secondary">Execute Restore</button>
+                        <div id="action-log" class="mt-1 success small"></div>
+                    </div>
+                    
+                    <div class="panel">
+                        <h3 id="master-config-title" style="color: var(--accent);">MasterBot Configuration</h3>
+                        
+                        <div class="mb-1">
+                            <label class="subtle small block mb-1">Operational Mode</label>
+                            <select id="bot-mode-select" class="w-full" onchange="toggleBotMode()">
+                                <option value="fast">Fast Response Mode (Chat Optimzed)</option>
+                                <option value="deep">Deep Coordination Mode (Task Orchestration)</option>
+                            </select>
+                            <div id="mode-feedback" class="small subtle" style="text-align: center; margin-top: 4px;"></div>
+                        </div>
+
+                        <div class="mb-1">
+                            <label class="subtle small block mb-1">Global Routing Policy</label>
+                            <select id="routing-policy-select" class="w-full" onchange="toggleRoutingPolicy()">
+                                <option value="ZERO_COST">ZERO_COST (Local Only)</option>
+                                <option value="CHEAPEST">CHEAPEST (Price Sensitive)</option>
+                                <option value="OPEN_COST">OPEN_COST (Balanced Match)</option>
+                                <option value="HIGHEST_QUALITY">HIGHEST_QUALITY (Performance First)</option>
+                            </select>
+                            <div id="policy-feedback" class="small subtle" style="text-align: center; margin-top: 4px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <h3 style="color: var(--error);">System Process Control</h3>
+                        <p class="subtle mb-1">Manage the lifecycle of the MasterBot and Worker bots. Automatically reload configurations entirely.</p>
+                        <button onclick="restartDaemons()" class="w-full mb-1" style="background: var(--accent); color: #000;">Restart Swarm Daemons</button>
+                        <button onclick="killAllServices()" class="w-full" style="background: var(--error); border: 1px solid darkred;">Kill Background Daemons</button>
+                    </div>
+                </div>
+            </div>
+            
+            <footer class="global-footer">
+                        <span id="composer-mode-label">⚡ GLOBAL COMPOSER</span>
+                        <div id="operator-feedback" class="success small" style="margin:0; height:auto;"></div>
+                    </div>
+                    <div id="readiness-banner" class="readiness-banner" style="display:none; margin-bottom: 10px; padding: 15px; border-radius: 8px; font-size: 0.85rem; position: relative; backdrop-filter: blur(10px);">
+                        <div id="readiness-message"></div>
+                        <div id="readiness-actions" style="margin-top: 10px; display: flex; gap: 8px;">
+                            <button onclick="switchTab('bots')" class="btn-secondary small" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">🔧 Fix Configuration</button>
+                            <button id="force-submit-btn" onclick="submitEntry(true)" class="btn-secondary small" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); opacity: 0.8; font-size: 0.7rem;">Submit Anyway (Advanced)</button>
+                        </div>
+                    </div>
+                    <div class="composer-actions" style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button onclick="submitEntry()" id="submit-btn" style="flex: 1; padding: 10px;">🚀 Submit Request</button>
+                        <button onclick="toggleOperatorConsole(true)" class="btn-secondary" style="padding: 10px;">Open Console</button>
+                        <button onclick="confirmRestartSwarm()" class="btn-danger" style="padding: 10px;" title="Reset entire daemon fleet">🔄 Restart Swarm</button>
+                    </div>
+                </div>
+                <div class="footer-marketing">
+                    <span>Explore the platform and updates at <a href="https://AgenticHarness.io" target="_blank" rel="noopener noreferrer">AgenticHarness.io</a></span>
+                    <span>See Solomon Christ’s workflow systems at <a href="https://SolomonChrist.com" target="_blank" rel="noopener noreferrer">SolomonChrist.com</a></span>
+                </div>
+                <div id="diagnostics-footer" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 10px; font-family: var(--font-mono); font-size: 0.65rem; color: #444; display: flex; justify-content: flex-end;">
+                    <span id="diag-v" style="color:var(--accent); font-weight:bold;">v12.1.34-PRODUCTION</span>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Restart Modal -->
+    <div id="restart-modal" class="modal-overlay" onclick="if(event.target === this) closeRestartModal()">
+        <div class="modal">
+            <h3>🔄 Restart Agentic Swarm?</h3>
+            <div class="modal-body">
+                <p>This will terminate and relaunch all background daemons (MasterBot + Specialists).</p>
+                <div class="warning-box mt-1" style="color:#f87171; font-weight:600; background:rgba(239, 68, 68, 0.1); padding:10px; border-radius:4px; border-left:4px solid #ef4444;">
+                    ⚠️ WARNING: Any tasks currently "In Progress" may be interrupted. Use only when system is stuck or after config changes.
+                </div>
+            </div>
+            <div class="modal-footer" style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
+                <button onclick="closeRestartModal()" class="btn-secondary">Cancel</button>
+                <button onclick="restartSwarmDaemons()" style="background: var(--error);">Restart Entire Swarm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Artifact Chooser Modal -->
+    <div id="artifact-modal" class="modal-overlay" onclick="if(event.target === this) hideArtifactModal()">
+        <div class="modal">
+            <h3 id="artifact-modal-title">Select Artifact</h3>
+            <p id="artifact-modal-desc" class="subtle small">Multiple outputs detected. Choose which one to open.</p>
+            <div id="artifact-list" class="list-container mt-1" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px;">
+                <!-- Dynamically populated -->
+            </div>
+            <div class="modal-actions">
+                <button onclick="hideArtifactModal()" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="quick-start-panel" class="modal-overlay" onclick="if(event.target === this) toggleTutorial()">
+        <div class="modal large">
+            <h2>Swarm Training Manual</h2>
+            <div class="helper-box" style="margin-bottom:20px;">
+                <strong style="color:var(--accent);">The Logic Loop</strong>
+                <p>1. You submit a natural language instruction via the <strong>Global Composer</strong>.<br>2. <strong>MasterBot</strong> plans and delegates sub-tasks to specialists.<br>3. <strong>Worker Bots</strong> claim and execute work in the background.<br>4. Results are saved directly into your workspace files/artifacts.</p>
+            </div>
+            
+            <div class="cheat-sheet-grid">
+                <div>
+                    <h4 style="color:var(--accent); margin-bottom:5px;">State Vocabulary</h4>
+                    <div class="cheat-item"><strong>NEW:</strong> Ready to be claimed by a bot.</div>
+                    <div class="cheat-item"><strong>IN PROGRESS:</strong> Currently being executed.</div>
+                    <div class="cheat-item"><strong>WAITING:</strong> Needs a dependency to finish.</div>
+                    <div class="cheat-item"><strong>BLOCKED:</strong> Failed / needs help.</div>
+                    <div class="cheat-item"><strong>DONE:</strong> Result saved to workspace.</div>
+                </div>
+                <div>
+                    <h4 style="color:var(--accent); margin-bottom:5px;">Common Commands</h4>
+                    <div class="cheat-item">"Research local AI agent frameworks."</div>
+                    <div class="cheat-item">"Analyze my Obsidian vault content."</div>
+                    <div class="cheat-item">"Reset task board" (archives queue).</div>
+                    <div class="cheat-item">"Restart specialists."</div>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top:20px;">
+                <button onclick="toggleTutorial()" class="w-full">Return to Operator Station</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="create-bot-modal" class="modal-overlay">
+        <div class="modal">
+            <h2>Add New Specialist</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Bot Name</label>
+                    <input type="text" id="new-bot-name" placeholder="e.g. ResearchBot" class="w-full">
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <input type="text" id="new-bot-role" placeholder="e.g. researcher" class="w-full">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Harness</label>
+                    <select id="new-bot-harness" class="w-full">
+                        <option value="claude-code">Claude Code (Default)</option>
+                        <option value="base-python">Base Python (Power Users)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Movement Style</label>
+                    <input type="text" id="new-bot-style" list="style-suggestions" placeholder="e.g. proactive" class="w-full">
+                    <datalist id="style-suggestions">
+                        <option value="Proactive">
+                        <option value="Reactive">
+                        <option value="Conservative">
+                        <option value="Aggressive">
+                        <option value="Stealthy">
+                    </datalist>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Provider</label>
+                    <select id="new-bot-provider" class="w-full">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="lmstudio">LM Studio (Local)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Model</label>
+                    <input type="text" id="new-bot-model" placeholder="gpt-4-turbo" class="w-full">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Core Purpose (Soul)</label>
+                <input type="text" id="new-bot-purpose" placeholder="What is this bot's reason for existing?" class="w-full">
+            </div>
+            <div class="form-group">
+                <label>Skills & Expertises</label>
+                <textarea id="new-bot-skills" placeholder="- Expert at data analysis&#10;- Knowledge of Obsidian" style="height: 60px;"></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Tool Advertising (for MasterBot routing)</label>
+                    <textarea id="new-bot-tools" placeholder="- Google Drive CLI&#10;- Python Shell" style="height: 60px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Work Types (for routing)</label>
+                    <textarea id="new-bot-work-types" placeholder="- research&#10;- cleanup&#10;- categorization" style="height: 60px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button onclick="hideCreateBotModal()" class="btn-secondary">Cancel</button>
+                <button onclick="createNewBot()" style="background: var(--success); color: #fff;">Build Specialist</button>
+            </div>
+        </div>
+    </div>
+    <div id="tour-overlay" class="tour-overlay hidden">
+        <div id="tour-tooltip" class="tour-tooltip">
+            <div id="tour-content">Welcome to the Swarm.</div>
+            <div class="tour-actions">
+                <button onclick="skipTour()" class="btn-secondary small">Skip</button>
+                <button onclick="nextTourStep()" id="tour-next-btn">Next</button>
+            </div>
+            <div class="tour-arrow"></div>
+        </div>
+    </div>
+    <div id="operator-console-shell" class="operator-console-shell">
+        <button id="operator-console-launcher" class="operator-console-launcher" onclick="toggleOperatorConsole(true)">Open Console</button>
+        <div id="operator-console-panel" class="operator-console-panel">
+            <div class="console-modal-header">
+                <div>
+                    <h3 style="margin:0;">Operator Console</h3>
+                    <div class="subtle small">Keep the full conversation visible in a compact floating window while you work anywhere in the dashboard.</div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button onclick="switchTab('bots')" class="btn-secondary small">Bots</button>
+                    <button onclick="toggleOperatorConsole(false)" class="btn-secondary small">Minimize</button>
+                </div>
+            </div>
+            <div id="floating-console-chat" class="chat-room console-chat">Loading conversation...</div>
+            <div class="console-composer">
+                <textarea id="floating-operator-input" placeholder="Type a request here. Press Enter to send, Shift+Enter for a new line."></textarea>
+                <div class="composer-actions" style="display:flex; gap:8px;">
+                    <button id="floating-submit-btn" onclick="submitEntry(false, 'floating-operator-input')" class="btn-secondary" style="flex:1;">Send</button>
+                    <button id="floating-force-submit-btn" onclick="submitEntry(true, 'floating-operator-input')" class="btn-secondary" style="display:none;">Send Anyway</button>
+                </div>
+                <div id="readiness-banner" class="readiness-banner" style="display:none; margin-bottom: 0; padding: 12px; border-radius: 8px; font-size: 0.85rem; position: relative; backdrop-filter: blur(10px);">
+                    <div id="readiness-message"></div>
+                    <div id="readiness-actions" style="margin-top: 10px; display: flex; gap: 8px;">
+                        <button onclick="switchTab('bots')" class="btn-secondary small" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">Fix Configuration</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="notification-container"></div>
+    <script src="app.js"></script>
+</body>
+</html>

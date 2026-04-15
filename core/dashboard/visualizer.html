@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Harness 3D Visualizer</title>
+    <link rel="stylesheet" href="/visualizer.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "/vendor/three/three.module.js",
+            "three/addons/": "/vendor/three/addons/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div class="viz-shell">
+        <div class="viz-topbar">
+            <div>
+                <div class="viz-kicker">Meta-Harness Live World</div>
+                <h1>3D Swarm Visualizer</h1>
+            </div>
+            <div class="viz-toolbar">
+                <button id="viz-motion-toggle" class="viz-button" type="button">Motion: Calm</button>
+                <button id="viz-focus-toggle" class="viz-button" type="button">Reset Camera</button>
+            </div>
+            <div class="viz-summary" id="viz-summary">
+                <div class="viz-chip"><span>State</span><strong id="sum-ready">UNKNOWN</strong></div>
+                <div class="viz-chip"><span>Bots</span><strong id="sum-bots">0</strong></div>
+                <div class="viz-chip"><span>Working</span><strong id="sum-working">0</strong></div>
+                <div class="viz-chip"><span>Blocked</span><strong id="sum-blocked">0</strong></div>
+            </div>
+        </div>
+
+        <div class="viz-main">
+            <div class="viz-stage-wrap">
+                <canvas id="viz-canvas"></canvas>
+                <div class="viz-overlay">
+                    <div class="viz-legend">
+                        <div><span class="dot ready"></span> Working</div>
+                        <div><span class="dot queue"></span> Queue</div>
+                        <div><span class="dot done"></span> Done</div>
+                        <div><span class="dot blocked"></span> Blocked</div>
+                    </div>
+                    <div class="viz-statusline" id="viz-statusline">Syncing live swarm state...</div>
+                </div>
+            </div>
+
+            <aside class="viz-sidebar">
+                <section class="viz-panel">
+                    <div class="viz-panel-title">Selected Bot</div>
+                    <div id="bot-detail-empty" class="viz-empty">Click a bot in the scene to inspect its live state.</div>
+                    <div id="bot-detail" class="viz-detail hidden">
+                        <h2 id="bot-name">Bot</h2>
+                        <div class="viz-role" id="bot-role">Role</div>
+                        <div class="viz-grid">
+                            <div><span>Provider</span><strong id="bot-provider">-</strong></div>
+                            <div><span>Model</span><strong id="bot-model">-</strong></div>
+                            <div><span>Harness</span><strong id="bot-harness">-</strong></div>
+                            <div><span>Tier</span><strong id="bot-locality">-</strong></div>
+                            <div><span>Status</span><strong id="bot-status">-</strong></div>
+                            <div><span>Heartbeat</span><strong id="bot-heartbeat">-</strong></div>
+                        </div>
+                        <div class="viz-section">
+                            <div class="label">Current Focus</div>
+                            <div id="bot-focus" class="viz-copy">-</div>
+                        </div>
+                        <div class="viz-section">
+                            <div class="label">Activity</div>
+                            <div id="bot-activity" class="viz-copy">-</div>
+                        </div>
+                        <div class="viz-section">
+                            <div class="label">Blockers</div>
+                            <div id="bot-blockers" class="viz-copy">none</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="viz-panel">
+                    <div class="viz-panel-title">Live Feed</div>
+                    <div id="viz-feed" class="viz-feed">
+                        <div class="viz-empty">No activity yet.</div>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </div>
+
+    <script type="module" src="/visualizer.js"></script>
+</body>
+</html>
