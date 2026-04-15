@@ -1,288 +1,469 @@
-# Agentic Harness (v12.1.34)
+# Agentic Harness V13
 
-**Operator-Owned AI Systems - A Meta-Harness**
+Markdown-first infrastructure for multi-agent swarms.
 
-WELCOME AGENTIC OPERATORS!
+Agentic Harness is a meta harness: a portable coordination layer that lets many different harnesses, bots, workers, and humans operate inside the same system through a shared set of files.
 
-Agentic Harness is an **operator-owned coordination layer** for running AI agents across any model, any runtime, cloud or local, without lock-in.
+This project is built around one core belief:
 
-This is not another AI tool.
-This is the system that **controls all AI tools**.
+**the files are the system**
 
----
+That means the orchestration layer stays:
 
-## Core Idea
+- local-first
+- portable
+- inspectable
+- backup-friendly
+- provider-agnostic
+- resilient to restarts and harness swaps
 
-In Agentic Harness:
-
-* The **bot is NOT the model**
-* The **model is just the engine**
-
-A real bot is:
-
-* identity
-* memory
-* heartbeat
-* learned skills
-* policies
-* task history
-* artifacts
-* relationships to other bots and projects
-
-These live in **your files, your system, your control**.
-
-The harness simply powers execution.
-
----
-
-## What This Solves
-
-Modern AI systems are broken in predictable ways:
-
-* closed ecosystems with token limits and forced upgrades
-* fragmented tools that don’t work together
-* no persistent memory or continuity
-* no true multi-agent collaboration
-* weak or non-existent offline capability
-
-Agentic Harness fixes this by introducing a **persistent, operator-owned layer** that sits above all models.
-
----
+Website: [AgenticHarness.io](https://agenticharness.io)  
+Vision / OPC framing: [SolomonChrist.com](https://solomonchrist.com)
 
 ## What Agentic Harness Is
 
-Agentic Harness is a **Meta-Harness System** that:
+Agentic Harness is not a single vendor runtime.
 
-* runs multiple AI engines as coordinated agents
-* allows agents to collaborate in structured workflows
-* separates identity from execution
-* enables cloud + local hybrid systems
-* gives full control back to the operator
+It is not locked to one model, one tool, or one company.
 
----
+It is a shared protocol for coordination.
 
-## System Architecture
+If a system can read and write markdown files, it can participate.
 
-At the center of the system:
+That means you can mix:
 
-### MasterBot
+- Claude Code
+- OpenClaw
+- Antigravity
+- local custom harnesses
+- simple utility agents
+- human operators
 
-* orchestrates all work
-* routes tasks
-* manages workflows
-* coordinates swarm behavior
-* You can think of this as your Execuitive Assistant or Chief of Staff
+inside one working swarm.
 
-### Worker Bots
+## The V13 Direction
 
-* specialized roles (research, coding, file ops, etc.)
-* can build your own bots
-* can run on different providers simultaneously
-* maintain their own identity + context
+V13 intentionally simplifies the system.
 
-### Operator Layer
+Older versions explored larger runtimes, dashboards, and more embedded behavior. V13 pulls the center of gravity back to the control plane itself:
 
-* you control everything through:
+- one entry file
+- a handful of core markdown files
+- role-based coordination
+- lease-based worker ownership
+- human checkout flow
+- optional transport and visualization layers outside the core
 
-  * dashboard
-  * console
-  * system configs
-  * various frontends in the future (including Telegram and other various frontend models, the underlying layer is the same)
+The goal is not to make the system more complicated.
 
-### Runtime Layer
+The goal is to make it durable, understandable, and easy to carry into any project.
 
-* interchangeable execution engines:
+## The Vision
 
-  * cloud models
-  * local models
-  * external harnesses
+The broader vision behind Agentic Harness is the same one reflected on AgenticHarness.io:
 
----
+- one person can coordinate a virtual team
+- specialized agents can operate like departments or staff roles
+- the operator stays in command
+- different tools can join the same system
+- work continues across sessions, restarts, and role handoffs
 
-## Key Capabilities
+In practice, this can look like:
 
-* Guided onboarding that creates a working swarm instantly
-* Dashboard for full system control and visibility
-* Mixed runtime orchestration (cloud + local)
-* Persistent bot identity and memory structure
-* Multi-agent collaboration across providers
-* Offline-capable execution with local models
-* 3D swarm visualizer for real-time system awareness
-* Restartable, recoverable swarm architecture
+- one `Chief_of_Staff` / MasterBot
+- one Researcher
+- one Engineer
+- one Documentation worker
+- one QA worker
+- one human operator
 
----
+Or a smaller swarm.
 
-## Supported Runtimes
+Or a much larger one.
 
-Agentic Harness is **model-agnostic**.
+The point is not agent count.
 
-Supported systems include:
+The point is that all workers share one control plane and can continue the same work without being trapped inside one harness product.
 
-* OpenAI
-* LM Studio
-* Ollama
-* Anthropic (Claude)
-* OpenRouter
-* Claude Code
+## The Core Idea
 
-You can mix and match these freely inside a single swarm.
+Every harness starts by reading:
 
----
+- `AGENTIC_HARNESS.md`
+
+That file tells the harness:
+
+- what this system is
+- which files matter
+- how roles are claimed
+- how leases work
+- how messaging works
+- how projects are structured
+- how humans are handled
+- how the swarm should continue work
+
+From there, all workers speak the same file protocol.
+
+## How It Works
+
+1. Point any compatible harness at a project folder containing the V13 files.
+2. It reads `AGENTIC_HARNESS.md`.
+3. It reads `ROLES.md` and checks `_heartbeat/` for live or stale roles.
+4. It claims an open or stale role.
+5. It reads the task list, shared context, memory, and recent events.
+6. It begins working.
+7. It writes its progress back into the same markdown system.
+
+The active `Chief_of_Staff` / MasterBot is the main orchestrator.
+
+That role is responsible for:
+
+- talking to the operator
+- managing top-level orchestration
+- recommending which roles are needed
+- routing work
+- covering missing specialist roles when necessary
+
+## Fresh Install Flow
+
+On a fresh install:
+
+- only `Chief_of_Staff` exists by default
+- the first harness claims `Chief_of_Staff`
+- it asks the operator what they want to do
+- it recommends any additional roles needed
+
+This keeps the system lightweight and avoids preloading unnecessary structure.
+
+## Existing Project Adoption
+
+Agentic Harness can also be placed around an existing project.
+
+Recommended flow:
+
+1. Create a fresh Agentic Harness root.
+2. Put the existing project inside `Projects/<project-slug>/`.
+3. Start a `Chief_of_Staff` harness.
+4. Let it inspect the adopted project.
+5. Let it recommend the roles required.
+6. Add only the roles you actually need.
+
+This makes the harness a coordination layer around real work instead of forcing everything into a proprietary runtime.
+
+## The Core Files
+
+These files are the control plane.
+
+### `AGENTIC_HARNESS.md`
+
+The entry file.
+
+Every harness reads this first.
+
+It defines:
+
+- the operating model
+- boot order
+- lease and takeover rules
+- messaging conventions
+- project structure
+- human checkout behavior
+
+### `PROJECT.md`
+
+The global mission and direction for the harness root.
+
+Use it to define:
+
+- what this harness root is for
+- what success looks like
+- constraints
+- current focus
+
+### `LAYER_ACCESS.md`
+
+Authority and write rules.
+
+Use it to define:
+
+- who may write which files
+- what `Chief_of_Staff` may control
+- what role agents may update
+- operator override authority
+
+### `LAYER_CONFIG.md`
+
+Swarm configuration and registry.
+
+Use it to track:
+
+- the active `Chief_of_Staff` role
+- lease timing rules
+- the role registry
+- archive policy
+- path conventions
+
+### `LAYER_MEMORY.md`
+
+Durable memory.
+
+Use it for information that should survive across sessions:
+
+- decisions
+- policies
+- important discoveries
+- user preferences
+- long-term project knowledge
+
+Do not use it for routine chatter.
+
+### `LAYER_TASK_LIST.md`
+
+The top-level task board.
+
+Use it for:
+
+- main tasks
+- task status
+- operator requests
+- human-required work markers
+
+### `LAYER_SHARED_TEAM_CONTEXT.md`
+
+The team whiteboard.
+
+Use it for:
+
+- handoffs
+- short coordination
+- context snapshots
+- team discussion
+- status notes
+
+### `LAYER_LAST_ITEMS_DONE.md`
+
+The operational event log.
+
+Use it to record:
+
+- role claims
+- task starts
+- completions
+- handoffs
+- notifications
+- operator interventions
+- message events
+
+This is what lets new or returning workers understand what happened last and continue from there.
+
+### `ROLES.md`
+
+The intended role list.
+
+Use it to define:
+
+- which roles exist
+- what each role is for
+- what capabilities are expected
+- which roles may write which kinds of work
+
+Live occupancy is not decided here.
+
+Live occupancy is decided by the lease files in `_heartbeat/`.
+
+### `HUMANS.md`
+
+Human registry.
+
+Use it to track:
+
+- human IDs
+- names
+- roles
+- contact methods
+- escalation preferences
+
+Human IDs should use:
+
+- full first and last name in CamelCase
+- plus a random 4-digit suffix
+
+Example:
+
+- `SolomonChrist4821`
+
+## Supporting Folders
+
+### `_heartbeat/`
+
+One file per live role.
+
+These are lease files, not static metadata.
+
+They show:
+
+- who holds the role
+- which harness claimed it
+- what task it is working on
+- last renewal time
+- lease expiry time
+
+If a lease expires, another bot may take over the role.
+
+### `_messages/`
+
+Direct message files.
+
+Use these for:
+
+- bot-targeted messages
+- human-targeted replies
+- Telegram bridge communication
+
+Examples:
+
+- `_messages/Chief_of_Staff.md`
+- `_messages/Researcher.md`
+- `_messages/human_SolomonChrist4821.md`
+
+### `_archive/last_items_done/`
+
+Monthly archive storage for older event log entries.
+
+### `Projects/`
+
+Every major request or client project should become its own subproject here.
+
+Recommended structure:
+
+- `Projects/<project-slug>/PROJECT.md`
+- `Projects/<project-slug>/TASKS.md`
+- `Projects/<project-slug>/CONTEXT.md`
+- `Projects/<project-slug>/ARTIFACTS/`
+
+### `SKILLS/`
+
+Reusable patterns and learned behaviors.
+
+If a worker discovers a reusable workflow, prompt pattern, or operational method, it should be stored here so capability compounds over time.
+
+## Bots, Leases, and Humans
+
+Bots use leases.
+
+Humans use checkout.
+
+### Bot Lease Model
+
+Each active bot role writes to:
+
+- `_heartbeat/<Role>.md`
+
+That file acts as a renewable lease.
+
+If the lease expires, another bot may claim the role.
+
+This makes the system robust when:
+
+- a harness crashes
+- a session closes
+- a machine restarts
+- a different harness takes over
+
+### Weak Harnesses
+
+Some harnesses cannot run a timed background loop.
+
+That is fine.
+
+They can still participate by renewing their lease:
+
+- on each meaningful file write
+- through a wrapper
+- through a local supervisor
+
+### Human Checkout Model
+
+Humans should not use heartbeat or lease semantics.
+
+When a task needs a human:
+
+- mark it `WAITING_ON_HUMAN` if nobody has accepted it yet
+- mark it `HUMAN_CHECKOUT` once a named human owns it
+
+Track things like:
+
+- `Checked Out By`
+- `Expected Follow-Up`
+- `Last Human Contact At`
+- `Escalate After`
+- `Contact Method`
+
+## Optional Add-Ons
+
+### Telegram Bridge
+
+`TelegramBot/` is an optional add-on.
+
+It is not part of the core control plane.
+
+Its job is simple:
+
+- let you talk to the active MasterBot from Telegram
+- write your messages into `_messages/Chief_of_Staff.md`
+- forward replies from `_messages/human_<HumanID>.md`
+
+This is useful when the chosen harness does not natively support Telegram or remote messaging.
+
+### Visualizer
+
+`Visualizer/` is an optional add-on.
+
+It is also not part of the core control plane.
+
+Its job is to visualize the swarm through:
+
+- 3D view
+- 2D view
+- VR view
+
+It should read the same markdown files and remain a visual layer, not the source of truth.
 
 ## Why This Matters
 
-Without a harness:
+Agentic Harness is trying to solve a practical problem:
 
-* you are renting intelligence
-* you are locked into tools
-* your systems reset every session
+how do you keep a multi-agent system usable when tools change, providers change, sessions end, computers restart, and work still needs to continue?
 
-With Agentic Harness:
+The answer here is:
 
-* you **own the intelligence layer**
-* you **persist knowledge over time**
-* you **swap engines without losing capability**
+- keep the control plane simple
+- keep it file-based
+- keep it local-first
+- keep it readable by both humans and machines
 
-This is the difference between:
+## The Simplicity Rule
 
-* using AI
-  vs
-* **running AI systems**
+If a new feature makes the system harder to understand than the files themselves, reject it.
 
----
+The files are the infrastructure.
 
-## Quick Start
+## Recommended First Test
 
-1. Run the installer:
+1. Copy this folder into a fresh project location.
+2. Start one harness.
+3. Tell it:
 
-   ```powershell
-   .\INSTALL_HARNESS.bat
-   ```
-
-2. Open dashboard:
-
-   ```
-   http://localhost:5000
-   ```
-
-3. Complete onboarding:
-
-   * create workspace
-   * generate MasterBot
-   * configure providers
-   * START THE SWARM!
-
-4. Start operating:
-
-   * open Operator Console
-   * submit tasks
-   * monitor swarm in real time
-
----
-
-## First Workflow
-
-After setup:
-
-1. Assign a task from the Operator Console
-2. MasterBot routes the task
-3. Worker bots execute across runtimes
-4. Results persist in your workspace
-5. System state updates live in dashboard + visualizer
-
----
-
-## Example Tasks
-
-**File Task**
-
-```
-Create a file named ACCEPTANCE_FILE.md and write:
-Acceptance test successful.
+```text
+Read AGENTIC_HARNESS.md first.
+This is a fresh Agentic Harness V13 install.
+Claim the Chief_of_Staff role if it is available.
+Then ask me what I want to do and recommend any additional roles needed.
 ```
 
-**Research Task**
+4. Let that first harness become `Chief_of_Staff`.
+5. Add additional harnesses only after the role structure is clear.
 
-```
-Research 5 practical uses of local LLMs for SMBs and save results.
-```
+## In One Line
 
-**Sequential Task**
-
-```
-1. Create manifest.txt
-2. Append signed line
-```
-
----
-
-## Dashboard Surfaces
-
-* Command Center, system overview
-* Master Tasks, task pipeline
-* Swarm Status, bot-level activity
-* 3D Visualizer, live system view
-* Bot Management, identity + configuration
-* Configuration, runtime + recovery controls
-
----
-
-## 3D Swarm Visualizer
-
-* Real-time bot state
-* motion-based activity tracking
-* labeled task awareness
-* offline-capable (no CDN required)
-
----
-
-## Philosophy
-
-Agentic Harness follows one principle:
-
-> Put the complexity in the system, not in the operator.
-
-You should not think about orchestration.
-You should think about outcomes.
-
----
-
-## Version
-
-**v12.1.34**
-
-* onboarding system
-* runtime switching
-* swarm orchestration
-* 3D visualization
-* production-ready operator workflow
-
----
-
-## Vision
-
-Agentic Harness is building toward:
-
-* Operator-level AI systems
-* One-person companies running autonomous workflows
-* Enterprise-scale agent orchestration
-* A universal standard for AI execution
-
----
-
-## Official Links
-
-* [https://AgenticHarness.io](https://AgenticHarness.io)
-* [https://SolomonChrist.com](https://SolomonChrist.com)
-
----
-
-## Final Note
-
-You are not building prompts.
-
-You are building **systems that think, act, and persist**.
-
-Agentic Harness is the layer that makes that possible.
-
-WELCOME TO THE AGENTIC HARNESS!
+Agentic Harness V13 is a markdown-first meta harness for running a real multi-agent system across many harness types through one shared, local-first control plane.
