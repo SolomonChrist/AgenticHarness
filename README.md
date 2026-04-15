@@ -1,184 +1,288 @@
-# Agentic Harness v12.1.34
+# Agentic Harness (v12.1.34)
 
-**The Universal Standard for Autonomous AI Agent Swarms**
+**Operator-Owned AI Systems - A Meta-Harness**
 
-Agentic Harness is a local-first multi-bot orchestration system with:
-- guided first-time onboarding
-- a dashboard for configuration, tasking, and recovery
-- mixed-runtime support across cloud and local models
-- an offline-capable 3D swarm visualizer
+WELCOME AGENTIC OPERATORS!
 
-This build is the production-ready continuation of the earlier V11 concept, now upgraded with onboarding, runtime switching, bot management, visual state monitoring, and a cleaner operator workflow.
+Agentic Harness is an **operator-owned coordination layer** for running AI agents across any model, any runtime, cloud or local, without lock-in.
 
-## Why It Exists
+This is not another AI tool.
+This is the system that **controls all AI tools**.
 
-Agentic Harness started as a practical response to real production friction:
-- fragmented agent platforms
-- weak session continuity
-- poor visibility into what digital staff were actually doing
-- too much orchestration complexity pushed onto the operator
+---
 
-This release keeps the original goal intact: put the complexity in the system, not in your workflow.
+## Core Idea
 
-## What This Version Adds
+In Agentic Harness:
 
-- First-use onboarding that creates a working starter swarm
-- Dashboard-led configuration for MasterBot and worker bots
-- `Restart Swarm` recovery flow directly in the header
-- compact floating `Operator Console` as the main chat surface
-- 3D Visualizer with live bot state, motion, labels, and offline Three.js packaging
-- mixed-provider swarms, including OpenAI + LM Studio combinations
-- improved task reliability for:
-  - file creation
-  - research tasks
-  - deterministic sequential workflows
+* The **bot is NOT the model**
+* The **model is just the engine**
 
-## Supported Runtime Matrix
+A real bot is:
 
-| Provider / Harness | Status | Recommendation | Notes |
-| :--- | :--- | :--- | :--- |
-| OpenAI | Supported | Primary | Best cloud orchestration path tested in this release. |
-| LM Studio | Supported | Primary | Best local/offline path when the local API server is running. |
-| Ollama | Supported | Primary | Local model path supported by the same provider adapter flow. |
-| Claude / Anthropic | Integrated | Capability-sensitive | Works, but real task quality depends on accessible model tier and environment setup. |
-| OpenRouter | Integrated | Capability-sensitive | Connected and usable, but execution quality depends on model tier. |
-| Claude Code harness | Integrated | Advanced | Installed/callable on supported systems; best treated as an advanced runtime surface. |
+* identity
+* memory
+* heartbeat
+* learned skills
+* policies
+* task history
+* artifacts
+* relationships to other bots and projects
 
-## Works With
+These live in **your files, your system, your control**.
 
-Agentic Harness is designed to stay model- and runtime-flexible:
-- OpenAI
-- LM Studio
-- Ollama
-- Claude / Anthropic
-- OpenRouter
-- Claude Code
+The harness simply powers execution.
 
-Mixed-provider swarms are supported, so orchestration and worker execution do not have to come from the same runtime.
+---
+
+## What This Solves
+
+Modern AI systems are broken in predictable ways:
+
+* closed ecosystems with token limits and forced upgrades
+* fragmented tools that don’t work together
+* no persistent memory or continuity
+* no true multi-agent collaboration
+* weak or non-existent offline capability
+
+Agentic Harness fixes this by introducing a **persistent, operator-owned layer** that sits above all models.
+
+---
+
+## What Agentic Harness Is
+
+Agentic Harness is a **Meta-Harness System** that:
+
+* runs multiple AI engines as coordinated agents
+* allows agents to collaborate in structured workflows
+* separates identity from execution
+* enables cloud + local hybrid systems
+* gives full control back to the operator
+
+---
+
+## System Architecture
+
+At the center of the system:
+
+### MasterBot
+
+* orchestrates all work
+* routes tasks
+* manages workflows
+* coordinates swarm behavior
+* You can think of this as your Execuitive Assistant or Chief of Staff
+
+### Worker Bots
+
+* specialized roles (research, coding, file ops, etc.)
+* can build your own bots
+* can run on different providers simultaneously
+* maintain their own identity + context
+
+### Operator Layer
+
+* you control everything through:
+
+  * dashboard
+  * console
+  * system configs
+  * various frontends in the future (including Telegram and other various frontend models, the underlying layer is the same)
+
+### Runtime Layer
+
+* interchangeable execution engines:
+
+  * cloud models
+  * local models
+  * external harnesses
+
+---
+
+## Key Capabilities
+
+* Guided onboarding that creates a working swarm instantly
+* Dashboard for full system control and visibility
+* Mixed runtime orchestration (cloud + local)
+* Persistent bot identity and memory structure
+* Multi-agent collaboration across providers
+* Offline-capable execution with local models
+* 3D swarm visualizer for real-time system awareness
+* Restartable, recoverable swarm architecture
+
+---
+
+## Supported Runtimes
+
+Agentic Harness is **model-agnostic**.
+
+Supported systems include:
+
+* OpenAI
+* LM Studio
+* Ollama
+* Anthropic (Claude)
+* OpenRouter
+* Claude Code
+
+You can mix and match these freely inside a single swarm.
+
+---
+
+## Why This Matters
+
+Without a harness:
+
+* you are renting intelligence
+* you are locked into tools
+* your systems reset every session
+
+With Agentic Harness:
+
+* you **own the intelligence layer**
+* you **persist knowledge over time**
+* you **swap engines without losing capability**
+
+This is the difference between:
+
+* using AI
+  vs
+* **running AI systems**
+
+---
 
 ## Quick Start
 
 1. Run the installer:
+
    ```powershell
    .\INSTALL_HARNESS.bat
    ```
 
-2. Open the dashboard:
-   - default URL: `http://localhost:5000`
+2. Open dashboard:
+
+   ```
+   http://localhost:5000
+   ```
 
 3. Complete onboarding:
-   - choose or create your workspace
-   - let the starter swarm be generated
-   - configure providers if needed
 
-4. Use the header controls:
-   - `Quick Start` for the guided walkthrough
-   - `Open Console` for the floating operator chat window
-   - `Restart Swarm` to reload the daemon fleet after configuration changes
+   * create workspace
+   * generate MasterBot
+   * configure providers
+   * START THE SWARM!
 
-## First Launch Flow
+4. Start operating:
 
-On a fresh install, the intended flow is:
+   * open Operator Console
+   * submit tasks
+   * monitor swarm in real time
 
-1. Connect or create a workspace
-2. Complete the FTUE onboarding
-3. Configure providers for the bots you want to use
-4. Restart the swarm
-5. Submit a task from the floating operator console
-6. Watch live state in:
-   - `Master Tasks`
-   - `Swarm Status`
-   - `3D Visualizer`
+---
 
-## Recommended Acceptance Tests
+## First Workflow
 
-Use these exact prompts after onboarding:
+After setup:
 
-File task:
-```text
-Create a file named ACCEPTANCE_FILE.md in the worker workspace and write exactly: Acceptance test successful.
+1. Assign a task from the Operator Console
+2. MasterBot routes the task
+3. Worker bots execute across runtimes
+4. Results persist in your workspace
+5. System state updates live in dashboard + visualizer
+
+---
+
+## Example Tasks
+
+**File Task**
+
+```
+Create a file named ACCEPTANCE_FILE.md and write:
+Acceptance test successful.
 ```
 
-Research task:
-```text
-Use ResearchBot to research 5 practical uses of local LLMs for small businesses and save the findings in RESEARCH_ACCEPTANCE.md.
+**Research Task**
+
+```
+Research 5 practical uses of local LLMs for SMBs and save results.
 ```
 
-Sequential task:
-```text
-Use a sequential workflow:
-1. Create a file named manifest.txt containing exactly:
-Version: 12.1
-Status: Draft
+**Sequential Task**
 
-2. Then append a new line to manifest.txt containing exactly:
-SIGNED: MASTER
+```
+1. Create manifest.txt
+2. Append signed line
 ```
 
-Mixed swarm test:
-- MasterBot -> OpenAI
-- ResearchBot -> OpenAI
-- LocalBot1 -> LM Studio
+---
 
 ## Dashboard Surfaces
 
-- `Command Center`: high-level operator landing area
-- `Master Tasks`: source of truth for queued, active, blocked, and done work
-- `Swarm Status`: specialist state and pulse view
-- `3D Visualizer`: live animated world view of the bot staff
-- `Bot Management`: inspect bot identity, provider setup, and managed files
-- `Configuration`: system-level controls and recovery utilities
+* Command Center, system overview
+* Master Tasks, task pipeline
+* Swarm Status, bot-level activity
+* 3D Visualizer, live system view
+* Bot Management, identity + configuration
+* Configuration, runtime + recovery controls
 
-## 3D Visualizer
+---
 
-The visualizer is part of this release and is designed to work offline after cloning the repo.
+## 3D Swarm Visualizer
 
-It currently supports:
-- live bot state and status coloring
-- animated bot movement
-- labels above each bot showing current work/focus
-- camera reset
-- calmer motion mode for long sessions
+* Real-time bot state
+* motion-based activity tracking
+* labeled task awareness
+* offline-capable (no CDN required)
 
-## Third-Party Runtime Notes
+---
 
-- The 3D Visualizer vendors a local copy of `three.module.js` and `OrbitControls.js`
-- This allows the visualizer to load without CDN access
-- Three.js is MIT-licensed
-- See `THIRD_PARTY_NOTICES.md` for release notices
+## Philosophy
 
-## Repo Layout
+Agentic Harness follows one principle:
 
-- `core/`: runtime logic, daemons, provider adapter, dashboard, onboarding, visualizer
-- `core/dashboard/vendor/three/`: vendored offline Three.js runtime
-- `design/`: design and architecture materials
-- `INSTALL_HARNESS.bat`: recommended installer entry point
-- `setup.py`: workspace generation/bootstrap logic
-- `README.md`: release overview and onboarding guide
-- `DEPLOYMENT_RUNBOOK.md`: deployment and runtime operations
-- `KNOWN_ISSUES.md`: current caveats
+> Put the complexity in the system, not in the operator.
 
-## Version Lineage
+You should not think about orchestration.
+You should think about outcomes.
 
-| Version | Meaning |
-| :--- | :--- |
-| V11 | Original public concept: universal harness framing, worlds, and protocol-first direction |
-| V12 | Transition into a dashboard-led, runtime-switching, production-focused harness |
-| v12.1.34 | Current production build with onboarding, mixed-runtime orchestration, offline 3D visualizer, and launch-ready operator surfaces |
+---
 
-## Launch Notes
+## Version
 
-Before pushing or distributing:
-- revoke temporary test API keys
-- confirm no secrets are stored in workspace config files you intend to publish
-- verify the dashboard footer version matches the build you want to ship
-- run one final clean install + onboarding pass
+**v12.1.34**
+
+* onboarding system
+* runtime switching
+* swarm orchestration
+* 3D visualization
+* production-ready operator workflow
+
+---
+
+## Vision
+
+Agentic Harness is building toward:
+
+* Operator-level AI systems
+* One-person companies running autonomous workflows
+* Enterprise-scale agent orchestration
+* A universal standard for AI execution
+
+---
 
 ## Official Links
 
-- [AgenticHarness.io](https://AgenticHarness.io)
-- [SolomonChrist.com](https://SolomonChrist.com)
+* [https://AgenticHarness.io](https://AgenticHarness.io)
+* [https://SolomonChrist.com](https://SolomonChrist.com)
 
-Built for visible orchestration, truthful automation, and a more human way to work with digital staff.
+---
 
-The complexity is in the system. Not in your workflow.
+## Final Note
+
+You are not building prompts.
+
+You are building **systems that think, act, and persist**.
+
+Agentic Harness is the layer that makes that possible.
+
+WELCOME TO THE AGENTIC HARNESS!
