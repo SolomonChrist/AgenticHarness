@@ -8,6 +8,8 @@ Read this file first. Then read the other core files in the order defined below.
 
 If a harness has a very small context window and cannot comfortably ingest this full file, it may read `AGENTIC_HARNESS_SMALL_CONTEXT.md` first instead.
 
+If that is still too large, it may use `AGENTIC_HARNESS_TINY.md` as the emergency bootstrap path.
+
 ## Small-Context Bootstrap
 
 If your context window is very small, prioritize only these rules first:

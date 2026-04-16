@@ -95,6 +95,10 @@ If a harness has a very small context window, it may start with:
 
 - `AGENTIC_HARNESS_SMALL_CONTEXT.md`
 
+If that is still too large, use:
+
+- `AGENTIC_HARNESS_TINY.md`
+
 That file tells the harness:
 
 - what this system is
@@ -186,6 +190,19 @@ It contains:
 - minimum file read order
 - messaging basics
 - small-context join behavior
+
+### `AGENTIC_HARNESS_TINY.md`
+
+An emergency bootstrap file for extremely small context windows.
+
+Use it when even the small-context file is too much for the harness.
+
+It contains only:
+
+- minimal role-claim rules
+- minimal lease rules
+- minimal file read order
+- minimal continue-working behavior
 
 ### `PROJECT.md`
 
@@ -520,6 +537,18 @@ Renew your lease on meaningful writes.
 Do not stop for plan approval unless blocked or a real operator decision is required.
 ```
 
+### Tiny Prompt For Very Small-Context Models
+
+Use this when a harness still fails with the small-context path:
+
+```text
+Read AGENTIC_HARNESS_TINY.md first.
+Take role: <ROLE> if open or stale.
+Claim the role, update your lease, write a short join note, write a short event log line, then continue the current work.
+Renew your lease on meaningful writes.
+Do not stop for plan approval unless blocked or a real operator decision is required.
+```
+
 ### Existing System Specialist Prompt
 
 Use this for additional harnesses after `Chief_of_Staff` has already created or approved the roles:
@@ -565,9 +594,9 @@ If you claim the role, renew your lease on meaningful writes, document outputs a
 ### Example: LM Studio
 
 ```text
-Read AGENTIC_HARNESS_SMALL_CONTEXT.md first.
+Read AGENTIC_HARNESS_TINY.md first.
 Take role: Researcher if open or stale.
-Update your lease, write a short join note, write an event log line, then continue the current work.
+Claim the role, update your lease, write a short join note, write an event log line, then continue the current work.
 Renew your lease on meaningful writes and report progress through the markdown files.
 Do not stop for plan approval unless blocked or a real operator decision is required.
 ```
