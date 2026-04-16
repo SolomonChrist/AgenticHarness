@@ -2,7 +2,7 @@
 """
 Telegram bridge for the active Chief_of_Staff / MasterBot.
 
-This layer only moves messages between Telegram and the V13 markdown files.
+This layer only moves messages between Telegram and the Agentic Harness markdown files.
 """
 
 from __future__ import annotations

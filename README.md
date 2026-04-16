@@ -1,4 +1,4 @@
-# Agentic Harness V13
+# Agentic Harness
 
 Markdown-first infrastructure for multi-agent swarms.
 
@@ -41,11 +41,11 @@ That means you can mix:
 
 inside one working swarm.
 
-## The V13 Direction
+## The Current Direction
 
-V13 intentionally simplifies the system.
+The current direction intentionally simplifies the system.
 
-Older versions explored larger runtimes, dashboards, and more embedded behavior. V13 pulls the center of gravity back to the control plane itself:
+Older versions explored larger runtimes, dashboards, and more embedded behavior. The current design pulls the center of gravity back to the control plane itself:
 
 - one entry file
 - a handful of core markdown files
@@ -106,7 +106,7 @@ From there, all workers speak the same file protocol.
 
 ## How It Works
 
-1. Point any compatible harness at a project folder containing the V13 files.
+1. Point any compatible harness at a project folder containing the core files.
 2. It reads `AGENTIC_HARNESS.md`.
 3. It reads `ROLES.md` and checks `_heartbeat/` for live or stale roles.
 4. It claims an open or stale role.
@@ -381,6 +381,9 @@ They can still participate by renewing their lease:
 - on each meaningful file write
 - through a wrapper
 - through a local supervisor
+- on every meaningful file write if they cannot maintain a timer loop
+
+If a role notices that its own lease is stale, renewing the lease becomes the highest-priority action before normal work continues.
 
 ### Human Checkout Model
 
@@ -456,7 +459,7 @@ The files are the infrastructure.
 
 ```text
 Read AGENTIC_HARNESS.md first.
-This is a fresh Agentic Harness V13 install.
+This is a fresh Agentic Harness install.
 Claim the Chief_of_Staff role if it is available.
 Then ask me what I want to do and recommend any additional roles needed.
 ```
@@ -464,6 +467,104 @@ Then ask me what I want to do and recommend any additional roles needed.
 4. Let that first harness become `Chief_of_Staff`.
 5. Add additional harnesses only after the role structure is clear.
 
+## First Boot Prompts
+
+These prompts are meant to help users get started quickly with a fresh Agentic Harness install.
+
+### Chief of Staff Prompt
+
+Use this for the first harness you launch:
+
+```text
+Read AGENTIC_HARNESS.md first.
+This is a fresh Agentic Harness install.
+Claim the Chief_of_Staff role if it is available.
+Then ask me what I want to do and recommend any additional roles needed.
+If you claim the role, update the lease file, update the registry, read the task list, and continue the active workstream without unnecessary questions.
+```
+
+### Existing System Specialist Prompt
+
+Use this for additional harnesses after `Chief_of_Staff` has already created or approved the roles:
+
+```text
+Read AGENTIC_HARNESS.md first.
+This is an existing Agentic Harness system.
+Take the role of <ROLE> if it is open or stale.
+Then continue the work already in progress.
+If you claim the role, renew your lease on meaningful writes and continue the active milestone before asking for a new direction.
+```
+
+### Generic Research Role Prompt
+
+```text
+Read AGENTIC_HARNESS.md first.
+This is an existing Agentic Harness system.
+Take the role of Researcher if it is open or stale.
+Then continue the work already in progress.
+If you claim the role, renew your lease on meaningful writes, capture findings in the markdown files, and continue active research tasks before asking for a new direction.
+```
+
+### Generic Engineer Role Prompt
+
+```text
+Read AGENTIC_HARNESS.md first.
+This is an existing Agentic Harness system.
+Take the role of Engineer if it is open or stale.
+Then continue the work already in progress.
+If you claim the role, renew your lease on meaningful writes, complete the assigned engineering work through the markdown files, and continue the active milestone before asking for a new direction.
+```
+
+### Generic Documentation Role Prompt
+
+```text
+Read AGENTIC_HARNESS.md first.
+This is an existing Agentic Harness system.
+Take the role of Documentation if it is open or stale.
+Then continue the work already in progress.
+If you claim the role, renew your lease on meaningful writes, document outputs and decisions in the markdown files, and continue the active workstream before asking for a new direction.
+```
+
+### Example: LM Studio
+
+```text
+Read AGENTIC_HARNESS.md first.
+This is an existing Agentic Harness system.
+Take the role of Researcher if it is open or stale.
+Then continue the work already in progress.
+If you claim the role, renew your lease on meaningful writes and report progress through the markdown files.
+```
+
+### Example: Antigravity
+
+```text
+Read AGENTIC_HARNESS.md first.
+This is an existing Agentic Harness system.
+Take the role of Engineer if it is open or stale.
+Then continue the work already in progress.
+If you claim the role, renew your lease on meaningful writes and complete the assigned engineering work through the markdown files.
+```
+
+### Telegram-Connected Chief of Staff Behavior
+
+If you are using the optional Telegram bridge, the active `Chief_of_Staff` should also follow this rule:
+
+```text
+Watch _messages/Chief_of_Staff.md for operator messages.
+Reply to the operator by writing to _messages/human_<HumanID>.md.
+Treat the Telegram layer as transport only. You remain the system orchestrator.
+```
+
+## Mixed Harness Examples
+
+Agentic Harness is meant to support mixed swarms such as:
+
+- Claude Code as `Chief_of_Staff`
+- LM Studio as a Researcher or Documentation role
+- Antigravity as an Engineer or Operations role
+
+Each harness can bring its own strengths as long as it follows the same markdown protocol.
+
 ## In One Line
 
-Agentic Harness V13 is a markdown-first meta harness for running a real multi-agent system across many harness types through one shared, local-first control plane.
+Agentic Harness is a markdown-first meta harness for running a real multi-agent system across many harness types through one shared, local-first control plane.

@@ -1,6 +1,6 @@
 # LAYER CONFIG
 
-Version: V13
+Protocol Version: 13
 Last Updated: 2026-04-15
 
 ## Swarm Configuration
@@ -33,3 +33,6 @@ Last Updated: 2026-04-15
 - Update the registry when a role is claimed, released, or taken over.
 - The lease files remain the live source of truth for active bot roles.
 - Additional roles should be added only when the operator and/or `Chief_of_Staff` decides they are needed.
+- If a harness cannot maintain timed renewal, it must refresh its lease on every meaningful write.
+- A role with a stale self-lease must renew it before continuing normal work.
+- Mixed harnesses are supported as long as they follow the same markdown protocol.

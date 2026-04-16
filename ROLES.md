@@ -11,7 +11,7 @@ Can Write Main Task List: YES
 Can Route Work: YES
 Can Talk To Operator: YES
 Can Create Project Subtasks: YES
-Heartbeat File: `_heartbeat/Chief_of_Staff.md`
+Lease File: `_heartbeat/Chief_of_Staff.md`
 Direct Message File: `_messages/Chief_of_Staff.md`
 Expected Capabilities:
 - orchestration
@@ -53,7 +53,7 @@ Can Write Main Task List: NO
 Can Route Work: NO
 Can Talk To Operator: LIMITED
 Can Create Project Subtasks: YES
-Heartbeat File: `_heartbeat/<Role>.md`
+Lease File: `_heartbeat/<Role>.md`
 Direct Message File: `_messages/<Role>.md`
 Expected Capabilities:
 - 
@@ -64,5 +64,7 @@ Expected Capabilities:
 - To claim a role, write `_heartbeat/<Role>.md`.
 - Role occupancy is a lease, not a human-style checkout.
 - The role file should contain `Lease Expires At`.
+- If a harness cannot maintain a timer, it must renew the lease on every meaningful write.
+- If a role notices its own lease is stale, it must renew before continuing work.
 - If the lease has expired, the role may be taken over.
 - If a previous role-holder returns and finds a fresher lease, it must stand down.

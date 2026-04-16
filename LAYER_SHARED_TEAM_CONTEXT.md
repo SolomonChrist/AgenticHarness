@@ -4,7 +4,7 @@ Shared whiteboard for team discussion, handoffs, and active coordination.
 
 ## Current Conversation
 
-[2026-04-15T09:00:00-04:00] [SYSTEM] V13 control plane is live. Waiting for first role claims.
+[2026-04-15T09:00:00-04:00] [SYSTEM] Agentic Harness control plane is live. Waiting for first role claims.
 [2026-04-15T09:01:00-04:00] [SYSTEM] Chief_of_Staff should claim first, then coordinate role intake.
 
 ## Working Agreements

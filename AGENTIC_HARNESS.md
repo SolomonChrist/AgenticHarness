@@ -1,4 +1,4 @@
-# AGENTIC HARNESS V13
+# AGENTIC HARNESS
 
 Agentic Harness is a file-first meta-harness for autonomous agent swarms.
 
@@ -79,7 +79,9 @@ The swarm should keep working until the requested outcomes are completed.
 - Log the result.
 - Claim the next available task.
 
-Do not ask between tasks unless genuinely blocked or the operator must decide.
+Do not ask between tasks unless genuinely blocked or the operator must decide something that changes project direction, scope, or real-world intent.
+
+If there is an active milestone, validation pass, or assigned workstream already in progress, continue that work first before asking for a new direction.
 
 Blocked work:
 
@@ -126,6 +128,7 @@ These files should be treated as renewable leases with heartbeat-style refreshes
 Required lease renewal interval:
 
 - Every 5 minutes while active.
+- If the harness cannot reliably run a timer, renew on every meaningful write.
 
 Required fields:
 
@@ -160,6 +163,7 @@ Renewal methods:
 Expiry rule:
 
 - If `Lease Expires At` is in the past, the role may be claimed by another bot.
+- A role must never continue normal work while its own lease is stale.
 
 Takeover rule:
 
@@ -170,6 +174,18 @@ Weak harness rule:
 
 - If a harness cannot run a timer loop, it may renew the lease on each file-touching action.
 - If a harness cannot self-renew at all, a local wrapper or supervisor on the user's machine should renew the lease while the session is active.
+- Meaningful write actions include task updates, project file updates, context writes, event log writes, message writes, and artifact creation.
+
+Stale self-repair rule:
+
+- If a role sees that its own lease is stale or nearing expiry, lease renewal becomes its highest-priority action before any other work.
+- After renewing, it may continue normal work.
+
+Stale peer rule:
+
+- If a role notices another role is stale, it should log the condition to `LAYER_LAST_ITEMS_DONE.md`.
+- If the stale role is `Chief_of_Staff`, also write a direct note to `_messages/Chief_of_Staff.md`.
+- If the stale role remains stale past the expiry threshold, another suitable bot may take over according to the lease rules.
 
 ## Permissions
 
@@ -205,6 +221,13 @@ Direct role-targeted messaging:
 Use direct message files for role-specific instructions that should not clutter the shared whiteboard.
 
 Notification entries intended for Telegram or remote operator attention should be logged in `LAYER_LAST_ITEMS_DONE.md` with a clear `NOTIFY` marker.
+
+High-contention rule:
+
+- `LAYER_SHARED_TEAM_CONTEXT.md` is shared and may be edited by multiple live roles.
+- Keep entries short and append-only whenever possible.
+- Use `_messages/<Role>.md` for direct coordination when multiple workers are active at once.
+- Use `Projects/<project-slug>/CONTEXT.md` for project-local collaboration to reduce collisions in the global shared context file.
 
 ## Humans In The Loop
 
@@ -255,6 +278,7 @@ Telegram should:
 - read and write the same markdown control plane
 - allow the operator to talk to the `Chief_of_Staff` remotely
 - allow remote task creation and status checks
+- act only as a transport bridge if the chosen harness does not natively support remote messaging
 
 ## Memory
 
@@ -298,6 +322,20 @@ If no specialist exists for a task:
 - The `Chief_of_Staff` should attempt the work when practical.
 - The `Chief_of_Staff` must log that it is covering a missing role.
 - The `Chief_of_Staff` should notify the operator which role should be added to improve future execution.
+
+## Mixed Harness Support
+
+Agentic Harness is designed to support mixed swarms.
+
+Examples:
+
+- Claude Code as `Chief_of_Staff`
+- LM Studio as a local Researcher or Documentation role
+- Antigravity as an Engineer or Operations role
+
+Different harnesses may have different strengths and different runtime limits.
+
+That is acceptable as long as they follow the same file protocol.
 
 ## Simplicity Rule
 

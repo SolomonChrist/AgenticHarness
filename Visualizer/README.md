@@ -1,6 +1,6 @@
 # VISUALIZER
 
-Optional visual interface for Agentic Harness V13.
+Optional visual interface for Agentic Harness.
 
 This folder is separate from the core markdown control plane.
 
@@ -29,7 +29,7 @@ The Visualizer should:
 - show project and task state from the markdown files
 - show recent events and messages from the markdown system
 
-The Visualizer must read from the same V13 files used by every harness.
+The Visualizer must read from the same core files used by every harness.
 
 It must not become the source of truth.
 

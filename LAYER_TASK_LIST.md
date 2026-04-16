@@ -14,6 +14,8 @@ Task status values:
 Bot-owned work should use role leases.
 Human-owned work should use checkout fields instead of heartbeat behavior.
 
+While an active milestone or validation phase is still in progress, continue the current workstream before opening a new one unless the operator explicitly changes direction.
+
 ## TASK
 ID: TASK-0001
 Title: Claim and verify Chief_of_Staff role
