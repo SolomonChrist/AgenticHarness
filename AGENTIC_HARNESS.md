@@ -42,6 +42,7 @@ Supporting directories:
 - On a fresh install, `Chief_of_Staff` is the only default role.
 - The human/operator may also update `LAYER_TASK_LIST.md` directly.
 - Roles are defined in `ROLES.md`.
+- `ROLES.md` defines intended roles and desired availability, not live occupancy.
 - Live role occupancy is determined by one renewable lease file per role in `_heartbeat/`.
 - If a role lease expires, another bot may take over that role.
 - If an older bot returns and sees a fresher claimant for its role, it must stand down.
@@ -115,7 +116,19 @@ Every harness or agent joining this system must do the following:
 9. Read `LAYER_TASK_LIST.md`.
 10. Read `LAYER_SHARED_TEAM_CONTEXT.md`.
 11. Read recent items from `LAYER_LAST_ITEMS_DONE.md`.
-12. Begin work according to the claimed role.
+12. Write a short online/join note to `LAYER_SHARED_TEAM_CONTEXT.md`.
+13. Write a role-claim event to `LAYER_LAST_ITEMS_DONE.md`.
+14. Begin work according to the claimed role.
+
+After claiming a role, do not stop to ask for permission to perform routine system updates such as:
+
+- registry update
+- join note
+- event log entry
+- task status update
+- direct message write
+
+Proceed unless blocked by missing information or a real operator decision.
 
 ## Lease And Takeover Rules
 

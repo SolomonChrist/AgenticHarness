@@ -271,6 +271,13 @@ Live occupancy is not decided here.
 
 Live occupancy is decided by the lease files in `_heartbeat/`.
 
+`ROLES.md` uses `Default Availability` as design-time intent only.
+
+If a role is currently held, that will appear in:
+
+- `_heartbeat/<Role>.md`
+- `LAYER_CONFIG.md`
+
 ### `HUMANS.md`
 
 Human registry.
@@ -483,6 +490,18 @@ Then ask me what I want to do and recommend any additional roles needed.
 If you claim the role, update the lease file, update the registry, read the task list, and continue the active workstream without unnecessary questions.
 ```
 
+### Compact Prompt For Small-Context Models
+
+Use this when a local model has a small context window and cannot hold the longer onboarding text comfortably:
+
+```text
+Read AGENTIC_HARNESS.md first.
+Take role: <ROLE> if open or stale.
+Update your lease, update the registry if needed, write a short join note, write an event log line, then continue the current work.
+Renew your lease on meaningful writes.
+Do not stop for plan approval unless blocked or a real operator decision is required.
+```
+
 ### Existing System Specialist Prompt
 
 Use this for additional harnesses after `Chief_of_Staff` has already created or approved the roles:
@@ -529,10 +548,10 @@ If you claim the role, renew your lease on meaningful writes, document outputs a
 
 ```text
 Read AGENTIC_HARNESS.md first.
-This is an existing Agentic Harness system.
-Take the role of Researcher if it is open or stale.
-Then continue the work already in progress.
-If you claim the role, renew your lease on meaningful writes and report progress through the markdown files.
+Take role: Researcher if open or stale.
+Update your lease, write a short join note, write an event log line, then continue the current work.
+Renew your lease on meaningful writes and report progress through the markdown files.
+Do not stop for plan approval unless blocked or a real operator decision is required.
 ```
 
 ### Example: Antigravity
@@ -543,6 +562,7 @@ This is an existing Agentic Harness system.
 Take the role of Engineer if it is open or stale.
 Then continue the work already in progress.
 If you claim the role, renew your lease on meaningful writes and complete the assigned engineering work through the markdown files.
+Do not stop for plan approval unless blocked or a real operator decision is required.
 ```
 
 ### Telegram-Connected Chief of Staff Behavior

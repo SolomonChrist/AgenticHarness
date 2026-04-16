@@ -6,6 +6,7 @@ Shared whiteboard for team discussion, handoffs, and active coordination.
 
 [2026-04-15T09:00:00-04:00] [SYSTEM] Agentic Harness control plane is live. Waiting for first role claims.
 [2026-04-15T09:01:00-04:00] [SYSTEM] Chief_of_Staff should claim first, then coordinate role intake.
+[2026-04-15T09:02:00-04:00] [SYSTEM] Every role claim should also write a short online note here.
 
 ## Working Agreements
 

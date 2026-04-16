@@ -2,10 +2,12 @@
 
 This file defines intended roles.
 Live occupancy is determined by `_heartbeat/<Role>.md`.
+The availability field in this file is design-time only.
+It does not indicate who currently holds a live role.
 
 ## Role
 Name: Chief_of_Staff
-Status: OPEN
+Default Availability: OPEN
 Priority: CRITICAL
 Can Write Main Task List: YES
 Can Route Work: YES
@@ -47,7 +49,7 @@ When adding a new role, use this template:
 
 ## Role
 Name:
-Status: OPEN
+Default Availability: OPEN
 Priority:
 Can Write Main Task List: NO
 Can Route Work: NO
@@ -63,6 +65,7 @@ Expected Capabilities:
 - A bot must not act in a role until it has claimed that role.
 - To claim a role, write `_heartbeat/<Role>.md`.
 - Role occupancy is a lease, not a human-style checkout.
+- Live occupancy is tracked by the lease file and registry, not by `Default Availability`.
 - The role file should contain `Lease Expires At`.
 - If a harness cannot maintain a timer, it must renew the lease on every meaningful write.
 - If a role notices its own lease is stale, it must renew before continuing work.
