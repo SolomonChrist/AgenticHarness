@@ -23,6 +23,7 @@ If your context window is very small, prioritize only these rules first:
 - Use `_messages/<Role>.md` for direct coordination when possible.
 - Use `Projects/<project-slug>/CONTEXT.md` for project-local coordination.
 - Do not create new projects, optional add-on work, or side initiatives unless the operator or `Chief_of_Staff` explicitly asked for them.
+- During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned that work.
 - If blocked by a real decision, ask briefly. Otherwise continue.
 
 ## Purpose
@@ -158,6 +159,12 @@ Role-claim completion checklist:
 
 A role should not be treated as successfully joined until all four are true.
 
+Bootstrap specialist-claim rule:
+
+- If the operator or `Chief_of_Staff` explicitly requested named specialist roles for the current bootstrap pass, do not treat the bootstrap as complete until each named role has satisfied the full role-claim completion checklist.
+- A partial specialist join is progress, not completion.
+- Do not mark the bootstrap specialist-claim task `DONE` while any specifically requested specialist role is still missing from one or more of the four required surfaces.
+
 ## Lease And Takeover Rules
 
 Each active bot role writes to exactly one file:
@@ -233,6 +240,7 @@ Stale peer rule:
 
 - If a role notices another role is stale, it should log the condition to `LAYER_LAST_ITEMS_DONE.md`.
 - If the stale role is `Chief_of_Staff`, also write a direct note to `_messages/Chief_of_Staff.md`.
+- If the stale role is `Chief_of_Staff`, do not treat the stale condition as satisfied until the stale condition has been logged and the registry has been repaired or flagged for repair.
 - If the stale role remains stale past the expiry threshold, another suitable bot may take over according to the lease rules.
 
 ## Permissions
@@ -261,6 +269,7 @@ Project-creation boundary:
 - Only create a new project folder when the operator or `Chief_of_Staff` has explicitly requested that project.
 - Do not autonomously adopt optional add-ons such as `TelegramBot/` or `Visualizer/` into `Projects/` unless that work was explicitly assigned.
 - Specialist roles should focus on assigned tasks inside existing workstreams instead of inventing new project lanes.
+- During bootstrap validation, optional add-ons remain out of scope unless the operator explicitly says to test them.
 
 ## Messaging
 

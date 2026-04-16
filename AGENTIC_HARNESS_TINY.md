@@ -12,12 +12,14 @@ Use this when a harness cannot reliably read `AGENTIC_HARNESS.md` or `AGENTIC_HA
 4. Update `LAYER_CONFIG.md` if needed.
 5. Write one short join line to `LAYER_SHARED_TEAM_CONTEXT.md`.
 6. Write one short role-claim line to `LAYER_LAST_ITEMS_DONE.md`.
-7. Read `LAYER_TASK_LIST.md`.
-8. Continue the current assigned work.
-9. Renew your lease every 5 minutes, or on every meaningful write if you cannot keep time.
-10. If your lease is stale, renew it before doing anything else.
-11. Do not ask for plan approval unless blocked or a real operator decision is needed.
-12. Do not create new projects unless explicitly told to.
+7. Do not treat the role as fully joined until `_heartbeat/`, `LAYER_CONFIG.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and `LAYER_LAST_ITEMS_DONE.md` all match.
+8. Read `LAYER_TASK_LIST.md`.
+9. Continue the current assigned work.
+10. Renew your lease every 5 minutes, or on every meaningful write if you cannot keep time.
+11. If your lease is stale, renew it before doing anything else.
+12. Do not ask for plan approval unless blocked or a real operator decision is needed.
+13. Do not create new projects unless explicitly told to.
+14. During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned it.
 
 ## Minimal Files
 

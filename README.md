@@ -546,6 +546,7 @@ Update your lease, update the registry if needed, write a short join note, write
 Renew your lease on meaningful writes.
 Do not stop for plan approval unless blocked or a real operator decision is required.
 Do not treat a role as fully joined until the lease, registry, join note, and event log are all updated.
+During bootstrap, do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Tiny Prompt For Very Small-Context Models
@@ -559,6 +560,7 @@ Claim the role, update your lease, write a short join note, write a short event 
 Renew your lease on meaningful writes.
 Do not stop for plan approval unless blocked or a real operator decision is required.
 Do not treat a role as fully joined until the lease, registry, join note, and event log are all updated.
+During bootstrap, do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Existing System Specialist Prompt
@@ -571,6 +573,7 @@ This is an existing Agentic Harness system.
 Take the role of <ROLE> if it is open or stale.
 Then continue the work already in progress.
 If you claim the role, renew your lease on meaningful writes and continue the active milestone before asking for a new direction.
+Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Generic Research Role Prompt
@@ -581,6 +584,7 @@ This is an existing Agentic Harness system.
 Take the role of Researcher if it is open or stale.
 Then continue the work already in progress.
 If you claim the role, renew your lease on meaningful writes, capture findings in the markdown files, and continue active research tasks before asking for a new direction.
+Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Generic Engineer Role Prompt
@@ -591,6 +595,7 @@ This is an existing Agentic Harness system.
 Take the role of Engineer if it is open or stale.
 Then continue the work already in progress.
 If you claim the role, renew your lease on meaningful writes, complete the assigned engineering work through the markdown files, and continue the active milestone before asking for a new direction.
+Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Generic Documentation Role Prompt
@@ -612,6 +617,7 @@ Claim the role, update your lease, write a short join note, write an event log l
 Renew your lease on meaningful writes and report progress through the markdown files.
 Do not stop for plan approval unless blocked or a real operator decision is required.
 Do not treat the role as fully joined until the lease, registry, join note, and event log are all updated.
+Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Example: Antigravity
@@ -624,6 +630,7 @@ Then continue the work already in progress.
 If you claim the role, renew your lease on meaningful writes and complete the assigned engineering work through the markdown files.
 Do not stop for plan approval unless blocked or a real operator decision is required.
 Do not treat the role as fully joined until the lease, registry, join note, and event log are all updated.
+Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Telegram-Connected Chief of Staff Behavior

@@ -39,6 +39,9 @@ Status: TODO
 Priority: HIGH
 Created By: operator
 Created At: 2026-04-15T09:01:00-04:00
+Required Roles For This Bootstrap Pass:
+- `Researcher`
+- `Engineer`
 Done When:
 - At least one specialist role is claimed
 - Heartbeat files exist for claimed roles
@@ -46,6 +49,8 @@ Done When:
 
 Completion rule:
 - Do not mark this task `DONE` until every specifically requested specialist role is verifiably active in `_heartbeat/`, `LAYER_CONFIG.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and `LAYER_LAST_ITEMS_DONE.md`.
+- For this template bootstrap pass, that means both `Researcher` and `Engineer` must be verifiably active.
+- If only one of those roles joins, keep this task `IN_PROGRESS`.
 
 ## TASK
 ID: TASK-0003
@@ -60,6 +65,9 @@ Done When:
 - A project folder is created under `Projects/`
 - Project task file contains role-specific sub-tasks
 - At least one role agent picks up project work
+
+Boundary rule:
+- Do not satisfy this task by adopting optional add-on folders such as `TelegramBot/` or `Visualizer/` into `Projects/` unless the operator explicitly requested that work.
 
 ## HUMAN TASK TEMPLATE
 ID: TASK-HUMAN-0001

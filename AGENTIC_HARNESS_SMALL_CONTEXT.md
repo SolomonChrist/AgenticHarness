@@ -17,12 +17,14 @@ Join Agentic Harness with the minimum possible instructions.
    - update `LAYER_CONFIG.md` registry if needed
    - write a short join note to `LAYER_SHARED_TEAM_CONTEXT.md`
    - write a role-claim event to `LAYER_LAST_ITEMS_DONE.md`
+   - do not treat the role as fully joined until all four surfaces match
 5. Read `LAYER_TASK_LIST.md` and continue the active work already in progress.
 6. Renew your lease every 5 minutes while active.
 7. If you cannot run a timer, renew on every meaningful write.
 8. If your own lease is stale, renew it before doing anything else.
 9. Do not stop for plan approval unless you are blocked or need a real operator decision.
 10. Do not create new projects or side initiatives unless the operator or `Chief_of_Staff` explicitly requested them.
+11. During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned it.
 
 ## Minimum Files To Read
 
