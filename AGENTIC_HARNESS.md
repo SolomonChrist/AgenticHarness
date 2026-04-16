@@ -6,6 +6,21 @@ The system is the files. Any harness, agent, or worker that can read and write m
 
 Read this file first. Then read the other core files in the order defined below.
 
+## Small-Context Bootstrap
+
+If your context window is very small, prioritize only these rules first:
+
+- Claim only one role and do not act before claiming it in `_heartbeat/<Role>.md`.
+- After claiming a role, update the registry if needed, write a short join note to `LAYER_SHARED_TEAM_CONTEXT.md`, and write a role-claim event to `LAYER_LAST_ITEMS_DONE.md`.
+- Renew your lease every 5 minutes while active, or on every meaningful write if you cannot keep time reliably.
+- If your own lease is stale, renew it before doing anything else.
+- Read the current top-level task list before opening new work.
+- Continue the active milestone or workstream before asking for a new direction.
+- Use `_messages/<Role>.md` for direct coordination when possible.
+- Use `Projects/<project-slug>/CONTEXT.md` for project-local coordination.
+- Do not create new projects, optional add-on work, or side initiatives unless the operator or `Chief_of_Staff` explicitly asked for them.
+- If blocked by a real decision, ask briefly. Otherwise continue.
+
 ## Purpose
 
 - Provide one universal coordination layer across any harness system.
@@ -220,6 +235,12 @@ Expected project structure:
 Top-level files remain the swarm-wide control plane.
 
 Existing projects may also be adopted into Agentic Harness by placing them inside `Projects/` and letting the first `Chief_of_Staff` inspect and plan around them.
+
+Project-creation boundary:
+
+- Only create a new project folder when the operator or `Chief_of_Staff` has explicitly requested that project.
+- Do not autonomously adopt optional add-ons such as `TelegramBot/` or `Visualizer/` into `Projects/` unless that work was explicitly assigned.
+- Specialist roles should focus on assigned tasks inside existing workstreams instead of inventing new project lanes.
 
 ## Messaging
 

@@ -487,7 +487,7 @@ Read AGENTIC_HARNESS.md first.
 This is a fresh Agentic Harness install.
 Claim the Chief_of_Staff role if it is available.
 Then ask me what I want to do and recommend any additional roles needed.
-If you claim the role, update the lease file, update the registry, read the task list, and continue the active workstream without unnecessary questions.
+If you claim the role, update the lease file, update the registry, write a short join note, write an event log line, read the task list, and continue the active workstream without unnecessary questions.
 ```
 
 ### Compact Prompt For Small-Context Models
@@ -495,7 +495,7 @@ If you claim the role, update the lease file, update the registry, read the task
 Use this when a local model has a small context window and cannot hold the longer onboarding text comfortably:
 
 ```text
-Read AGENTIC_HARNESS.md first.
+Read the Small-Context Bootstrap section at the top of AGENTIC_HARNESS.md first.
 Take role: <ROLE> if open or stale.
 Update your lease, update the registry if needed, write a short join note, write an event log line, then continue the current work.
 Renew your lease on meaningful writes.
@@ -547,7 +547,7 @@ If you claim the role, renew your lease on meaningful writes, document outputs a
 ### Example: LM Studio
 
 ```text
-Read AGENTIC_HARNESS.md first.
+Read the Small-Context Bootstrap section at the top of AGENTIC_HARNESS.md first.
 Take role: Researcher if open or stale.
 Update your lease, write a short join note, write an event log line, then continue the current work.
 Renew your lease on meaningful writes and report progress through the markdown files.
