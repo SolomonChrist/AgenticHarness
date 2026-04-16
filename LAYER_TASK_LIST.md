@@ -44,6 +44,9 @@ Done When:
 - Heartbeat files exist for claimed roles
 - Shared team context records who joined
 
+Completion rule:
+- Do not mark this task `DONE` until every specifically requested specialist role is verifiably active in `_heartbeat/`, `LAYER_CONFIG.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and `LAYER_LAST_ITEMS_DONE.md`.
+
 ## TASK
 ID: TASK-0003
 Title: Create first real project subfolder and delegate sub-tasks

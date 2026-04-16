@@ -36,3 +36,6 @@ Last Updated: 2026-04-15
 - If a harness cannot maintain timed renewal, it must refresh its lease on every meaningful write.
 - A role with a stale self-lease must renew it before continuing normal work.
 - Mixed harnesses are supported as long as they follow the same markdown protocol.
+- On every successful role claim, the registry row, join note, and event log entry should all be updated as part of the same role-claim sequence.
+- On every lease renewal, refresh `Last Seen` when possible so the registry stays aligned with the lease file.
+- If registry state and lease state disagree, repair the registry to match the lease files.

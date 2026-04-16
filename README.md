@@ -238,6 +238,8 @@ Use it to track:
 - archive policy
 - path conventions
 
+The registry should be kept in sync with live lease files.
+
 ### `LAYER_MEMORY.md`
 
 Durable memory.
@@ -351,6 +353,13 @@ They show:
 - lease expiry time
 
 If a lease expires, another bot may take over the role.
+
+A role is only fully joined when:
+
+- the lease file exists
+- the registry reflects the holder
+- the shared context has a join note
+- the event log has a role-claim entry
 
 ### `_messages/`
 
@@ -523,6 +532,7 @@ This is a fresh Agentic Harness install.
 Claim the Chief_of_Staff role if it is available.
 Then ask me what I want to do and recommend any additional roles needed.
 If you claim the role, update the lease file, update the registry, write a short join note, write an event log line, read the task list, and continue the active workstream without unnecessary questions.
+Do not treat a role as fully joined until the lease, registry, join note, and event log are all updated.
 ```
 
 ### Compact Prompt For Small-Context Models
@@ -535,6 +545,7 @@ Take role: <ROLE> if open or stale.
 Update your lease, update the registry if needed, write a short join note, write an event log line, then continue the current work.
 Renew your lease on meaningful writes.
 Do not stop for plan approval unless blocked or a real operator decision is required.
+Do not treat a role as fully joined until the lease, registry, join note, and event log are all updated.
 ```
 
 ### Tiny Prompt For Very Small-Context Models
@@ -547,6 +558,7 @@ Take role: <ROLE> if open or stale.
 Claim the role, update your lease, write a short join note, write a short event log line, then continue the current work.
 Renew your lease on meaningful writes.
 Do not stop for plan approval unless blocked or a real operator decision is required.
+Do not treat a role as fully joined until the lease, registry, join note, and event log are all updated.
 ```
 
 ### Existing System Specialist Prompt
@@ -599,6 +611,7 @@ Take role: Researcher if open or stale.
 Claim the role, update your lease, write a short join note, write an event log line, then continue the current work.
 Renew your lease on meaningful writes and report progress through the markdown files.
 Do not stop for plan approval unless blocked or a real operator decision is required.
+Do not treat the role as fully joined until the lease, registry, join note, and event log are all updated.
 ```
 
 ### Example: Antigravity
@@ -610,6 +623,7 @@ Take the role of Engineer if it is open or stale.
 Then continue the work already in progress.
 If you claim the role, renew your lease on meaningful writes and complete the assigned engineering work through the markdown files.
 Do not stop for plan approval unless blocked or a real operator decision is required.
+Do not treat the role as fully joined until the lease, registry, join note, and event log are all updated.
 ```
 
 ### Telegram-Connected Chief of Staff Behavior

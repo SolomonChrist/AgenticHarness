@@ -149,6 +149,15 @@ After claiming a role, do not stop to ask for permission to perform routine syst
 
 Proceed unless blocked by missing information or a real operator decision.
 
+Role-claim completion checklist:
+
+- `_heartbeat/<Role>.md` exists with an active lease
+- `LAYER_CONFIG.md` registry shows the live holder
+- `LAYER_SHARED_TEAM_CONTEXT.md` contains a short join/online note
+- `LAYER_LAST_ITEMS_DONE.md` contains a role-claim event
+
+A role should not be treated as successfully joined until all four are true.
+
 ## Lease And Takeover Rules
 
 Each active bot role writes to exactly one file:
@@ -212,6 +221,13 @@ Stale self-repair rule:
 
 - If a role sees that its own lease is stale or nearing expiry, lease renewal becomes its highest-priority action before any other work.
 - After renewing, it may continue normal work.
+- Every lease renewal should also refresh the matching `Last Seen` value in `LAYER_CONFIG.md` when the harness can do so.
+
+Registry consistency rule:
+
+- `LAYER_CONFIG.md` should match the currently active lease files.
+- On claim, takeover, release, or lease renewal, update the matching registry row when possible.
+- If the registry and lease file disagree, treat the lease file as the live source of truth and repair the registry.
 
 Stale peer rule:
 
