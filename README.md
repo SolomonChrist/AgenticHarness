@@ -91,6 +91,10 @@ Every harness starts by reading:
 
 - `AGENTIC_HARNESS.md`
 
+If a harness has a very small context window, it may start with:
+
+- `AGENTIC_HARNESS_SMALL_CONTEXT.md`
+
 That file tells the harness:
 
 - what this system is
@@ -168,6 +172,20 @@ It defines:
 - messaging conventions
 - project structure
 - human checkout behavior
+
+### `AGENTIC_HARNESS_SMALL_CONTEXT.md`
+
+A compact bootstrap entry for low-context harnesses.
+
+Use it when a model cannot reliably ingest the full main spec.
+
+It contains:
+
+- minimum role-claim rules
+- minimum lease rules
+- minimum file read order
+- messaging basics
+- small-context join behavior
 
 ### `PROJECT.md`
 
@@ -495,7 +513,7 @@ If you claim the role, update the lease file, update the registry, write a short
 Use this when a local model has a small context window and cannot hold the longer onboarding text comfortably:
 
 ```text
-Read the Small-Context Bootstrap section at the top of AGENTIC_HARNESS.md first.
+Read AGENTIC_HARNESS_SMALL_CONTEXT.md first.
 Take role: <ROLE> if open or stale.
 Update your lease, update the registry if needed, write a short join note, write an event log line, then continue the current work.
 Renew your lease on meaningful writes.
@@ -547,7 +565,7 @@ If you claim the role, renew your lease on meaningful writes, document outputs a
 ### Example: LM Studio
 
 ```text
-Read the Small-Context Bootstrap section at the top of AGENTIC_HARNESS.md first.
+Read AGENTIC_HARNESS_SMALL_CONTEXT.md first.
 Take role: Researcher if open or stale.
 Update your lease, write a short join note, write an event log line, then continue the current work.
 Renew your lease on meaningful writes and report progress through the markdown files.

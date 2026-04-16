@@ -6,6 +6,8 @@ The system is the files. Any harness, agent, or worker that can read and write m
 
 Read this file first. Then read the other core files in the order defined below.
 
+If a harness has a very small context window and cannot comfortably ingest this full file, it may read `AGENTIC_HARNESS_SMALL_CONTEXT.md` first instead.
+
 ## Small-Context Bootstrap
 
 If your context window is very small, prioritize only these rules first:
