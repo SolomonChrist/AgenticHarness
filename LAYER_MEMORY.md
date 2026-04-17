@@ -2,6 +2,10 @@
 
 Append-only durable memory for the swarm.
 
+This file is for shared swarm/project memory.
+
+Role-specific and human-specific long-term memory belongs in `MEMORY/`.
+
 ## Entries
 
 [2026-04-15T00:00:00-04:00] [SYSTEM] Initialized Agentic Harness markdown-first control plane.

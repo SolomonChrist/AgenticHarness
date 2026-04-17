@@ -25,6 +25,10 @@ Join Agentic Harness with the minimum possible instructions.
 9. Do not stop for plan approval unless you are blocked or need a real operator decision.
 10. Do not create new projects or side initiatives unless the operator or `Chief_of_Staff` explicitly requested them.
 11. During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned it.
+12. Read `MEMORY/agents/<Role>/ALWAYS.md` if it exists before normal work.
+13. If you are `Chief_of_Staff`, read `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if it exists.
+14. If you are `Chief_of_Staff` and the operator is known, read `MEMORY/humans/<HumanID>/ALWAYS.md` if it exists before operator-facing work.
+15. If you are `Chief_of_Staff` and onboarding status is missing or incomplete, run first-run operator onboarding, write operator memory, then continue.
 
 ## Minimum Files To Read
 
@@ -38,6 +42,9 @@ Read these in order:
 6. `LAYER_TASK_LIST.md`
 7. `LAYER_SHARED_TEAM_CONTEXT.md`
 8. Recent entries from `LAYER_LAST_ITEMS_DONE.md`
+9. `MEMORY/agents/<Role>/ALWAYS.md` if it exists
+10. `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if you are `Chief_of_Staff`
+11. `MEMORY/humans/<HumanID>/ALWAYS.md` if you are `Chief_of_Staff` and the operator is known
 
 ## Role Claim Template
 
@@ -83,6 +90,11 @@ Tasks needing a human should use:
 
 - `WAITING_ON_HUMAN`
 - `HUMAN_CHECKOUT`
+
+Human details and human memory live in:
+
+- `HUMANS.md`
+- `MEMORY/humans/<HumanID>/`
 
 ## Optional Telegram Rule
 

@@ -1,4 +1,4 @@
-# Agentic Harness
+﻿# Agentic Harness
 
 Markdown-first infrastructure for multi-agent swarms.
 
@@ -51,6 +51,7 @@ Older versions explored larger runtimes, dashboards, and more embedded behavior.
 - a handful of core markdown files
 - role-based coordination
 - lease-based worker ownership
+- long-term markdown memory per role and per human
 - human checkout flow
 - optional transport and visualization layers outside the core
 
@@ -138,7 +139,9 @@ On a fresh install:
 
 - only `Chief_of_Staff` exists by default
 - the first harness claims `Chief_of_Staff`
-- it asks the operator what they want to do
+- on the first run, `Chief_of_Staff` should onboard the operator and build the initial operator memory
+- it should write or update `HUMANS.md`, `MEMORY/humans/<HumanID>/`, and its own `MEMORY/agents/Chief_of_Staff/ALWAYS.md`
+- after onboarding is complete, it asks the operator what they want to do
 - it recommends any additional roles needed
 
 This keeps the system lightweight and avoids preloading unnecessary structure.
@@ -254,6 +257,10 @@ Use it for information that should survive across sessions:
 
 Do not use it for routine chatter.
 
+This is shared memory only.
+
+Role-specific and human-specific long-term memory lives in `MEMORY/`.
+
 ### `LAYER_TASK_LIST.md`
 
 The top-level task board.
@@ -327,6 +334,8 @@ Use it to track:
 - contact methods
 - escalation preferences
 
+It also points to the human memory files used by `Chief_of_Staff`.
+
 Human IDs should use:
 
 - full first and last name in CamelCase
@@ -380,6 +389,39 @@ Examples:
 ### `_archive/last_items_done/`
 
 Monthly archive storage for older event log entries.
+
+### `MEMORY/`
+
+Long-term markdown memory store.
+
+Use this for:
+
+- role-specific memory
+- operator/human memory
+- always-available standing context
+- recent dated memories
+- archived memory summaries older than 30 days
+
+Recommended structure:
+
+- `MEMORY/agents/<Role>/ALWAYS.md`
+- `MEMORY/agents/<Role>/ONBOARDING_STATUS.md`
+- `MEMORY/agents/<Role>/RECENT/YYYY-MM-DD.md`
+- `MEMORY/agents/<Role>/ARCHIVE/YYYY-MM-summary.md`
+- `MEMORY/humans/<HumanID>/ALWAYS.md`
+- `MEMORY/humans/<HumanID>/RECENT/YYYY-MM-DD.md`
+- `MEMORY/humans/<HumanID>/ARCHIVE/YYYY-MM-summary.md`
+
+How it works:
+
+- every role keeps its own memory lane
+- a new harness taking over a role reads that role memory before normal work
+- `Chief_of_Staff` reads the operator's human memory before normal operator-facing work
+- `Chief_of_Staff` reads `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` to see whether first-run onboarding has already happened
+- `ALWAYS.md` stores things that should be remembered every session
+- `RECENT/` stores dated short-term memory files
+- after 30 days, recent memory should be summarized into `ARCHIVE/`
+- archive summaries remain readable as long-term memory
 
 ### `Projects/`
 
@@ -453,6 +495,59 @@ Track things like:
 - `Escalate After`
 - `Contact Method`
 
+## Role Memory And Operator Memory
+
+This is the long-term continuity layer.
+
+Every role should be able to remember over time, even if a different harness takes over later.
+
+That means:
+
+- `Researcher` should inherit prior researcher memory
+- `Engineer` should inherit prior engineering memory
+- `Chief_of_Staff` should inherit prior operator-facing memory
+
+`Chief_of_Staff` specifically should remember the operator through:
+
+- `MEMORY/humans/<HumanID>/ALWAYS.md`
+- `MEMORY/humans/<HumanID>/RECENT/`
+- `MEMORY/humans/<HumanID>/ARCHIVE/`
+
+It should also keep an onboarding marker in:
+
+- `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md`
+
+This is where preferences, tone, recurring priorities, known constraints, and important relationship context should live.
+
+Every role should also have:
+
+- `MEMORY/agents/<Role>/ALWAYS.md`
+- `MEMORY/agents/<Role>/RECENT/`
+- `MEMORY/agents/<Role>/ARCHIVE/`
+
+This lets any replacement harness read the role memory and continue with more context than just the current task list.
+
+## Chief_of_Staff First-Run Onboarding
+
+The first time `Chief_of_Staff` takes over a fresh install, it should not rely on manual setup by the operator.
+
+It should:
+
+1. detect whether `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` exists and says onboarding is complete
+2. if not, start operator onboarding itself
+3. learn who the operator is
+4. learn how the operator prefers to work
+5. create or update the operator record in `HUMANS.md`
+6. write operator memory into `MEMORY/humans/<HumanID>/`
+7. write standing `Chief_of_Staff` role memory into `MEMORY/agents/Chief_of_Staff/ALWAYS.md`
+8. mark onboarding complete in `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md`
+
+Future `Chief_of_Staff` replacements should:
+
+- read onboarding status
+- load the operator memory
+- skip rerunning full onboarding unless the memory is missing or needs repair
+
 ## Optional Add-Ons
 
 ### Telegram Bridge
@@ -512,11 +607,14 @@ The files are the infrastructure.
 Read AGENTIC_HARNESS.md first.
 This is a fresh Agentic Harness install.
 Claim the Chief_of_Staff role if it is available.
-Then ask me what I want to do and recommend any additional roles needed.
 ```
 
 4. Let that first harness become `Chief_of_Staff`.
 5. Add additional harnesses only after the role structure is clear.
+
+That is the normal minimal boot prompt.
+
+The rest should be driven by the markdown protocol itself, including first-run onboarding if it has not already been completed.
 
 ## First Boot Prompts
 
@@ -524,43 +622,34 @@ These prompts are meant to help users get started quickly with a fresh Agentic H
 
 ### Chief of Staff Prompt
 
-Use this for the first harness you launch:
+Use this for the first harness you launch. For most users, this is all that should be needed:
 
 ```text
 Read AGENTIC_HARNESS.md first.
 This is a fresh Agentic Harness install.
 Claim the Chief_of_Staff role if it is available.
-Then ask me what I want to do and recommend any additional roles needed.
-If you claim the role, update the lease file, update the registry, write a short join note, write an event log line, read the task list, and continue the active workstream without unnecessary questions.
-Do not treat a role as fully joined until the lease, registry, join note, and event log are all updated.
 ```
+
+The onboarding, lease updates, registry writes, join note, event log entry, and next actions should all be handled by `Chief_of_Staff` after reading the file protocol.
 
 ### Compact Prompt For Small-Context Models
 
-Use this when a local model has a small context window and cannot hold the longer onboarding text comfortably:
+Use this only if a harness cannot comfortably read the full main spec but can still handle the compact file:
 
 ```text
 Read AGENTIC_HARNESS_SMALL_CONTEXT.md first.
-Take role: <ROLE> if open or stale.
-Update your lease, update the registry if needed, write a short join note, write an event log line, then continue the current work.
-Renew your lease on meaningful writes.
-Do not stop for plan approval unless blocked or a real operator decision is required.
-Do not treat a role as fully joined until the lease, registry, join note, and event log are all updated.
-During bootstrap, do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
+This is a fresh Agentic Harness install.
+Claim the Chief_of_Staff role if it is available.
 ```
 
 ### Tiny Prompt For Very Small-Context Models
 
-Use this when a harness still fails with the small-context path:
+Use this when a harness has a very small context window:
 
 ```text
 Read AGENTIC_HARNESS_TINY.md first.
-Take role: <ROLE> if open or stale.
-Claim the role, update your lease, write a short join note, write a short event log line, then continue the current work.
-Renew your lease on meaningful writes.
-Do not stop for plan approval unless blocked or a real operator decision is required.
-Do not treat a role as fully joined until the lease, registry, join note, and event log are all updated.
-During bootstrap, do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
+This is a fresh Agentic Harness install.
+Claim the Chief_of_Staff role if it is available.
 ```
 
 ### Existing System Specialist Prompt
@@ -656,3 +745,5 @@ Each harness can bring its own strengths as long as it follows the same markdown
 ## In One Line
 
 Agentic Harness is a markdown-first meta harness for running a real multi-agent system across many harness types through one shared, local-first control plane.
+
+

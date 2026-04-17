@@ -22,6 +22,8 @@ Security Level: MANAGED
 - `LAYER_LAST_ITEMS_DONE.md`: operator and all active roles
 - `ROLES.md`: operator and `Chief_of_Staff`
 - `HUMANS.md`: operator and `Chief_of_Staff`
+- `MEMORY/agents/<Role>/**`: operator, `Chief_of_Staff`, and the active holder of that role
+- `MEMORY/humans/<HumanID>/**`: operator and `Chief_of_Staff`; specialists only if the operator or `Chief_of_Staff` intentionally shared that context
 - `_heartbeat/<Role>.md`: active holder of that role
 - `_messages/<Role>.md`: operator, `Chief_of_Staff`, and message sender
 - `_messages/human_<HumanID>.md`: operator, `Chief_of_Staff`, and automation layers
@@ -35,6 +37,8 @@ The operator always has final authority over:
 - task priority
 - task state
 - memory entries
+- role memory entries
+- human/operator memory entries
 - project creation
 
 ## Safety

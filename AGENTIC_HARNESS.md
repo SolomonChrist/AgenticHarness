@@ -53,6 +53,7 @@ Supporting directories:
 - `_heartbeat/`
 - `_messages/`
 - `_archive/last_items_done/`
+- `MEMORY/`
 - `Projects/`
 - `SKILLS/`
 
@@ -69,7 +70,8 @@ Supporting directories:
 - Main work is tracked in `LAYER_TASK_LIST.md`.
 - Project-specific sub-tasks live inside `Projects/<project-slug>/TASKS.md`.
 - Team discussion and handoffs go in `LAYER_SHARED_TEAM_CONTEXT.md`.
-- Durable memory goes in `LAYER_MEMORY.md`.
+- Shared durable memory goes in `LAYER_MEMORY.md`.
+- Role and human long-term memory live in `MEMORY/`.
 - Every meaningful action is logged in `LAYER_LAST_ITEMS_DONE.md`.
 - Reusable patterns should be written into `SKILLS/` so expertise compounds across sessions.
 
@@ -79,7 +81,11 @@ On a fresh install:
 
 - Only the `Chief_of_Staff` role should exist by default.
 - The first harness should claim `Chief_of_Staff`.
-- The `Chief_of_Staff` should ask the operator what they want to do.
+- The first `Chief_of_Staff` should run operator onboarding if it has not already been completed.
+- During onboarding, `Chief_of_Staff` should learn who the operator is, how they prefer to work, and what standing preferences should be remembered.
+- `Chief_of_Staff` should create or update the operator record in `HUMANS.md` and the matching human memory files in `MEMORY/humans/<HumanID>/`.
+- `Chief_of_Staff` should also update its own `MEMORY/agents/Chief_of_Staff/ALWAYS.md` with standing executive-assistant behavior notes learned from that onboarding.
+- After onboarding is complete, `Chief_of_Staff` should ask the operator what they want to do.
 - The `Chief_of_Staff` should then create or recommend the additional roles needed for the work.
 
 On an existing-project install:
@@ -133,12 +139,15 @@ Every harness or agent joining this system must do the following:
 6. If the chosen role is stale or open, claim it by writing `_heartbeat/<Role>.md`.
 7. Read `PROJECT.md`.
 8. Read `LAYER_CONFIG.md`.
-9. Read `LAYER_TASK_LIST.md`.
-10. Read `LAYER_SHARED_TEAM_CONTEXT.md`.
-11. Read recent items from `LAYER_LAST_ITEMS_DONE.md`.
-12. Write a short online/join note to `LAYER_SHARED_TEAM_CONTEXT.md`.
-13. Write a role-claim event to `LAYER_LAST_ITEMS_DONE.md`.
-14. Begin work according to the claimed role.
+9. Read `MEMORY/agents/<Role>/ALWAYS.md` if it exists.
+10. Read recent role memory entries from `MEMORY/agents/<Role>/RECENT/` if they exist.
+11. If you are `Chief_of_Staff` and the active operator/human is known, read `MEMORY/humans/<HumanID>/ALWAYS.md` and recent human memory entries if they exist.
+12. Read `LAYER_TASK_LIST.md`.
+13. Read `LAYER_SHARED_TEAM_CONTEXT.md`.
+14. Read recent items from `LAYER_LAST_ITEMS_DONE.md`.
+15. Write a short online/join note to `LAYER_SHARED_TEAM_CONTEXT.md`.
+16. Write a role-claim event to `LAYER_LAST_ITEMS_DONE.md`.
+17. Begin work according to the claimed role.
 
 After claiming a role, do not stop to ask for permission to perform routine system updates such as:
 
@@ -328,6 +337,58 @@ Human contact details should be stored in `HUMANS.md`.
 Direct human messaging files should use:
 
 - `_messages/human_<HumanID>.md`
+
+## Long-Term Memory
+
+Agentic Harness uses two memory layers:
+
+- `LAYER_MEMORY.md` for shared swarm and project memory
+- `MEMORY/` for role-specific and human-specific long-term memory
+
+`LAYER_MEMORY.md` should hold:
+
+- shared decisions
+- cross-role policies
+- project-wide discoveries
+- operator preferences that the whole swarm should know
+
+`MEMORY/` should hold:
+
+- role-specific memory that should travel with the role over time
+- human/operator memory that `Chief_of_Staff` should remember
+- any always-available standing context that should load every session
+
+Recommended memory structure:
+
+- `MEMORY/agents/<Role>/ALWAYS.md`
+- `MEMORY/agents/<Role>/ONBOARDING_STATUS.md`
+- `MEMORY/agents/<Role>/RECENT/YYYY-MM-DD.md`
+- `MEMORY/agents/<Role>/ARCHIVE/YYYY-MM-summary.md`
+- `MEMORY/humans/<HumanID>/ALWAYS.md`
+- `MEMORY/humans/<HumanID>/RECENT/YYYY-MM-DD.md`
+- `MEMORY/humans/<HumanID>/ARCHIVE/YYYY-MM-summary.md`
+
+Memory rules:
+
+- Every role should maintain its own memory lane.
+- A harness taking over a role should read that role's memory before normal work.
+- `Chief_of_Staff` should read the active operator's human memory before normal operator-facing work.
+- `Chief_of_Staff` should also read `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if it exists to determine whether first-run operator onboarding has already been completed.
+- Use `ALWAYS.md` for things that must be remembered every time.
+- Use `RECENT/` for dated short-term memory notes.
+- When recent memory exceeds 30 days, summarize it into an archive file and keep the archive readable for future context.
+- Archive files remain readable long-term memory and should still be used when relevant.
+- Keep memories searchable, concise, and append-friendly.
+- Do not put private human/operator memories into a specialist role's memory lane unless the operator or `Chief_of_Staff` intentionally shared them.
+
+Chief_of_Staff operator-memory rule:
+
+- `Chief_of_Staff` should maintain human memory for the operator in `MEMORY/humans/<HumanID>/`.
+- That memory should include preferences, working style, recurring priorities, communication preferences, and important historical context.
+- A new harness taking over `Chief_of_Staff` should read that human memory so the operator relationship persists across sessions and harness swaps.
+- On the very first run, if onboarding status is missing or incomplete, `Chief_of_Staff` should perform operator onboarding and then mark onboarding complete in `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md`.
+- If onboarding status says it is complete, future `Chief_of_Staff` replacements should not rerun full onboarding; they should load existing operator memory and continue.
+- If onboarding status exists but the referenced human memory is missing or clearly broken, `Chief_of_Staff` may run a repair onboarding pass instead of a full first-run onboarding.
 
 ## Telegram Executive Assistant
 

@@ -20,6 +20,10 @@ Use this when a harness cannot reliably read `AGENTIC_HARNESS.md` or `AGENTIC_HA
 12. Do not ask for plan approval unless blocked or a real operator decision is needed.
 13. Do not create new projects unless explicitly told to.
 14. During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned it.
+15. Read `MEMORY/agents/<Role>/ALWAYS.md` if it exists before normal work.
+16. If you are `Chief_of_Staff`, read `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if it exists.
+17. If you are `Chief_of_Staff` and the operator is known, read `MEMORY/humans/<HumanID>/ALWAYS.md` if it exists before operator-facing work.
+18. If you are `Chief_of_Staff` and onboarding status is missing or incomplete, run first-run operator onboarding, write operator memory, then continue.
 
 ## Minimal Files
 
@@ -32,6 +36,8 @@ Read only these:
 - `LAYER_TASK_LIST.md`
 - `LAYER_SHARED_TEAM_CONTEXT.md`
 - latest lines from `LAYER_LAST_ITEMS_DONE.md`
+- `MEMORY/agents/<Role>/ALWAYS.md` if it exists
+- `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if you are `Chief_of_Staff`
 
 ## Lease Fields
 

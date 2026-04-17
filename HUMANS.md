@@ -24,18 +24,13 @@ Preferred Contact Methods:
 - phone:
 - sms:
 Escalation Preference:
+Always Memory File:
+Recent Memory Root:
+Archive Memory Root:
 Notes:
+
+On a true fresh install, the first `Chief_of_Staff` should populate this file during operator onboarding.
 
 ## Records
 
-### HUMAN
-ID: SolomonChrist4821
-Full Name: Solomon Christ
-Role: Operator
-Preferred Contact Methods:
-- telegram:
-- email:
-- phone:
-- sms:
-Escalation Preference: Telegram first, then email
-Notes: Primary operator for this harness
+(empty on fresh install - populated by `Chief_of_Staff` during operator onboarding)

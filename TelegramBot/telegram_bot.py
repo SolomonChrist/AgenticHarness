@@ -221,6 +221,8 @@ def main() -> None:
     print(f"Starting {BOT_NAME} for {HARNESS_ROOT}")
     if not validate_root():
         print(f"Harness root not found or missing AGENTIC_HARNESS.md: {HARNESS_ROOT}")
+    if not CHIEF_FILE.exists():
+        CHIEF_FILE.write_text("", encoding="utf-8")
     if not HUMAN_FILE.exists():
         HUMAN_FILE.write_text("", encoding="utf-8")
     threading.Thread(target=poll_human_replies, daemon=True).start()

@@ -12,6 +12,10 @@ Last Updated: 2026-04-15
 - Project Root: `Projects/`
 - Heartbeat Root: `_heartbeat/`
 - Direct Message Root: `_messages/`
+- Memory Root: `MEMORY/`
+- Agent Memory Pattern: `MEMORY/agents/<Role>/`
+- Human Memory Pattern: `MEMORY/humans/<HumanID>/`
+- Recent Memory Archive Rule: summarize memory older than 30 days into `ARCHIVE/`
 - Human Registry File: `HUMANS.md`
 
 ## Chief Of Staff Routing Rules
@@ -39,3 +43,4 @@ Last Updated: 2026-04-15
 - On every successful role claim, the registry row, join note, and event log entry should all be updated as part of the same role-claim sequence.
 - On every lease renewal, refresh `Last Seen` when possible so the registry stays aligned with the lease file.
 - If registry state and lease state disagree, repair the registry to match the lease files.
+- `LAYER_MEMORY.md` is shared memory; `MEMORY/` holds role-specific and human-specific long-term memory.
