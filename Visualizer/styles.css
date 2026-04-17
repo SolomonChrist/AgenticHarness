@@ -1,0 +1,189 @@
+:root {
+  --bg: #091018;
+  --panel: rgba(10, 16, 24, 0.92);
+  --surface: #101925;
+  --border: #203040;
+  --text: #d9e5ef;
+  --muted: #7d92a5;
+  --accent: #e2a13f;
+  --good: #62c18a;
+  --warn: #e87b44;
+  --info: #5aa8ff;
+  --purple: #9c7cff;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "IBM Plex Mono", "DM Mono", Consolas, monospace;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(90,168,255,0.08), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(226,161,63,0.08), transparent 28%),
+    var(--bg);
+}
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  grid-template-rows: 64px 1fr;
+  grid-template-areas:
+    "nav nav"
+    "main side";
+}
+
+.nav {
+  grid-area: nav;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(226, 161, 63, 0.25);
+  background: rgba(9, 16, 24, 0.88);
+  backdrop-filter: blur(12px);
+}
+
+.brand { color: var(--accent); letter-spacing: .12em; font-size: 14px; }
+.nav-meta { display: flex; gap: 18px; color: var(--muted); font-size: 12px; }
+.nav-meta span b { color: var(--text); }
+
+.main {
+  grid-area: main;
+  padding: 20px;
+}
+
+.side {
+  grid-area: side;
+  border-left: 1px solid rgba(32, 48, 64, 0.8);
+  background: rgba(7, 12, 18, 0.86);
+  padding: 18px;
+  overflow: auto;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid rgba(32, 48, 64, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
+.card.pad { padding: 18px; }
+.title { font-size: 12px; color: var(--accent); letter-spacing: .12em; margin-bottom: 10px; text-transform: uppercase; }
+.headline { font-size: 28px; line-height: 1.15; margin: 0 0 10px; }
+.muted { color: var(--muted); line-height: 1.6; font-size: 13px; }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat {
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(16,25,37,0.96), rgba(9,16,24,0.96));
+  border: 1px solid rgba(32, 48, 64, 0.9);
+}
+.stat .n { font-size: 24px; color: var(--accent); margin-bottom: 6px; }
+.stat .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+
+.world-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.agent {
+  position: relative;
+  min-height: 190px;
+  overflow: hidden;
+}
+
+.agent .status {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+.active { background: rgba(98,193,138,0.16); color: var(--good); }
+.stale { background: rgba(232,123,68,0.16); color: var(--warn); }
+.unclaimed { background: rgba(125,146,165,0.16); color: var(--muted); }
+
+.agent-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent h3 { margin: 0; font-size: 20px; }
+.agent .role-meta { font-size: 12px; color: var(--purple); }
+.agent .task { font-size: 13px; color: var(--text); }
+.agent .lease { font-size: 11px; color: var(--muted); }
+
+.scene {
+  height: 200px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(90,168,255,0.08), rgba(0,0,0,0)),
+    linear-gradient(0deg, rgba(226,161,63,0.08), rgba(0,0,0,0)),
+    #0d141d;
+  border: 1px solid rgba(32,48,64,.85);
+  position: relative;
+  overflow: hidden;
+}
+
+.dot {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: 0 0 22px currentColor;
+}
+
+.events, .projects { display: flex; flex-direction: column; gap: 10px; }
+.line {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(16,25,37,0.85);
+  border: 1px solid rgba(32,48,64,.75);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mode-links {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mode-links a {
+  display: inline-block;
+  padding: 8px 12px;
+  text-decoration: none;
+  border: 1px solid rgba(226,161,63,.25);
+  border-radius: 10px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+@media (max-width: 1080px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 64px auto auto;
+    grid-template-areas: "nav" "main" "side";
+  }
+  .hero, .stats, .world-grid { grid-template-columns: 1fr; }
+  .side { border-left: 0; border-top: 1px solid rgba(32,48,64,.8); }
+}

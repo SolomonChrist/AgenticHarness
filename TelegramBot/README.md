@@ -26,6 +26,31 @@ The MasterBot remains the one that communicates with the system.
 
 ## Setup
 
+The user should only need to do two manual things:
+
+1. Create the Telegram bot and get the bot token.
+2. Get their Telegram user ID.
+
+After that, the active `Chief_of_Staff` should be able to fill `TelegramBot/.env.telegram` for them if they provide:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_ALLOWED_USER_IDS`
+
+and the local harness root is already known.
+
+Recommended instruction to give `Chief_of_Staff`:
+
+```text
+Configure the Telegram bridge for this install.
+Use the Telegram bot token and Telegram user ID I provide.
+Write the correct values into TelegramBot/.env.telegram.
+Use the current harness root for HARNESS_ROOT.
+Use the operator Human ID from HUMANS.md for HUMAN_ID.
+After writing the file, continue using Telegram as transport only by reading _messages/Chief_of_Staff.md and replying through _messages/human_<HumanID>.md.
+```
+
+Manual fallback:
+
 1. Copy the template:
 
 ```powershell
@@ -42,12 +67,14 @@ copy .env.telegram.template .env.telegram
 3. Install dependencies:
 
 ```powershell
-pip install requests python-dotenv
+py -m pip install requests python-dotenv
+python -m pip install requests python-dotenv
 ```
 
 4. Start:
 
 ```powershell
+py telegram_bot.py
 python telegram_bot.py
 ```
 
@@ -66,19 +93,22 @@ It only transports messages between you and the active MasterBot.
 
 1. Start your core Agentic Harness system first.
 2. Make sure `Chief_of_Staff` is already active.
-3. Copy `.env.telegram.template` to `.env.telegram`.
-4. Fill in:
+3. Get your bot token from `@BotFather`.
+4. Get your Telegram user ID from `@userinfobot`.
+5. Give those values to `Chief_of_Staff` and ask it to configure `TelegramBot/.env.telegram`.
+6. Confirm that `.env.telegram` now contains:
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_ALLOWED_USER_IDS`
    - `HARNESS_ROOT`
    - `HUMAN_ID`
-5. Start the bridge:
+7. Start the bridge:
 
 ```powershell
+py telegram_bot.py
 python telegram_bot.py
 ```
 
-6. In Telegram, send:
+8. In Telegram, send:
    - `/start`
    - a normal message such as `What is the current status?`
    - `/wake`
@@ -92,6 +122,8 @@ Expected behavior:
 
 ## Troubleshooting
 
+- If `pip install` fails on Windows, use `py -m pip install requests python-dotenv`.
+- If `py` is not available, use `python -m pip install requests python-dotenv`.
 - If `/start` works but normal replies do not come back, the bridge is running but `Chief_of_Staff` is not writing to `_messages/human_<HumanID>.md`.
 - If the bridge says the harness root is missing, check `HARNESS_ROOT` in `.env.telegram`.
 - If Telegram messages do not arrive, verify `TELEGRAM_ALLOWED_USER_IDS` and the bot token.

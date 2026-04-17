@@ -17,6 +17,46 @@ It should provide:
 
 Its main goal is to visualize the system, the bots, their movement, and their current work in a way that feels alive and easy to understand.
 
+## Current Files
+
+- `visualizer_server.py`
+- `world2d.html`
+- `world3d.html`
+- `worldvr.html`
+- `dashboard.html`
+- `styles.css`
+- `app.js`
+
+## Start Commands
+
+Windows:
+
+```powershell
+py Visualizer\visualizer_server.py
+python Visualizer\visualizer_server.py
+```
+
+Then open:
+
+- [http://127.0.0.1:8787/world2d.html](http://127.0.0.1:8787/world2d.html)
+- [http://127.0.0.1:8787/world3d.html](http://127.0.0.1:8787/world3d.html)
+- [http://127.0.0.1:8787/worldvr.html](http://127.0.0.1:8787/worldvr.html)
+- [http://127.0.0.1:8787/dashboard.html](http://127.0.0.1:8787/dashboard.html)
+
+## API
+
+The server exposes:
+
+- `/api/state`
+
+That endpoint reads the live markdown system and returns:
+
+- roles and lease state
+- task summary
+- projects
+- recent event log lines
+- recent shared context lines
+
 ## Core Behavior
 
 The Visualizer should:
@@ -56,57 +96,25 @@ Preferred file touch points:
 - `LAYER_SHARED_TEAM_CONTEXT.md`
 - `LAYER_LAST_ITEMS_DONE.md`
 
-## Required Views
+## V11 Inspiration To Preserve
 
-### 3D View
+From the older V11 world layer, the most valuable ideas to preserve are:
 
-- main beautiful immersive view
-- live bot movement in 3D
-- bot labels, role names, and status indicators
-- clear indication of what each live bot is doing
+- one beautiful main 3D scene
+- a simpler 2D tactical view
+- a VR doorway into the same live system
+- strong HUD overlays
+- clear role/task/status visibility
+- a dashboard for at-a-glance operator health
 
-### 2D View
+## Next Phase
 
-- simplified tactical overview
-- easier scanning of agents, tasks, and status
-- useful for quick operational control
+The current implementation gives a local server and live markdown-driven UI scaffold.
 
-### VR View
+Next improvements:
 
-- same swarm represented in VR
-- intended for headset-capable environments
-- should remain connected to the same live markdown-driven system
-
-## Operator Controls
-
-The operator should be able to:
-
-- click on a live bot
-- inspect its role, current task, and recent messages
-- send a direct message to that bot
-- add or update tasks
-- view which role leases are live
-- view which roles are stale or unclaimed
-- act similarly to `Chief_of_Staff` for task updates when needed
-
-## Design Rule
-
-This is a visual layer, not a replacement for the core system.
-
-It should:
-
-- feel immersive
-- feel alive
-- make swarm activity obvious
-- remain optional
-- work entirely from the user's own system
-
-## Expected Future Files
-
-- `index.html`
-- `world2d.html`
-- `world3d.html`
-- `worldvr.html`
-- `styles.css`
-- `app.js`
-- optional local server helper if needed
+- richer 3D movement and scene design
+- clickable role cards and detail panels
+- write-back controls into `_messages/` and tasks
+- full VR/WebXR layer
+- presentation polish for the public demo

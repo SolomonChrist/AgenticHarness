@@ -53,6 +53,7 @@ Older versions explored larger runtimes, dashboards, and more embedded behavior.
 - lease-based worker ownership
 - long-term markdown memory per role and per human
 - human checkout flow
+- one optional runner/daemon for liveness
 - optional transport and visualization layers outside the core
 
 The goal is not to make the system more complicated.
@@ -548,6 +549,22 @@ Future `Chief_of_Staff` replacements should:
 - load the operator memory
 - skip rerunning full onboarding unless the memory is missing or needs repair
 
+Recommended onboarding tone:
+
+- conversational
+- warm
+- concise
+- professional
+- human
+
+Recommended first onboarding question:
+
+```text
+What is your name? (ex. Firstname Lastname)
+```
+
+After that, `Chief_of_Staff` should continue naturally and learn the operator's goals, preferences, update style, approval style, and working habits without sounding like a robotic intake form.
+
 ## Optional Add-Ons
 
 ### Telegram Bridge
@@ -616,6 +633,43 @@ That is the normal minimal boot prompt.
 
 The rest should be driven by the markdown protocol itself, including first-run onboarding if it has not already been completed.
 
+## First-Time User Experience
+
+Recommended first experience:
+
+1. create a brand-new folder
+2. copy Agentic Harness into that folder
+3. use one harness you already trust
+4. let that harness become `Chief_of_Staff`
+5. let `Chief_of_Staff` walk you through onboarding, memory, and Runner setup
+
+This is the safest way to learn the system before pointing it at important live work.
+
+Assumptions for first-time users:
+
+- you have at least one harness available
+- you may only have one harness at first
+- you may be using a cloud harness such as Claude Code, Codex, or Antigravity
+- or you may be using a private/local harness such as Ollama or LM Studio
+
+Recommended first boot:
+
+- normal harnesses: use `AGENTIC_HARNESS.md`
+- very small local/offline harnesses: use `AGENTIC_HARNESS_TINY.md`
+
+The system is designed so that the first `Chief_of_Staff` should do the setup work after reading the file protocol.
+
+That includes:
+
+- operator onboarding
+- human memory creation
+- `Chief_of_Staff` memory setup
+- Runner discovery and setup
+- initial harness catalog creation
+- initial role launch registry setup
+
+The operator should not need to manually prebuild those files just to get started.
+
 ## First Boot Prompts
 
 These prompts are meant to help users get started quickly with a fresh Agentic Harness install.
@@ -631,6 +685,8 @@ Claim the Chief_of_Staff role if it is available.
 ```
 
 The onboarding, lease updates, registry writes, join note, event log entry, and next actions should all be handled by `Chief_of_Staff` after reading the file protocol.
+
+If the optional Runner layer is present, `Chief_of_Staff` should also own the first-pass Runner setup as part of the same onboarding flow.
 
 ### Compact Prompt For Small-Context Models
 
@@ -651,6 +707,8 @@ Read AGENTIC_HARNESS_TINY.md first.
 This is a fresh Agentic Harness install.
 Claim the Chief_of_Staff role if it is available.
 ```
+
+This is the preferred first boot path for very small local/offline harnesses such as some Ollama or LM Studio setups.
 
 ### Existing System Specialist Prompt
 
@@ -742,8 +800,150 @@ Agentic Harness is meant to support mixed swarms such as:
 
 Each harness can bring its own strengths as long as it follows the same markdown protocol.
 
+## Telegram Setup Shortcut
+
+For Telegram, the intended flow is:
+
+1. the user gets the bot token from `@BotFather`
+2. the user gets their Telegram user ID from `@userinfobot`
+3. the user gives those two values to `Chief_of_Staff`
+4. `Chief_of_Staff` writes `TelegramBot/.env.telegram`
+5. the user starts the bridge with:
+
+```powershell
+py -m pip install requests python-dotenv
+python -m pip install requests python-dotenv
+py TelegramBot\\telegram_bot.py
+python TelegramBot\\telegram_bot.py
+```
+
+That keeps the setup simple and lets the active `Chief_of_Staff` do the file configuration work.
+
+Recommended instruction to give `Chief_of_Staff`:
+
+```text
+Configure the Telegram bridge for this install.
+Use the Telegram bot token and Telegram user ID I provide.
+Write the correct values into TelegramBot/.env.telegram.
+Use the current harness root for HARNESS_ROOT.
+Use the operator Human ID from HUMANS.md for HUMAN_ID.
+After writing the file, continue using Telegram as transport only by reading _messages/Chief_of_Staff.md and replying through _messages/human_<HumanID>.md.
+```
+
+## Runner Layer
+
+Agentic Harness also supports one optional `Runner/` layer.
+
+Purpose:
+
+- keep the swarm alive
+- wake harnesses on interval
+- relaunch roles when needed
+- monitor stale leases
+- support persistent, interval, and manual/human-run execution modes
+
+The Runner is not the source of truth.
+
+It only handles liveness.
+
+The files remain the source of truth.
+
+Execution modes:
+
+- `persistent` = the harness stays running and the Runner monitors it
+- `interval` = the Runner wakes the harness every X minutes
+- `manual` = the role is expected to be run manually by a human or operator-driven harness
+
+Human-run roles are valid too.
+
+Example:
+
+- the operator uses Claude Code manually
+- claims a role like `HumanRunner`
+- reports completed work back into the markdown system
+
+That still fits the Agentic Harness model.
+
+The Runner layer should also remember how this machine launches harnesses.
+
+Recommended pattern:
+
+- `Chief_of_Staff` asks the operator which harnesses are installed
+- `Chief_of_Staff` checks for common harness families such as Claude Code, OpenCode, Ollama, Goose, Antigravity, Google CLI, Codex, Manus, and n8n
+- confirmed harnesses are recorded in `Runner/HARNESS_CATALOG.md`
+- role-specific launch methods are recorded in `Runner/ROLE_LAUNCH_REGISTRY.md`
+
+That way a future request like:
+
+- "Make a research bot using Claude Code and Haiku"
+
+can be translated into a remembered launch entry without forcing the operator to repeat the same command details every time.
+
+Important limitation:
+
+- the Runner can only relaunch a harness automatically if the role registry contains a real working launch command for that harness on that machine
+- if a harness needs a special wrapper to accept a prompt non-interactively, that wrapper command should be stored in `Runner/ROLE_LAUNCH_REGISTRY.md`
+- until a working launch command exists, the role should remain manual
+
+## Runner Setup Shortcut
+
+Fastest path:
+
+1. start `Chief_of_Staff`
+2. let it detect and record the harnesses it can confirm on this machine
+3. let it ask you only about any additional or custom harnesses it could not confirm itself
+4. let it fill:
+   - `Runner/HARNESS_CATALOG.md`
+   - `Runner/ROLE_LAUNCH_REGISTRY.md`
+5. keep `Runner/RUNNER_CONFIG.md` in `DRY_RUN`
+6. start the daemon
+7. inspect what it would launch before switching to live mode
+
+This is intended to be driven by `Chief_of_Staff` during first-run setup. The operator should not have to manually build the Runner configuration from scratch.
+
+Recommended instruction to give `Chief_of_Staff`:
+
+```text
+Set up the Runner for this install.
+First, check this machine and local environment for common harnesses you know how to look for.
+Then update Runner/HARNESS_CATALOG.md with what you can confidently confirm.
+After that, ask me only about any other harnesses or custom commands I use that were not already detected or confirmed.
+Next, update Runner/ROLE_LAUNCH_REGISTRY.md with the actual role-to-harness launch entries we want to use.
+Use Chief_of_Staff as the first role to configure.
+Keep Runner/RUNNER_CONFIG.md in DRY_RUN mode for the first pass.
+Do not guess launch commands if you are unsure. Ask me to confirm them.
+```
+
+If you have already manually launched a working swarm and want to convert that into the first remembered Runner configuration, use this:
+
+```text
+Set up the Runner now.
+
+Use the current live swarm as the first known working configuration:
+- Chief_of_Staff = Claude Code (Haiku 4.5)
+- Researcher = Claude Code
+- Engineer = Claude Code
+
+Update Runner/HARNESS_CATALOG.md with the confirmed harnesses on this machine.
+Update Runner/ROLE_LAUNCH_REGISTRY.md with launch entries for Chief_of_Staff, Researcher, and Engineer.
+Keep Runner/RUNNER_CONFIG.md in DRY_RUN mode.
+Do not switch to active mode yet.
+After that, tell me exactly how to start the Runner daemon and what it would try to launch.
+```
+
 ## In One Line
 
 Agentic Harness is a markdown-first meta harness for running a real multi-agent system across many harness types through one shared, local-first control plane.
+
+## Safety And Recovery Docs
+
+If your biggest worries are lock-in, restarts, backups, or recovery, start here:
+
+- `START_HERE.md`
+- `SYSTEM_MAP.md`
+- `BACKUP_AND_RECOVERY.md`
+- `RECOVERY_CHECKLIST.md`
+- `PAIN_POINTS_AND_SOLUTIONS.md`
+- `PAIN_POINTS_AND_SOLUTIONS.html`
 
 

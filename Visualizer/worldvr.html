@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agentic Harness Visualizer - VR</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="nav">
+      <div class="brand">AGENTIC HARNESS / VISUALIZER / VR</div>
+      <div class="nav-meta">
+        <span>roles <b id="role-count">0</b></span>
+        <span>projects <b id="project-count">0</b></span>
+        <span>todo <b id="todo-count">0</b></span>
+        <span>updated <b id="generated-at">-</b></span>
+      </div>
+    </div>
+    <main class="main">
+      <section class="hero">
+        <div class="card pad">
+          <div class="title">VR Direction</div>
+          <h1 class="headline">A headset-ready doorway into the same live system.</h1>
+          <p class="muted">For the presentation, this can function as a polished mock/live status view. After that, it can evolve into a full WebXR scene using the same role, task, and event feed.</p>
+          <div class="mode-links">
+            <a href="/world2d.html">2D</a>
+            <a href="/world3d.html">3D</a>
+            <a href="/worldvr.html">VR</a>
+            <a href="/dashboard.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="card pad">
+          <div class="title">Current Goal</div>
+          <p class="muted">Make the swarm feel alive, legible, and impressive on screen. The same API feed can power a later headset-native implementation without changing the Core layer.</p>
+        </div>
+      </section>
+      <section class="world-grid" id="roles-grid"></section>
+    </main>
+    <aside class="side">
+      <div class="title">Recent Events</div>
+      <div class="events" id="events"></div>
+      <div class="title" style="margin-top:18px;">Projects</div>
+      <div class="projects" id="projects"></div>
+    </aside>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

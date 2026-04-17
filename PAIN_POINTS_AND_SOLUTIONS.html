@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agentic Harness - Pain Points and Solutions</title>
+  <style>
+    :root {
+      --bg: #f3efe6;
+      --paper: #fffaf1;
+      --ink: #1f1b16;
+      --muted: #6a6157;
+      --accent: #0f766e;
+      --accent-2: #b45309;
+      --line: #d8cfc2;
+    }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background: linear-gradient(180deg, #efe6d7 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 48px 24px 72px;
+    }
+    .hero, .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 12px 40px rgba(31, 27, 22, 0.08);
+    }
+    .hero {
+      padding: 36px;
+      margin-bottom: 28px;
+    }
+    h1, h2, h3 {
+      margin: 0 0 12px;
+      line-height: 1.1;
+    }
+    h1 {
+      font-size: 46px;
+      max-width: 760px;
+    }
+    h2 {
+      font-size: 28px;
+      margin-bottom: 18px;
+    }
+    h3 {
+      font-size: 22px;
+      color: var(--accent);
+    }
+    p, li {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--ink);
+    }
+    .sub {
+      color: var(--muted);
+      max-width: 760px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-top: 24px;
+    }
+    .card {
+      padding: 24px;
+    }
+    .label {
+      display: inline-block;
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-2);
+      margin-bottom: 10px;
+    }
+    .pain {
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    .solution {
+      margin-top: 14px;
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+    .footer {
+      margin-top: 28px;
+      padding: 28px;
+      background: #16211d;
+      color: #f3efe6;
+      border-radius: 20px;
+    }
+    .footer p {
+      color: #f3efe6;
+      margin: 0;
+      font-size: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="label">Agentic Harness</div>
+      <h1>From fragile AI setups to a system you can actually recover, inspect, and keep running.</h1>
+      <p class="sub">A simple outline of the pain points users face with traditional harness systems and the practical answers Agentic Harness gives through a file-first, local-first control plane.</p>
+    </section>
+
+    <section>
+      <h2>Core Pain Points</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Vendor lock</h3>
+          <p class="pain">The work feels trapped inside one vendor’s runtime, pricing, and token model.</p>
+          <p class="solution">Agentic Harness keeps the system in local files so another harness can take over later.</p>
+        </article>
+        <article class="card">
+          <h3>Fear of losing work</h3>
+          <p class="pain">Users don’t know what to back up, and critical context lives in hidden session state.</p>
+          <p class="solution">Tasks, memory, and coordination live in markdown, so backups are obvious and portable.</p>
+        </article>
+        <article class="card">
+          <h3>Hard restarts</h3>
+          <p class="pain">When bots die or sessions end, it’s unclear how to recover or continue.</p>
+          <p class="solution">Leases, event logs, and memory give new harnesses enough state to resume the work.</p>
+        </article>
+        <article class="card">
+          <h3>Hidden complexity</h3>
+          <p class="pain">The system works, but the user no longer understands its moving parts.</p>
+          <p class="solution">Agentic Harness names the layers clearly: Core, Projects, Runner, Telegram, Visualizer.</p>
+        </article>
+        <article class="card">
+          <h3>Scaling overwhelm</h3>
+          <p class="pain">As more work arrives, the user doesn’t know which bots to make or how to route it.</p>
+          <p class="solution">Chief_of_Staff recommends roles, tracks work, and grows the harness catalog over time.</p>
+        </article>
+        <article class="card">
+          <h3>No visibility</h3>
+          <p class="pain">The swarm may be “working,” but there is no clear picture of what is happening.</p>
+          <p class="solution">Telegram provides remote communication, and the Visualizer adds 2D, 3D, and VR visibility on top of the same files.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="footer">
+      <p>Agentic Harness is the backup-friendly, vendor-flexible control plane for AI work that has to survive real life.</p>
+    </section>
+  </div>
+</body>
+</html>

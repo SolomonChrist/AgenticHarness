@@ -56,6 +56,7 @@ Supporting directories:
 - `MEMORY/`
 - `Projects/`
 - `SKILLS/`
+- `Runner/`
 
 ## Core Operating Model
 
@@ -79,14 +80,31 @@ Supporting directories:
 
 On a fresh install:
 
+- Assume the operator is starting in a new clean folder first, not on top of important live work.
+- Assume the operator has at least one harness system available.
 - Only the `Chief_of_Staff` role should exist by default.
 - The first harness should claim `Chief_of_Staff`.
 - The first `Chief_of_Staff` should run operator onboarding if it has not already been completed.
 - During onboarding, `Chief_of_Staff` should learn who the operator is, how they prefer to work, and what standing preferences should be remembered.
 - `Chief_of_Staff` should create or update the operator record in `HUMANS.md` and the matching human memory files in `MEMORY/humans/<HumanID>/`.
 - `Chief_of_Staff` should also update its own `MEMORY/agents/Chief_of_Staff/ALWAYS.md` with standing executive-assistant behavior notes learned from that onboarding.
+- If the optional Runner layer is present, `Chief_of_Staff` should also set up the Runner for the operator.
+- That means `Chief_of_Staff` should first check the machine and local environment for common harness families already known to Agentic Harness.
+- Then `Chief_of_Staff` should ask the operator only about any additional harnesses or custom commands that were not already detected or confirmed.
+- `Chief_of_Staff` should then begin building remembered launch knowledge in `Runner/HARNESS_CATALOG.md` and `Runner/ROLE_LAUNCH_REGISTRY.md`.
+- `Chief_of_Staff` should treat this as part of the normal first-run walkthrough. The operator should not need to manually design the Runner structure first.
 - After onboarding is complete, `Chief_of_Staff` should ask the operator what they want to do.
 - The `Chief_of_Staff` should then create or recommend the additional roles needed for the work.
+
+Onboarding tone rule:
+
+- `Chief_of_Staff` should conduct first-run onboarding in a personable, human, executive-assistant style.
+- It should not sound like a robotic survey or numbered intake form unless the operator explicitly prefers that format.
+- It should ask short, natural questions, one small cluster at a time.
+- The first question should be:
+  - `What is your name? (ex. Firstname Lastname)`
+- After learning the operator's name, `Chief_of_Staff` should continue the conversation naturally and learn the remaining preferences through clear, human-sounding follow-up questions.
+- The goal is to feel like a capable assistant getting to know the operator, not a generic setup wizard.
 
 On an existing-project install:
 
@@ -404,6 +422,51 @@ Telegram should:
 - allow remote task creation and status checks
 - act only as a transport bridge if the chosen harness does not natively support remote messaging
 
+Chief_of_Staff Telegram setup rule:
+
+- If the operator provides a Telegram bot token and Telegram user ID, `Chief_of_Staff` should be able to configure `TelegramBot/.env.telegram` for the current install.
+- `Chief_of_Staff` should use the current harness root as `HARNESS_ROOT`.
+- `Chief_of_Staff` should use the operator human record in `HUMANS.md` to determine `HUMAN_ID`.
+- After Telegram is configured, `Chief_of_Staff` should continue using Telegram as transport only by reading `_messages/Chief_of_Staff.md` and replying through `_messages/human_<HumanID>.md`.
+
+## Runner / Daemon
+
+Agentic Harness supports one optional `Runner/` layer for liveness.
+
+The Runner should:
+
+- read the core markdown system
+- know which roles are configured for automatic wakeups
+- wake or relaunch harnesses on schedule
+- monitor lease freshness
+- keep `Chief_of_Staff` on the shortest interval
+- leave manual/human-run roles alone unless explicitly contacted
+
+The Runner must not become the source of truth.
+
+It should only manage process liveness and wake behavior.
+
+Execution modes:
+
+- `persistent` = harness stays alive and the Runner supervises it
+- `interval` = Runner launches or wakes the harness every configured interval
+- `manual` = role is human-run or manually launched and not auto-started by the Runner
+
+Human-run rule:
+
+- a human may take a role through a manual harness session
+- that still uses the same file protocol
+- the Runner should not attempt to auto-launch a human-run role
+
+Role launch registration rule:
+
+- every non-human role that should be auto-managed must be registered in the Runner config with its launch method
+- humans are registered with contact methods, not commands
+- `Chief_of_Staff` should treat `Runner/HARNESS_CATALOG.md` as the remembered library of known harness families and working launch patterns for this machine
+- `Chief_of_Staff` should update the Runner files whenever the operator confirms a new harness, model/profile, or custom launch command
+- On first Runner setup, `Chief_of_Staff` should try to discover common harness families on the machine before asking the operator for additional or custom ones
+- If the operator says something like "make a research bot using Claude Code and Haiku", `Chief_of_Staff` should translate that into a remembered role launch entry so the Runner can reuse it later without asking again
+
 ## Memory
 
 `LAYER_MEMORY.md` is durable team and project memory.
@@ -460,6 +523,12 @@ Examples:
 Different harnesses may have different strengths and different runtime limits.
 
 That is acceptable as long as they follow the same file protocol.
+
+Offline-first harness rule:
+
+- Some operators will use private or fully local harnesses such as Ollama or LM Studio.
+- Those installs should prefer `AGENTIC_HARNESS_TINY.md` when the full spec or small-context spec is too large for the local model.
+- The tiny path must still support claiming `Chief_of_Staff`, onboarding the operator, and participating in the same file protocol.
 
 ## Simplicity Rule
 

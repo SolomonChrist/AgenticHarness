@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agentic Harness Visualizer - 3D</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="nav">
+      <div class="brand">AGENTIC HARNESS / VISUALIZER / 3D</div>
+      <div class="nav-meta">
+        <span>roles <b id="role-count">0</b></span>
+        <span>projects <b id="project-count">0</b></span>
+        <span>todo <b id="todo-count">0</b></span>
+        <span>updated <b id="generated-at">-</b></span>
+      </div>
+    </div>
+    <main class="main">
+      <section class="hero">
+        <div class="card pad">
+          <div class="title">3D World Direction</div>
+          <h1 class="headline">A cinematic live view inspired by the V11 night-city world, but driven by the new markdown control plane.</h1>
+          <p class="muted">This page is the bridge between today’s file state and the full immersive version. The same `/api/state` feed can later drive a richer Three.js scene, movement, camera paths, and bot interaction layers.</p>
+          <div class="mode-links">
+            <a href="/world2d.html">2D</a>
+            <a href="/world3d.html">3D</a>
+            <a href="/worldvr.html">VR</a>
+            <a href="/dashboard.html">Dashboard</a>
+          </div>
+        </div>
+        <div class="card pad">
+          <div class="title">Live Preview</div>
+          <div class="scene" style="height:260px; position:relative;">
+            <div class="dot active" style="left:12%; top:22%; color:var(--good);"></div>
+            <div class="dot stale" style="left:52%; top:44%; color:var(--warn);"></div>
+            <div class="dot active" style="left:74%; top:18%; color:var(--good);"></div>
+          </div>
+          <p class="muted" style="margin-top:10px;">Phase 1: live state and overlays. Phase 2: full V11-style 3D scene with clickable bots, task routing, and direct-message interactions.</p>
+        </div>
+      </section>
+      <section class="world-grid" id="roles-grid"></section>
+    </main>
+    <aside class="side">
+      <div class="title">Recent Events</div>
+      <div class="events" id="events"></div>
+      <div class="title" style="margin-top:18px;">Projects</div>
+      <div class="projects" id="projects"></div>
+    </aside>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
