@@ -38,6 +38,10 @@ def parse_markdown_table(path: Path) -> Dict[str, str]:
             parts = [part.strip() for part in line.strip("|").split("|")]
             if len(parts) >= 2 and parts[0] not in {"Field", "---"}:
                 data[parts[0]] = parts[1]
+        elif ":" in line and not line.startswith("#"):
+            key, value = line.split(":", 1)
+            if key.strip():
+                data[key.strip()] = value.strip()
     return data
 
 
@@ -59,7 +63,9 @@ def collect_roles() -> List[str]:
     for raw in roles_text.splitlines():
         line = raw.strip()
         if line.startswith("Name:"):
-            roles.append(line.split(":", 1)[1].strip())
+            role = line.split(":", 1)[1].strip()
+            if role:
+                roles.append(role)
     return roles
 
 
@@ -117,12 +123,32 @@ def collect_task_summary() -> Dict[str, int]:
     return summary
 
 
+def collect_task_items() -> List[Dict[str, str]]:
+    text = read_text(ROOT / "LAYER_TASK_LIST.md")
+    items: List[Dict[str, str]] = []
+    current: Dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("Task ID:"):
+            if current:
+                items.append(current)
+            current = {"task_id": line.split(":", 1)[1].strip()}
+        elif current and ":" in line:
+            key, value = line.split(":", 1)
+            norm = key.strip().lower().replace(" ", "_")
+            current[norm] = value.strip()
+    if current:
+        items.append(current)
+    return items
+
+
 def tail_lines(path: Path, limit: int = 20) -> List[str]:
     lines = read_text(path).splitlines()
     return lines[-limit:]
 
 
 def collect_projects() -> List[Dict[str, str]]:
+    task_items = collect_task_items()
     projects: List[Dict[str, str]] = []
     projects_root = ROOT / "Projects"
     if not projects_root.exists():
@@ -130,12 +156,28 @@ def collect_projects() -> List[Dict[str, str]]:
     for child in sorted(projects_root.iterdir()):
         if not child.is_dir() or child.name.startswith("_"):
             continue
+        related = [item for item in task_items if item.get("project", "").strip() == child.name]
+        summary = {"todo": 0, "in_progress": 0, "done": 0, "blocked": 0}
+        for item in related:
+            status = item.get("status", "").upper()
+            if status == "TODO":
+                summary["todo"] += 1
+            elif status == "IN_PROGRESS":
+                summary["in_progress"] += 1
+            elif status == "DONE":
+                summary["done"] += 1
+            elif status == "BLOCKED":
+                summary["blocked"] += 1
+        project_text = read_text(child / "PROJECT.md")
+        title_match = re.search(r"^#\s+(.+)$", project_text, re.MULTILINE)
         projects.append(
             {
                 "slug": child.name,
                 "has_project": str((child / "PROJECT.md").exists()).lower(),
                 "has_tasks": str((child / "TASKS.md").exists()).lower(),
                 "has_context": str((child / "CONTEXT.md").exists()).lower(),
+                "title": title_match.group(1).strip() if title_match else child.name,
+                "task_summary": summary,
             }
         )
     return projects
@@ -147,6 +189,7 @@ def build_state() -> Dict[str, object]:
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "roles": leases,
         "tasks": collect_task_summary(),
+        "task_items": collect_task_items(),
         "projects": collect_projects(),
         "recent_events": tail_lines(ROOT / "LAYER_LAST_ITEMS_DONE.md", limit=25),
         "recent_context": tail_lines(ROOT / "LAYER_SHARED_TEAM_CONTEXT.md", limit=15),

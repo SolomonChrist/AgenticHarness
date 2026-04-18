@@ -29,8 +29,10 @@ Claim the Chief_of_Staff role if it is available.
 
 - onboard you
 - create your human/operator memory
-- set up the Runner if present
-- help configure Telegram if you want it
+- if `Runner/` is present, set up the Runner during onboarding and leave it in `DRY_RUN` first
+- after Runner setup, try to start it or give you the exact command immediately
+- if you later ask for optional add-ons like Telegram or Visualizer, guide you through those setups step by step
+- if one of those add-ons is fully configured, try to start it or give you the exact command immediately
 - recommend additional roles only when needed
 
 ## Safest Way To Learn The System
@@ -41,8 +43,8 @@ Instead:
 
 - test in a fresh folder
 - get `Chief_of_Staff` working
-- test Telegram
 - test Runner in `DRY_RUN`
+- add Telegram only if you want remote messaging
 - then move into real projects
 
 ## Most Important Files

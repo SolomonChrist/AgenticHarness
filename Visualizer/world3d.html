@@ -1,54 +1,555 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Agentic Harness Visualizer - 3D</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Agentic Harness Visualizer - 3D World</title>
+  <style>
+    :root{
+      --bg:#07101a;
+      --panel:rgba(7,11,18,.86);
+      --line:rgba(232,164,34,.28);
+      --ink:#dbe6f2;
+      --muted:#7f90a6;
+      --amber:#e8a422;
+      --green:#5dba7a;
+      --warn:#e8a422;
+      --red:#e85a34;
+      --blue:#5d9eba;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;overflow:hidden;background:var(--bg);font-family:Courier New,monospace;color:var(--ink)}
+    #scene{display:block;width:100vw;height:100vh}
+    #topbar{
+      position:fixed;top:0;left:0;right:0;z-index:10;
+      display:flex;justify-content:space-between;align-items:center;
+      padding:.7rem 1rem;background:var(--panel);backdrop-filter:blur(10px);
+      border-bottom:1px solid var(--line)
+    }
+    #brand{font-size:.9rem;font-weight:bold;letter-spacing:.12em;color:var(--amber)}
+    #stats{display:flex;gap:1rem;font-size:.7rem;color:var(--muted)}
+    #stats b{color:var(--ink)}
+    #modes{position:fixed;top:52px;right:0;z-index:10;display:flex;flex-direction:column}
+    #modes a{
+      text-decoration:none;color:var(--muted);font-size:.65rem;letter-spacing:.08em;
+      padding:.45rem .8rem;background:var(--panel);border-left:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.06)
+    }
+    #modes a.active,#modes a:hover{color:var(--amber);border-left-color:var(--amber)}
+    #legend{
+      position:fixed;left:1rem;top:58px;z-index:10;
+      background:var(--panel);padding:.75rem .9rem;border:1px solid rgba(255,255,255,.06);border-radius:8px;
+      font-size:.65rem;line-height:1.8
+    }
+    .sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:.45rem}
+    .good{background:var(--green)} .stale{background:var(--warn)} .idle{background:#3a4455} .bad{background:var(--red)}
+    #inspector{
+      position:fixed;left:1rem;bottom:1rem;z-index:10;max-width:360px;
+      background:var(--panel);border:1px solid var(--line);border-radius:8px;
+      padding:.9rem 1rem;line-height:1.6;display:none
+    }
+    #inspector h3{font-size:.85rem;color:var(--amber);margin-bottom:.35rem}
+    #inspector p{font-size:.72rem;color:var(--muted)}
+    #inspector p strong{color:var(--ink)}
+    #controls{
+      position:fixed;right:1rem;bottom:1rem;z-index:10;text-align:right;
+      font-size:.65rem;color:var(--muted);line-height:1.7;
+      background:var(--panel);padding:.75rem .9rem;border:1px solid rgba(255,255,255,.06);border-radius:8px
+    }
+    #loading{
+      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
+      gap:.6rem;background:var(--bg);z-index:30
+    }
+    #loading .title{color:var(--amber);letter-spacing:.14em}
+    #loading .sub{font-size:.7rem;color:var(--muted)}
+  </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="nav">
-      <div class="brand">AGENTIC HARNESS / VISUALIZER / 3D</div>
-      <div class="nav-meta">
-        <span>roles <b id="role-count">0</b></span>
-        <span>projects <b id="project-count">0</b></span>
-        <span>todo <b id="todo-count">0</b></span>
-        <span>updated <b id="generated-at">-</b></span>
-      </div>
-    </div>
-    <main class="main">
-      <section class="hero">
-        <div class="card pad">
-          <div class="title">3D World Direction</div>
-          <h1 class="headline">A cinematic live view inspired by the V11 night-city world, but driven by the new markdown control plane.</h1>
-          <p class="muted">This page is the bridge between today’s file state and the full immersive version. The same `/api/state` feed can later drive a richer Three.js scene, movement, camera paths, and bot interaction layers.</p>
-          <div class="mode-links">
-            <a href="/world2d.html">2D</a>
-            <a href="/world3d.html">3D</a>
-            <a href="/worldvr.html">VR</a>
-            <a href="/dashboard.html">Dashboard</a>
-          </div>
-        </div>
-        <div class="card pad">
-          <div class="title">Live Preview</div>
-          <div class="scene" style="height:260px; position:relative;">
-            <div class="dot active" style="left:12%; top:22%; color:var(--good);"></div>
-            <div class="dot stale" style="left:52%; top:44%; color:var(--warn);"></div>
-            <div class="dot active" style="left:74%; top:18%; color:var(--good);"></div>
-          </div>
-          <p class="muted" style="margin-top:10px;">Phase 1: live state and overlays. Phase 2: full V11-style 3D scene with clickable bots, task routing, and direct-message interactions.</p>
-        </div>
-      </section>
-      <section class="world-grid" id="roles-grid"></section>
-    </main>
-    <aside class="side">
-      <div class="title">Recent Events</div>
-      <div class="events" id="events"></div>
-      <div class="title" style="margin-top:18px;">Projects</div>
-      <div class="projects" id="projects"></div>
-    </aside>
+  <div id="loading">
+    <div class="title">AGENTIC HARNESS / 3D WORLD</div>
+    <div class="sub">Loading live markdown state...</div>
   </div>
-  <script src="app.js"></script>
+  <canvas id="scene"></canvas>
+  <div id="topbar">
+    <div id="brand">AGENTIC HARNESS / 3D WORLD</div>
+    <div id="stats">
+      <span>roles <b id="role-count">0</b></span>
+      <span>projects <b id="project-count">0</b></span>
+      <span>todo <b id="todo-count">0</b></span>
+      <span>in progress <b id="progress-count">0</b></span>
+      <span>updated <b id="generated-at">-</b></span>
+    </div>
+  </div>
+  <div id="modes">
+    <a href="/world2d.html">2D</a>
+    <a href="/world3d.html" class="active">3D</a>
+    <a href="/worldvr.html">VR</a>
+    <a href="/dashboard.html">Dashboard</a>
+  </div>
+  <div id="legend">
+    <div><span class="sw good"></span>active</div>
+    <div><span class="sw stale"></span>stale</div>
+    <div><span class="sw idle"></span>unclaimed</div>
+    <div><span class="sw bad"></span>blocked/high alert</div>
+  </div>
+  <div id="inspector"></div>
+  <div id="controls">
+    WASD to move<br />
+    Shift to move faster<br />
+    Right-click drag to look<br />
+    Left-click office or bot to inspect
+  </div>
+
+  <script type="module">
+    import * as THREE from "./vendor/three-r184.module.min.js";
+
+    const stateUrl = "/api/state";
+    const canvas = document.getElementById("scene");
+    const inspector = document.getElementById("inspector");
+    let scene, camera, renderer, clock, raycaster, mouse;
+    let state = null;
+    let offices = [];
+    let bots = [];
+    let clickables = [];
+    let keys = {};
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    let yaw = 0;
+    let pitch = -0.18;
+
+    const STATUS = { working:0xe8a422, idle:0x5d9eba, stale:0xe85a34, unclaimed:0x3a4455, unknown:0x7f90a6 };
+
+    function shortTime(iso) {
+      if (!iso) return "-";
+      const part = iso.split("T")[1] || iso;
+      return part.slice(0, 8);
+    }
+
+    function normalizeText(value, fallback = "-") {
+      const text = String(value || "").trim();
+      return text && text !== "(blank)" ? text : fallback;
+    }
+
+    function isWorkingRole(role) {
+      return role.status === "active" && normalizeText(role.task, "") !== "";
+    }
+
+    function getRoleVisual(role) {
+      if (isWorkingRole(role)) {
+        return {
+          state: "working",
+          color: STATUS.working,
+          detail: normalizeText(role.task, "working"),
+          speed: 1.9,
+          bob: 0.16,
+        };
+      }
+      if (role.status === "active") {
+        return {
+          state: "idle",
+          color: STATUS.idle,
+          detail: "idle",
+          speed: 0.8,
+          bob: 0.06,
+        };
+      }
+      if (role.status === "stale") {
+        return {
+          state: "stale",
+          color: STATUS.stale,
+          detail: normalizeText(role.task, "stale"),
+          speed: 0.45,
+          bob: 0.03,
+        };
+      }
+      return {
+        state: "unclaimed",
+        color: STATUS.unclaimed,
+        detail: "unclaimed",
+        speed: 0.2,
+        bob: 0.02,
+      };
+    }
+
+    function updateTopbar(s) {
+      document.getElementById("role-count").textContent = s.roles.length;
+      document.getElementById("project-count").textContent = s.projects.length;
+      document.getElementById("todo-count").textContent = s.tasks.todo;
+      document.getElementById("progress-count").textContent = s.tasks.in_progress;
+      document.getElementById("generated-at").textContent = shortTime(s.generated_at);
+    }
+
+    function initThree() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x081018);
+      scene.fog = new THREE.Fog(0x081018, 60, 240);
+
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 500);
+      camera.position.set(0, 12, 34);
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+
+      clock = new THREE.Clock();
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      scene.add(new THREE.AmbientLight(0x405070, 2.1));
+      const sun = new THREE.DirectionalLight(0xaac4ff, 1.25);
+      sun.position.set(40, 60, 20);
+      sun.castShadow = true;
+      scene.add(sun);
+      scene.add(new THREE.HemisphereLight(0x607080, 0x11151b, 1.1));
+
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(420, 420),
+        new THREE.MeshStandardMaterial({ color: 0x16202d, roughness: 0.95 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const grid = new THREE.GridHelper(420, 84, 0x223245, 0x1a2535);
+      grid.position.y = 0.02;
+      scene.add(grid);
+
+      addStars();
+      addRoads();
+      renderer.setAnimationLoop(render);
+    }
+
+    function addStars() {
+      const geo = new THREE.BufferGeometry();
+      const count = 1800;
+      const pos = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        pos[i * 3] = (Math.random() - 0.5) * 400;
+        pos[i * 3 + 1] = 60 + Math.random() * 150;
+        pos[i * 3 + 2] = (Math.random() - 0.5) * 400;
+      }
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xcfe3ff, size: 0.45, sizeAttenuation: true })));
+    }
+
+    function addRoads() {
+      const roadMat = new THREE.MeshStandardMaterial({ color: 0x0b1018, roughness: 0.92 });
+      [0, 54, -54].forEach(z => {
+        const road = new THREE.Mesh(new THREE.BoxGeometry(340, 0.02, 8), roadMat);
+        road.position.set(0, 0.03, z);
+        scene.add(road);
+      });
+    }
+
+    function makeLabel(text, color, width = 320, height = 72, font = "bold 22px Courier New") {
+      const labelCanvas = document.createElement("canvas");
+      labelCanvas.width = width;
+      labelCanvas.height = height;
+      const ctx = labelCanvas.getContext("2d");
+      ctx.fillStyle = "rgba(8,12,18,.82)";
+      ctx.fillRect(0, 8, width, height - 16);
+      ctx.fillStyle = "#" + color.toString(16).padStart(6, "0");
+      ctx.fillRect(8, 18, 6, Math.max(18, height - 36));
+      ctx.fillStyle = "#edf2f7";
+      ctx.font = font;
+      ctx.fillText(String(text).slice(0, 28), 24, Math.round(height * 0.58));
+      const tex = new THREE.CanvasTexture(labelCanvas);
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(width / 38, height / 38, 1);
+      return sprite;
+    }
+
+    function clearWorld() {
+      [...offices, ...bots].forEach(entry => {
+        if (entry.group) scene.remove(entry.group);
+      });
+      offices = [];
+      bots = [];
+      clickables = [];
+    }
+
+    function buildWorld(s) {
+      clearWorld();
+      const officeData = s.projects.length ? s.projects : [
+        { slug: "core-control", title: "Core Control", task_summary: { todo: s.tasks.todo, in_progress: s.tasks.in_progress, done: s.tasks.done, blocked: s.tasks.blocked } }
+      ];
+
+      const cols = Math.max(1, Math.ceil(Math.sqrt(officeData.length)));
+      officeData.forEach((project, index) => {
+        const row = Math.floor(index / cols);
+        const col = index % cols;
+        const ox = (col - (cols - 1) / 2) * 58;
+        const oz = row * 58 - 18;
+        const office = createOffice(project, ox, oz, index);
+        offices.push(office);
+        clickables.push(office.building);
+      });
+
+      s.roles.forEach((role, index) => {
+        const office = offices[index % offices.length];
+        const bot = createBot(role, office, index);
+        bots.push(bot);
+        clickables.push(bot.body);
+      });
+    }
+
+    function createOffice(project, x, z, index) {
+      const group = new THREE.Group();
+      group.position.set(x, 0, z);
+      group.userData = { kind: "office", data: project };
+
+      const colors = [0xe8a422, 0x5dba7a, 0x5d9eba, 0x9b7dea];
+      const accent = colors[index % colors.length];
+      const w = 24, d = 20, h = 8;
+
+      const base = new THREE.Mesh(
+        new THREE.BoxGeometry(w, 0.3, d),
+        new THREE.MeshStandardMaterial({ color: 0x1c2633, roughness: 0.95 })
+      );
+      base.position.y = 0.15;
+      base.receiveShadow = true;
+      base.userData = { kind: "office", data: project };
+      group.add(base);
+
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x243244, roughness: 0.72 });
+      const accentMat = new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.25 });
+      [[w, h, 0.5, 0, h / 2, -d / 2], [w, h, 0.5, 0, h / 2, d / 2], [0.5, h, d, -w / 2, h / 2, 0], [0.5, h, d, w / 2, h / 2, 0]]
+        .forEach((cfg, i) => {
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(cfg[0], cfg[1], cfg[2]), i === 1 ? accentMat : wallMat);
+          mesh.position.set(cfg[3], cfg[4], cfg[5]);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          group.add(mesh);
+        });
+
+      for (let i = -8; i <= 8; i += 8) {
+        const win = new THREE.Mesh(
+          new THREE.BoxGeometry(5, 2.1, 0.1),
+          new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.55, transparent: true, opacity: 0.35 })
+        );
+        win.position.set(i, 4.1, d / 2 + 0.26);
+        group.add(win);
+      }
+
+      const desk = new THREE.Mesh(
+        new THREE.BoxGeometry(5.4, 0.28, 2.4),
+        new THREE.MeshStandardMaterial({ color: 0x382614, roughness: 0.72 })
+      );
+      desk.position.set(0, 0.9, -2);
+      group.add(desk);
+
+      const monitor = new THREE.Mesh(
+        new THREE.BoxGeometry(1.8, 1.2, 0.1),
+        new THREE.MeshStandardMaterial({ color: 0x070c14, emissive: accent, emissiveIntensity: 0.45 })
+      );
+      monitor.position.set(0, 1.8, -2.6);
+      group.add(monitor);
+
+      const label = makeLabel(project.title || project.slug, accent);
+      label.position.set(0, h + 1.6, 0);
+      group.add(label);
+
+      scene.add(group);
+      return { group, building: base, accent, project };
+    }
+
+    function createBot(role, office, index) {
+      const group = new THREE.Group();
+      const visual = getRoleVisual(role);
+      const color = visual.color || STATUS.unknown;
+      const radius = 4.5 + (index % 3) * 1.8;
+      const angle = (index / Math.max(1, state.roles.length || 1)) * Math.PI * 2;
+      const homeX = office.group.position.x + Math.cos(angle) * radius;
+      const homeZ = office.group.position.z + Math.sin(angle) * radius;
+      group.position.set(homeX, 0.25, homeZ);
+
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.08, 8, 24),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.4, transparent: true, opacity: 0.65 })
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.05;
+      group.add(ring);
+
+      const body = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.55, 1.35, 4, 10),
+        new THREE.MeshStandardMaterial({ color: 0x1a2232, emissive: color, emissiveIntensity: role.status === "active" ? 0.42 : 0.15, roughness: 0.55 })
+      );
+      body.castShadow = true;
+      body.userData = { kind: "bot", data: role };
+      group.add(body);
+
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.38, 12, 12),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9 })
+      );
+      head.position.y = 1.25;
+      group.add(head);
+
+      const label = makeLabel(role.role, color);
+      label.position.set(0, 2.3, 0);
+      group.add(label);
+
+      const taskLabel = makeLabel(visual.detail, color, 360, 60, "bold 18px Courier New");
+      taskLabel.position.set(0, 3.6, 0);
+      group.add(taskLabel);
+
+      scene.add(group);
+      return {
+        group,
+        body,
+        ring,
+        role,
+        roleLabel: label,
+        taskLabel,
+        homeX,
+        homeZ,
+        phase: Math.random() * Math.PI * 2,
+        drift: Math.random() * 100,
+        speed: visual.speed,
+        bob: visual.bob,
+        color,
+        state: visual.state,
+      };
+    }
+
+    function inspect(dataKind, data) {
+      if (dataKind === "office") {
+        const t = data.task_summary || {};
+        inspector.innerHTML = `
+          <h3>Office: ${data.title || data.slug}</h3>
+          <p><strong>Project slug:</strong> ${data.slug}</p>
+          <p><strong>Tasks:</strong> ${t.todo || 0} todo, ${t.in_progress || 0} active, ${t.done || 0} done, ${t.blocked || 0} blocked</p>
+          <p><strong>Files:</strong> project ${data.has_project}, tasks ${data.has_tasks}, context ${data.has_context}</p>
+        `;
+      } else {
+        inspector.innerHTML = `
+          <h3>Bot: ${data.role}</h3>
+          <p><strong>Status:</strong> ${data.status}</p>
+          <p><strong>Holder:</strong> ${data.claimed_by || "unclaimed"}</p>
+          <p><strong>Project:</strong> ${data.project || "-"}</p>
+          <p><strong>Task:</strong> ${data.task || "-"}</p>
+          <p><strong>Lease:</strong> ${data.lease_expires_at || "-"}</p>
+        `;
+      }
+      inspector.style.display = "block";
+    }
+
+    async function loadState() {
+      try {
+        const res = await fetch(stateUrl, { cache: "no-store" });
+        state = await res.json();
+        updateTopbar(state);
+        buildWorld(state);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        document.getElementById("loading").style.display = "none";
+      }
+    }
+
+    function updateBots(delta) {
+      bots.forEach((bot, index) => {
+        bot.phase += delta * (1.5 + bot.speed);
+        bot.drift += delta * bot.speed;
+        const roam = bot.state === "working" ? 3.2 : bot.state === "idle" ? 1.4 : 0.8;
+        const targetX = bot.homeX + Math.sin(bot.drift * 0.7 + index) * roam;
+        const targetZ = bot.homeZ + Math.cos(bot.drift * 0.5 + index) * roam;
+        bot.group.position.x += (targetX - bot.group.position.x) * 0.02;
+        bot.group.position.z += (targetZ - bot.group.position.z) * 0.02;
+        bot.group.position.y = 0.25 + Math.sin(bot.phase) * bot.bob;
+        bot.group.rotation.y += 0.005 + bot.speed * 0.004;
+        bot.ring.material.opacity = bot.state === "working"
+          ? 0.55 + Math.abs(Math.sin(bot.phase)) * 0.35
+          : bot.state === "idle"
+            ? 0.26 + Math.abs(Math.sin(bot.phase)) * 0.16
+            : 0.18 + Math.abs(Math.sin(bot.phase)) * 0.08;
+      });
+    }
+
+    function moveCamera(delta) {
+      camera.rotation.order = "YXZ";
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+
+      const speed = (keys["ShiftLeft"] || keys["ShiftRight"] ? 18 : 8) * delta;
+      const movement = new THREE.Vector3();
+      const forward = new THREE.Vector3();
+      const right = new THREE.Vector3();
+      const worldUp = new THREE.Vector3(0, 1, 0);
+
+      camera.getWorldDirection(forward);
+      right.crossVectors(forward, worldUp).normalize();
+
+      if (keys["KeyW"] || keys["ArrowUp"]) movement.add(forward);
+      if (keys["KeyS"] || keys["ArrowDown"]) movement.sub(forward);
+      if (keys["KeyA"] || keys["ArrowLeft"]) movement.sub(right);
+      if (keys["KeyD"] || keys["ArrowRight"]) movement.add(right);
+
+      if (movement.lengthSq() > 0) {
+        movement.normalize().multiplyScalar(speed);
+        camera.position.add(movement);
+      }
+    }
+
+    function render() {
+      const delta = clock.getDelta();
+      moveCamera(delta);
+      updateBots(delta);
+      renderer.render(scene, camera);
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function bindInput() {
+      window.addEventListener("keydown", e => { keys[e.code] = true; });
+      window.addEventListener("keyup", e => { keys[e.code] = false; });
+      window.addEventListener("resize", onResize);
+
+      canvas.addEventListener("contextmenu", e => e.preventDefault());
+      canvas.addEventListener("mousedown", e => {
+        if (e.button !== 2) return;
+        dragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+      });
+      window.addEventListener("mouseup", () => { dragging = false; });
+      window.addEventListener("mousemove", e => {
+        if (!dragging) return;
+        yaw -= (e.clientX - lastX) * 0.004;
+        pitch -= (e.clientY - lastY) * 0.003;
+        pitch = Math.max(-0.95, Math.min(0.35, pitch));
+        lastX = e.clientX;
+        lastY = e.clientY;
+      });
+
+      canvas.addEventListener("click", e => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const hit = raycaster.intersectObjects(clickables, false)[0];
+        if (!hit) return;
+        const kind = hit.object.userData.kind;
+        const data = hit.object.userData.data;
+        inspect(kind, data);
+      });
+    }
+
+    async function boot() {
+      initThree();
+      bindInput();
+      await loadState();
+      setInterval(loadState, 5000);
+    }
+
+    boot();
+  </script>
 </body>
 </html>

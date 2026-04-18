@@ -193,6 +193,7 @@ class RoleLaunchConfig:
     model_profile: str
     bootstrap_file: str
     startup_prompt: str
+    wake_message: str
     check_interval_minutes: int
     wake_triggers: List[str] = field(default_factory=list)
     max_concurrent_sessions: int = 1
@@ -254,6 +255,7 @@ class RunnerDaemon:
                 model_profile=str(record.get("Model / Profile", "")).strip(),
                 bootstrap_file=str(record.get("Bootstrap File", "")).strip(),
                 startup_prompt=str(record.get("Startup Prompt", "")).strip(),
+                wake_message=str(record.get("Wake Message", "")).strip(),
                 check_interval_minutes=parse_int(str(record.get("Check Interval Minutes", "5")), 5),
                 wake_triggers=[trigger.strip() for trigger in wake_triggers if trigger.strip()],
                 max_concurrent_sessions=parse_int(str(record.get("Max Concurrent Sessions", "1")), 1),
@@ -355,13 +357,42 @@ class RunnerDaemon:
             command = command.replace(placeholder, value)
         return command
 
-    def launch_role(self, config: RoleLaunchConfig) -> None:
+    def append_role_message(self, role: str, message: str) -> None:
+        if not message.strip():
+            return
+        path = self.messages_root / f"{role}.md"
+        append_line(path, f"[{iso_now()}] [Runner] {message}")
+
+    def build_wake_message(self, config: RoleLaunchConfig, reason: str) -> str:
+        if config.wake_message:
+            return config.wake_message.replace("{ROLE}", config.role).replace("{REASON}", reason)
+        if reason == "task_change":
+            return "Check for newly assigned tasks and continue active work."
+        if reason == "message_change":
+            return "Check your direct messages and respond or continue work as needed."
+        if reason in {"stale_lease", "unclaimed"}:
+            return "Reclaim your role if needed, check status, then continue current work."
+        if reason == "process_dead":
+            return "Resume your role, check status, and continue the current workstream."
+        return "Check status and continue current work."
+
+    def nudge_role(self, config: RoleLaunchConfig, reason: str) -> None:
+        self.append_role_message(config.role, self.build_wake_message(config, reason))
+        state = self.role_state(config.role)
+        state["last_nudge_at"] = iso_now()
+        log_event(
+            self.event_file,
+            f"RUNNER_NUDGE - Nudged {config.role}. Reason: {reason}.",
+        )
+
+    def launch_role(self, config: RoleLaunchConfig, reason: str) -> None:
         if not config.launch_command:
             log_event(self.event_file, f"RUNNER_SKIP - Role {config.role} has no launch command configured.")
             return
         cwd = Path(config.working_directory).expanduser() if config.working_directory else self.harness_root
         prompt_file = self.write_prompt_file(config)
         command = self.render_launch_command(config, prompt_file)
+        self.append_role_message(config.role, self.build_wake_message(config, reason))
         try:
             proc = subprocess.Popen(
                 command,
@@ -378,14 +409,14 @@ class RunnerDaemon:
         state["last_mode"] = config.execution_mode
         log_event(
             self.event_file,
-            f"RUNNER_WAKE - Launched {config.role} in {config.execution_mode} mode via {config.harness_type or 'unknown harness'}. Prompt file: {prompt_file.name}.",
+            f"RUNNER_WAKE - Launched {config.role} in {config.execution_mode} mode via {config.harness_type or 'unknown harness'}. Reason: {reason}. Prompt file: {prompt_file.name}.",
         )
 
-    def should_launch(self, config: RoleLaunchConfig, lease: LeaseStatus, runner_cfg: Dict[str, str], task_changed: bool) -> bool:
+    def role_action(self, config: RoleLaunchConfig, lease: LeaseStatus, runner_cfg: Dict[str, str], task_changed: bool) -> tuple[str, str]:
         if not config.enabled:
-            return False
+            return "", ""
         if config.execution_mode == "manual":
-            return False
+            return "", ""
 
         wake_on_stale = parse_bool(runner_cfg.get("Wake On Stale Lease", "YES"), True)
         wake_on_task = parse_bool(runner_cfg.get("Wake On Task Change", "YES"), True)
@@ -398,19 +429,27 @@ class RunnerDaemon:
 
         if config.execution_mode == "persistent":
             if lease.stale or not lease.exists:
-                return True
-            return not self.tracked_process_alive(config.role)
+                return "launch", "stale_lease" if lease.exists else "unclaimed"
+            if not self.tracked_process_alive(config.role):
+                return "launch", "process_dead"
+            if wake_on_message and message_changed and any(trigger == "message_change" for trigger in config.wake_triggers):
+                return "nudge", "message_change"
+            if wake_on_task and task_changed and any(trigger == "task_change" for trigger in config.wake_triggers):
+                return "nudge", "task_change"
+            return "", ""
 
         if config.execution_mode == "interval":
             if wake_on_stale and (lease.stale or not lease.exists):
-                return True
+                return "launch", "stale_lease" if lease.exists else "unclaimed"
             if wake_on_message and message_changed:
-                return True
+                return ("nudge", "message_change") if lease.active else ("launch", "message_change")
             if wake_on_task and task_changed and any(trigger == "task_change" for trigger in config.wake_triggers):
-                return True
-            return self.interval_due(config.role, interval)
+                return ("nudge", "task_change") if lease.active else ("launch", "task_change")
+            if self.interval_due(config.role, interval):
+                return ("nudge", "interval_due") if lease.active else ("launch", "interval_due")
+            return "", ""
 
-        return False
+        return "", ""
 
     def dry_run(self, config: RoleLaunchConfig, lease: LeaseStatus) -> None:
         status = "stale" if lease.stale else "active" if lease.active else "unclaimed"
@@ -453,8 +492,11 @@ class RunnerDaemon:
             if not enabled or mode == "DRY_RUN":
                 self.dry_run(config, lease)
                 continue
-            if self.should_launch(config, lease, runner_cfg, task_changed):
-                self.launch_role(config)
+            action, reason = self.role_action(config, lease, runner_cfg, task_changed)
+            if action == "launch":
+                self.launch_role(config, reason)
+            elif action == "nudge":
+                self.nudge_role(config, reason)
 
         self.save_state()
 

@@ -142,6 +142,10 @@ On a fresh install:
 - the first harness claims `Chief_of_Staff`
 - on the first run, `Chief_of_Staff` should onboard the operator and build the initial operator memory
 - it should write or update `HUMANS.md`, `MEMORY/humans/<HumanID>/`, and its own `MEMORY/agents/Chief_of_Staff/ALWAYS.md`
+- if `Runner/` is present, `Chief_of_Staff` should also perform the first-pass Runner setup during onboarding and leave it in `DRY_RUN` unless explicitly told otherwise
+- after that setup, `Chief_of_Staff` should try to start the Runner or give the operator the exact command immediately if it cannot
+- optional add-ons like `TelegramBot/` and `Visualizer/` should be introduced only when the operator asks for them
+- when an add-on like Telegram is explicitly configured, `Chief_of_Staff` should try to start it or immediately provide the exact command to start it
 - after onboarding is complete, it asks the operator what they want to do
 - it recommends any additional roles needed
 
@@ -645,6 +649,17 @@ Recommended first experience:
 
 This is the safest way to learn the system before pointing it at important live work.
 
+Windows cleanup note:
+
+- If you are trying to delete an old Agentic Harness test folder and Windows says files are still in use, you may still have background Python processes from `Runner`, `TelegramBot`, or `Visualizer`.
+- In that case, close any obvious terminal windows first, then use:
+
+```powershell
+taskkill /F /IM python.exe
+```
+
+- After that, try deleting the old folder and copying a fresh install again.
+
 Assumptions for first-time users:
 
 - you have at least one harness available
@@ -667,12 +682,19 @@ That includes:
 - Runner discovery and setup
 - initial harness catalog creation
 - initial role launch registry setup
+- optional add-on setup only when requested
 
 The operator should not need to manually prebuild those files just to get started.
 
 ## First Boot Prompts
 
 These prompts are meant to help users get started quickly with a fresh Agentic Harness install.
+
+Prompt style rule:
+
+- When `Chief_of_Staff` gives you a prompt for another harness, it should default to the shortest prompt that can work.
+- The receiving harness should learn the rest from the file protocol, not from a giant pasted checklist.
+- Only use verbose/debug prompts when you explicitly ask for them.
 
 ### Chief of Staff Prompt
 
@@ -687,6 +709,10 @@ Claim the Chief_of_Staff role if it is available.
 The onboarding, lease updates, registry writes, join note, event log entry, and next actions should all be handled by `Chief_of_Staff` after reading the file protocol.
 
 If the optional Runner layer is present, `Chief_of_Staff` should also own the first-pass Runner setup as part of the same onboarding flow.
+After that setup, `Chief_of_Staff` should try to start the Runner or immediately give the exact start command if it cannot run it directly.
+
+Optional add-ons like Telegram and Visualizer should be set up later when the operator explicitly asks for them.
+If one of those add-ons is configured, `Chief_of_Staff` should try to start it or immediately give the exact start command if it cannot run it directly.
 
 ### Compact Prompt For Small-Context Models
 
@@ -718,9 +744,6 @@ Use this for additional harnesses after `Chief_of_Staff` has already created or 
 Read AGENTIC_HARNESS.md first.
 This is an existing Agentic Harness system.
 Take the role of <ROLE> if it is open or stale.
-Then continue the work already in progress.
-If you claim the role, renew your lease on meaningful writes and continue the active milestone before asking for a new direction.
-Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Generic Research Role Prompt
@@ -729,9 +752,6 @@ Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unl
 Read AGENTIC_HARNESS.md first.
 This is an existing Agentic Harness system.
 Take the role of Researcher if it is open or stale.
-Then continue the work already in progress.
-If you claim the role, renew your lease on meaningful writes, capture findings in the markdown files, and continue active research tasks before asking for a new direction.
-Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Generic Engineer Role Prompt
@@ -740,9 +760,6 @@ Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unl
 Read AGENTIC_HARNESS.md first.
 This is an existing Agentic Harness system.
 Take the role of Engineer if it is open or stale.
-Then continue the work already in progress.
-If you claim the role, renew your lease on meaningful writes, complete the assigned engineering work through the markdown files, and continue the active milestone before asking for a new direction.
-Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unless the operator explicitly assigned it.
 ```
 
 ### Generic Documentation Role Prompt
@@ -751,9 +768,11 @@ Do not adopt TelegramBot, Visualizer, or any optional add-on as project work unl
 Read AGENTIC_HARNESS.md first.
 This is an existing Agentic Harness system.
 Take the role of Documentation if it is open or stale.
-Then continue the work already in progress.
-If you claim the role, renew your lease on meaningful writes, document outputs and decisions in the markdown files, and continue the active workstream before asking for a new direction.
 ```
+
+### Verbose Debug Prompt
+
+Use a longer prompt only if a specific harness is failing to follow the file protocol and you need to be more explicit.
 
 ### Example: LM Studio
 
@@ -789,6 +808,10 @@ Watch _messages/Chief_of_Staff.md for operator messages.
 Reply to the operator by writing to _messages/human_<HumanID>.md.
 Treat the Telegram layer as transport only. You remain the system orchestrator.
 ```
+
+When Telegram is active, do not leave operator-facing questions or status updates only in the local harness window.
+
+If the operator is remote, `Chief_of_Staff` should write those updates and questions to `_messages/human_<HumanID>.md` so the Telegram bridge can forward them externally.
 
 ## Mixed Harness Examples
 
@@ -883,6 +906,7 @@ Important limitation:
 
 - the Runner can only relaunch a harness automatically if the role registry contains a real working launch command for that harness on that machine
 - if a harness needs a special wrapper to accept a prompt non-interactively, that wrapper command should be stored in `Runner/ROLE_LAUNCH_REGISTRY.md`
+- for auto-managed roles, the Runner should also leave a short wake/check instruction in `_messages/<Role>.md` so the relaunched harness knows what to do next
 - until a working launch command exists, the role should remain manual
 
 ## Runner Setup Shortcut

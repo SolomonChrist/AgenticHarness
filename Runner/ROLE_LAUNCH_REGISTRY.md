@@ -26,6 +26,7 @@ Working Directory:
 Model / Profile:
 Bootstrap File:
 Startup Prompt:
+Wake Message:
 Check Interval Minutes:
 Wake Triggers:
 - task_change
@@ -59,6 +60,7 @@ Notes:
 - `Launch Command` may be blank for human/manual runners
 - `Harness Key` should match an entry in `Runner/HARNESS_CATALOG.md` when possible
 - `Launch Command` may use placeholders such as `{WORKDIR}`, `{PROMPT_FILE}`, `{PROMPT_TEXT}`, `{ROLE}`, and `{BOOTSTRAP_FILE}`
+- `Wake Message` is the short instruction the Runner should write into `_messages/<Role>.md` when it launches or nudges that role
 - `Chief_of_Staff` should usually have the shortest interval or persistent mode
 - Manual human-run roles can still claim roles and report work through the markdown files
 
@@ -75,6 +77,7 @@ Working Directory:
 Model / Profile:
 Bootstrap File: AGENTIC_HARNESS.md
 Startup Prompt:
+Wake Message: Check operator messages, check status, and continue orchestration.
 Check Interval Minutes: 2
 Wake Triggers:
 - task_change
@@ -96,6 +99,7 @@ Working Directory:
 Model / Profile:
 Bootstrap File: AGENTIC_HARNESS_TINY.md
 Startup Prompt:
+Wake Message: Check status, review assigned research tasks, and continue active work.
 Check Interval Minutes: 5
 Wake Triggers:
 - task_change
@@ -117,6 +121,7 @@ Working Directory:
 Model / Profile:
 Bootstrap File: AGENTIC_HARNESS.md
 Startup Prompt:
+Wake Message: Check status, review assigned engineering tasks, and continue active work.
 Check Interval Minutes: 5
 Wake Triggers:
 - task_change

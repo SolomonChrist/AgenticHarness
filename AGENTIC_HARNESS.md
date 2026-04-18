@@ -20,6 +20,8 @@ If your context window is very small, prioritize only these rules first:
 - If your own lease is stale, renew it before doing anything else.
 - Read the current top-level task list before opening new work.
 - Continue the active milestone or workstream before asking for a new direction.
+- While active, periodically re-check your direct message file, the task board, and your current project context instead of waiting forever for a human to prompt you.
+- As a practical default, roles should re-check those files on every lease renewal and after each meaningful work step.
 - Use `_messages/<Role>.md` for direct coordination when possible.
 - Use `Projects/<project-slug>/CONTEXT.md` for project-local coordination.
 - Do not create new projects, optional add-on work, or side initiatives unless the operator or `Chief_of_Staff` explicitly asked for them.
@@ -92,7 +94,14 @@ On a fresh install:
 - That means `Chief_of_Staff` should first check the machine and local environment for common harness families already known to Agentic Harness.
 - Then `Chief_of_Staff` should ask the operator only about any additional harnesses or custom commands that were not already detected or confirmed.
 - `Chief_of_Staff` should then begin building remembered launch knowledge in `Runner/HARNESS_CATALOG.md` and `Runner/ROLE_LAUNCH_REGISTRY.md`.
-- `Chief_of_Staff` should treat this as part of the normal first-run walkthrough. The operator should not need to manually design the Runner structure first.
+- `Chief_of_Staff` should keep the Runner in `DRY_RUN` mode during onboarding unless the operator explicitly asks to switch it live.
+- `Chief_of_Staff` should treat first-pass Runner setup as part of the normal first-run walkthrough. The operator should not need to manually design the Runner structure first.
+- After Runner setup is complete, `Chief_of_Staff` should try to start the Runner for the operator if the local harness can safely execute local start commands.
+- If `Chief_of_Staff` cannot start it directly, it should immediately give the operator the exact command to run next instead of merely stating that setup is complete.
+- When giving Windows start commands for built-in tools or add-ons, `Chief_of_Staff` should prefer `py` first and provide `python` as the fallback if `py` is not available.
+- Optional add-ons such as `TelegramBot/` and `Visualizer/` should only be set up when the operator explicitly asks for them.
+- When the operator asks for one of those add-ons, `Chief_of_Staff` should then guide that add-on setup step by step using the files and commands already present in the install.
+- If an optional add-on such as Telegram is fully configured, `Chief_of_Staff` should also try to start it for the operator when possible. If it cannot, it should give the exact start command immediately.
 - After onboarding is complete, `Chief_of_Staff` should ask the operator what they want to do.
 - The `Chief_of_Staff` should then create or recommend the additional roles needed for the work.
 
@@ -105,6 +114,13 @@ Onboarding tone rule:
   - `What is your name? (ex. Firstname Lastname)`
 - After learning the operator's name, `Chief_of_Staff` should continue the conversation naturally and learn the remaining preferences through clear, human-sounding follow-up questions.
 - The goal is to feel like a capable assistant getting to know the operator, not a generic setup wizard.
+
+Prompt handoff rule:
+
+- When `Chief_of_Staff` gives the operator a prompt for another harness to join the swarm, it should default to the shortest prompt that can work.
+- In most cases that means a simple 2-4 line role prompt, because the receiving harness should learn the rest by reading `AGENTIC_HARNESS.md` or the smaller bootstrap file.
+- `Chief_of_Staff` should not dump the full boot order, lease fields, registry steps, or join checklist into the handoff prompt unless the operator explicitly asks for a verbose/debug/manual version.
+- Short prompts are the default. Verbose prompts are the exception.
 
 On an existing-project install:
 
@@ -428,6 +444,9 @@ Chief_of_Staff Telegram setup rule:
 - `Chief_of_Staff` should use the current harness root as `HARNESS_ROOT`.
 - `Chief_of_Staff` should use the operator human record in `HUMANS.md` to determine `HUMAN_ID`.
 - After Telegram is configured, `Chief_of_Staff` should continue using Telegram as transport only by reading `_messages/Chief_of_Staff.md` and replying through `_messages/human_<HumanID>.md`.
+- If Telegram is the active remote operator channel, operator-facing questions, status updates, approvals needed, and decision prompts must be written to `_messages/human_<HumanID>.md`, not only shown in the local harness window.
+- `Chief_of_Staff` should assume the operator may be away from the computer once Telegram is active.
+- If another role sends a message that requires operator direction, `Chief_of_Staff` should summarize that message and forward the resulting question or recommendation to `_messages/human_<HumanID>.md`.
 
 ## Runner / Daemon
 

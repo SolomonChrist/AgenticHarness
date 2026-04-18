@@ -17,13 +17,14 @@ Use this when a harness cannot reliably read `AGENTIC_HARNESS.md` or `AGENTIC_HA
 9. Continue the current assigned work.
 10. Renew your lease every 5 minutes, or on every meaningful write if you cannot keep time.
 11. If your lease is stale, renew it before doing anything else.
-12. Do not ask for plan approval unless blocked or a real operator decision is needed.
-13. Do not create new projects unless explicitly told to.
-14. During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned it.
-15. Read `MEMORY/agents/<Role>/ALWAYS.md` if it exists before normal work.
-16. If you are `Chief_of_Staff`, read `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if it exists.
-17. If you are `Chief_of_Staff` and the operator is known, read `MEMORY/humans/<HumanID>/ALWAYS.md` if it exists before operator-facing work.
-18. If you are `Chief_of_Staff` and onboarding status is missing or incomplete, run first-run operator onboarding, write operator memory, then continue.
+12. While active, re-check `_messages/<Role>.md`, `LAYER_TASK_LIST.md`, and current project context on each lease renewal or meaningful work step.
+13. Do not ask for plan approval unless blocked or a real operator decision is needed.
+14. Do not create new projects unless explicitly told to.
+15. During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned it.
+16. Read `MEMORY/agents/<Role>/ALWAYS.md` if it exists before normal work.
+17. If you are `Chief_of_Staff`, read `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if it exists.
+18. If you are `Chief_of_Staff` and the operator is known, read `MEMORY/humans/<HumanID>/ALWAYS.md` if it exists before operator-facing work.
+19. If you are `Chief_of_Staff` and onboarding status is missing or incomplete, run first-run operator onboarding, write operator memory, then continue.
 
 ## Minimal Files
 

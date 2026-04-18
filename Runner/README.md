@@ -16,6 +16,7 @@ Its job is to keep the swarm alive by:
 - leaving manual/human-run roles alone unless explicitly contacted
 - monitoring stale leases
 - relaunching roles when needed
+- writing a short wake/check instruction into `_messages/<Role>.md` when it launches or nudges an auto-managed role
 
 The Runner is not the source of truth.
 
@@ -130,6 +131,7 @@ This means the system should remember things like:
 - which harness family is available
 - which model or profile is preferred for that harness
 - what command successfully starts that harness on this machine
+- what wake/check instruction should be left for that role after launch
 - which bootstrap file it should read first
 - which role types it is usually used for
 
@@ -198,6 +200,19 @@ Supported placeholders:
 
 This lets the Runner prepare per-role prompt files and pass them to wrapper commands without hardcoding every role by hand.
 
+## Wake Messages
+
+Each auto-managed role may also define a short `Wake Message` in `ROLE_LAUNCH_REGISTRY.md`.
+
+The Runner writes that message into `_messages/<Role>.md` when it launches or nudges the role.
+
+That helps a freshly relaunched harness know what to do next, for example:
+
+- check status
+- check direct messages
+- continue active work
+- review newly assigned tasks
+
 Example pattern:
 
 ```text
@@ -205,6 +220,11 @@ Launch Command: my-harness-launcher --cwd "{WORKDIR}" --prompt-file "{PROMPT_FIL
 ```
 
 If a harness cannot be launched headlessly yet, leave it in manual mode until a working wrapper command exists.
+
+Important limitation:
+
+- The Runner can relaunch or nudge a role, but it cannot magically drive an already-open interactive CLI window unless that harness itself can continue work autonomously.
+- In practice, the Runner works best when it can relaunch the role cleanly and leave a concrete wake message waiting in `_messages/<Role>.md`.
 
 ## Recommended Workflow
 
@@ -226,7 +246,9 @@ Use this when you already have `Chief_of_Staff` running and want the Runner conf
 4. Start the daemon and inspect what it would launch.
 5. Only after that, switch the Runner to active mode.
 
-This setup should normally be performed by the active `Chief_of_Staff` during the first-run walkthrough, not by forcing the operator to hand-edit Runner files first.
+This setup should normally be performed by the active `Chief_of_Staff` during the first-run walkthrough as part of onboarding, not by forcing the operator to hand-edit Runner files first.
+
+After the first-pass Runner setup is complete, `Chief_of_Staff` should try to start the Runner daemon for the operator if the local harness can safely execute the start command. If it cannot, it should immediately provide the exact command to run next.
 
 Recommended instruction to give `Chief_of_Staff`:
 

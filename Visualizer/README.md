@@ -4,6 +4,8 @@ Optional visual interface for Agentic Harness.
 
 This folder is separate from the core markdown control plane.
 
+`Chief_of_Staff` should help set it up only when the operator explicitly asks for the Visualizer add-on.
+
 ## Purpose
 
 The Visualizer is a full web-based interface for seeing the swarm in action.
@@ -26,6 +28,8 @@ Its main goal is to visualize the system, the bots, their movement, and their cu
 - `dashboard.html`
 - `styles.css`
 - `app.js`
+- `vendor/three-r184.module.min.js`
+- `vendor/THREEJS_LICENSE.txt`
 
 ## Start Commands
 
@@ -34,6 +38,7 @@ Windows:
 ```powershell
 py Visualizer\visualizer_server.py
 python Visualizer\visualizer_server.py
+Visualizer\start_visualizer.bat
 ```
 
 Then open:
@@ -42,6 +47,53 @@ Then open:
 - [http://127.0.0.1:8787/world3d.html](http://127.0.0.1:8787/world3d.html)
 - [http://127.0.0.1:8787/worldvr.html](http://127.0.0.1:8787/worldvr.html)
 - [http://127.0.0.1:8787/dashboard.html](http://127.0.0.1:8787/dashboard.html)
+
+## 3D Controls
+
+The 3D world now supports:
+
+- `WASD` to move through the scene
+- forward and backward movement follow the current look direction
+- `Shift` to move faster
+- right-click drag to look around
+- left-click an office to inspect project details
+- left-click a bot to inspect role/lease details
+
+## Movement Notes
+
+- The 3D world currently behaves like a free-roam office camera.
+- `W` moves forward in the direction you are currently looking.
+- `S` moves backward relative to your current view.
+- `A` and `D` strafe left and right relative to your current facing direction.
+- Hold `Shift` while moving to travel faster.
+- Hold right-click and drag to rotate the camera view.
+- Use left-click only for interacting with offices and bot entities.
+
+## Bot Visual State
+
+- Idle live roles should appear blue and show `idle` above their heads.
+- Working roles should appear orange and show their current task above their heads.
+- Working roles should drift and animate faster so the world feels active at a glance.
+- Stale roles should appear red to highlight that they need attention or renewal.
+- The 3D world derives this from the live lease files plus the current task field for each role.
+
+## Offline Reliability
+
+The 3D world uses a locally vendored copy of Three.js instead of a CDN.
+
+That means:
+
+- the demo keeps working if internet drops
+- users can run the visualizer offline
+- the repo ships with the exact pinned version it was tested with
+
+Current bundled version:
+
+- `three-r184.module.min.js`
+
+Three.js is MIT-licensed. The bundled license text is included in:
+
+- `vendor/THREEJS_LICENSE.txt`
 
 ## API
 
@@ -116,5 +168,6 @@ Next improvements:
 - richer 3D movement and scene design
 - clickable role cards and detail panels
 - write-back controls into `_messages/` and tasks
+- bring `worldvr.html` up to the same level as the upgraded 3D world
 - full VR/WebXR layer
 - presentation polish for the public demo

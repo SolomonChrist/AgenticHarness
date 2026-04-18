@@ -31,12 +31,14 @@ The user should only need to do two manual things:
 1. Create the Telegram bot and get the bot token.
 2. Get their Telegram user ID.
 
-After that, the active `Chief_of_Staff` should be able to fill `TelegramBot/.env.telegram` for them if they provide:
+After that, the active `Chief_of_Staff` should be able to fill `TelegramBot/.env.telegram` for them when the operator explicitly asks to enable the Telegram add-on and provides:
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_ALLOWED_USER_IDS`
 
 and the local harness root is already known.
+
+Once Telegram is configured, `Chief_of_Staff` should try to start the Telegram bridge for the operator if the local harness can safely execute the command. If it cannot, it should immediately provide the exact command to run next.
 
 Recommended instruction to give `Chief_of_Staff`:
 
@@ -88,6 +90,8 @@ The active `Chief_of_Staff` / MasterBot should follow this simple rule:
 The Telegram bridge does not orchestrate the swarm.
 
 It only transports messages between you and the active MasterBot.
+
+If Telegram is the operator's active remote channel, the MasterBot should also mirror operator-facing questions, approvals needed, and status updates into `_messages/human_<HumanID>.md` rather than keeping them only in the local harness session.
 
 ## First Telegram Test
 

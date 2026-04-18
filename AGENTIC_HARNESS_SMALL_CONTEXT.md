@@ -22,13 +22,14 @@ Join Agentic Harness with the minimum possible instructions.
 6. Renew your lease every 5 minutes while active.
 7. If you cannot run a timer, renew on every meaningful write.
 8. If your own lease is stale, renew it before doing anything else.
-9. Do not stop for plan approval unless you are blocked or need a real operator decision.
-10. Do not create new projects or side initiatives unless the operator or `Chief_of_Staff` explicitly requested them.
-11. During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned it.
-12. Read `MEMORY/agents/<Role>/ALWAYS.md` if it exists before normal work.
-13. If you are `Chief_of_Staff`, read `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if it exists.
-14. If you are `Chief_of_Staff` and the operator is known, read `MEMORY/humans/<HumanID>/ALWAYS.md` if it exists before operator-facing work.
-15. If you are `Chief_of_Staff` and onboarding status is missing or incomplete, run first-run operator onboarding, write operator memory, then continue.
+9. While active, re-check `_messages/<Role>.md`, `LAYER_TASK_LIST.md`, and current project context on each lease renewal or meaningful work step.
+10. Do not stop for plan approval unless you are blocked or need a real operator decision.
+11. Do not create new projects or side initiatives unless the operator or `Chief_of_Staff` explicitly requested them.
+12. During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned it.
+13. Read `MEMORY/agents/<Role>/ALWAYS.md` if it exists before normal work.
+14. If you are `Chief_of_Staff`, read `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if it exists.
+15. If you are `Chief_of_Staff` and the operator is known, read `MEMORY/humans/<HumanID>/ALWAYS.md` if it exists before operator-facing work.
+16. If you are `Chief_of_Staff` and onboarding status is missing or incomplete, run first-run operator onboarding, write operator memory, then continue.
 
 ## Minimum Files To Read
 
