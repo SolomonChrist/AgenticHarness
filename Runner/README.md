@@ -17,10 +17,17 @@ Its job is to keep the swarm alive by:
 - monitoring stale leases
 - relaunching roles when needed
 - writing a short wake/check instruction into `_messages/<Role>.md` when it launches or nudges an auto-managed role
+- reacting quickly to urgent wake requests written by Telegram or active harness roles
 
 The Runner is not the source of truth.
 
 The markdown files remain the source of truth.
+
+## Operating Model
+
+- first run: manually prove each specialist role once on the chosen harness
+- later runs: let Runner own only the CLI-capable roles that were successfully proven
+- manual-call systems remain valid swarm participants, but they should stay registered as manual until a real CLI cycle path exists
 
 ## Execution Modes
 
@@ -43,6 +50,7 @@ The Runner:
 - launches it every configured interval
 - or launches it when relevant files changed
 - expects the harness to read the files, do work, renew its lease, and exit or idle
+- should only own a specialist role after that role has been manually proven once on the chosen harness for this install
 
 ### manual
 
@@ -62,6 +70,8 @@ Expected files in this folder:
 - `RUNNER_CONFIG.md`
 - `HARNESS_CATALOG.md`
 - `ROLE_LAUNCH_REGISTRY.md`
+- `harness_role_cycle.py`
+- `claude_role_cycle.py`
 - `runner_daemon.py`
 - `start_runner.bat`
 - `start_runner.sh`
@@ -139,10 +149,20 @@ The operator should not have to repeat the same harness launch details forever.
 
 Over time, the install should accumulate a practical launch memory for the local swarm.
 
+Important design rule:
+
+- The Runner is meant to be cross-harness.
+- Claude Code is only the first built-in scheduled-cycle adapter.
+- Other harness families should be supported through the same pattern:
+  - direct confirmed commands
+  - small wrapper scripts
+  - future built-in adapters
+- The goal is one Runner controlling many harness types on schedule, not one vendor-specific daemon.
+
 ## Recommended Defaults
 
 - `Chief_of_Staff`: shortest interval, or persistent when possible
-- Researcher / Engineer / Documentation: interval mode by default
+- Researcher / Engineer / Documentation: interval mode only after first successful manual claim on the chosen harness
 - Humans: manual mode
 
 ## Guardrails
@@ -154,12 +174,27 @@ Over time, the install should accumulate a practical launch memory for the local
 
 ## First Setup
 
-1. Fill `Runner/ROLE_LAUNCH_REGISTRY.md` with the roles you want the Runner to manage.
-2. Fill or confirm `Runner/HARNESS_CATALOG.md` with the harnesses available on this system.
-3. Set `Runner Enabled: YES` in `Runner/RUNNER_CONFIG.md` when you are ready.
-4. Keep `Runner Mode: DRY_RUN` first to verify behavior.
+1. `Chief_of_Staff` should fill `Runner/ROLE_LAUNCH_REGISTRY.md` with the roles the Runner should manage.
+2. `Chief_of_Staff` should fill or confirm `Runner/HARNESS_CATALOG.md` with the harnesses available on this system.
+3. `Chief_of_Staff` should set `Runner Enabled: YES` in `Runner/RUNNER_CONFIG.md` once the local launch plan is confirmed.
+4. Keep `Runner Mode: DRY_RUN` only long enough to verify behavior.
 5. Start the daemon and inspect the console output.
-6. Switch to active mode only after the registry looks correct.
+6. Switch to active mode once the registry looks correct.
+
+Preferred local daemon helper:
+
+```powershell
+py service_manager.py start runner
+py service_manager.py stop runner
+py service_manager.py status runner
+```
+
+Or, to request all core infrastructure at once on Windows:
+
+```powershell
+start_all_services.bat
+```
+7. When new specialist roles join later, `Chief_of_Staff` should immediately add them to the Runner so they become scheduled swarm members.
 
 ## Start Commands
 
@@ -197,14 +232,86 @@ Supported placeholders:
 - `{HARNESS_KEY}` = harness key from the registry
 - `{HARNESS_TYPE}` = harness type from the registry
 - `{MODEL_PROFILE}` = model/profile text from the registry
+- `{AUTO_CLAUDE_CYCLE}` = built-in Claude Code scheduled automation launcher
+- `{AUTO_OPENCODE_CYCLE}` = built-in OpenCode scheduled automation launcher
+- `{AUTO_GOOSE_CYCLE}` = built-in Goose scheduled automation launcher
+- `{AUTO_OLLAMA_CYCLE}` = built-in Ollama scheduled automation launcher
 
 This lets the Runner prepare per-role prompt files and pass them to wrapper commands without hardcoding every role by hand.
+
+For Claude Code roles, the easiest working pattern is:
+
+```text
+Launch Command: {AUTO_CLAUDE_CYCLE}
+```
+
+That tells the Runner to call the built-in `claude_role_cycle.py` helper, which starts one short Claude automation pass for that role, lets it read the markdown state, do work, write updates, and exit until the next wake interval.
+
+For the `Model / Profile` field:
+
+- use a real Claude CLI model id such as `claude-haiku-4-5-20251001`, or
+- leave it blank and let the local Claude CLI use its current default
+
+Avoid storing only a display label like `Haiku 4.5` in a role that is meant to auto-run, because the Runner may need to pass that field directly to the CLI.
+
+This is the first built-in adapter, not the final boundary of the system.
+
+The same model should later exist for other harness families, for example:
+
+- OpenCode / Ollama role cycles
+- Goose role cycles
+- Gemini CLI role cycles
+- Codex role cycles
+- Antigravity launch wrappers
+
+Current built-in adapters:
+
+- Claude Code
+- OpenCode
+- Goose
+- Ollama
+
+Current non-headless / wrapper-needed cases:
+
+- Antigravity
+- Gemini CLI (if/when installed)
+- Codex (depends on a working local invocation path)
+- OpenClaw (if installed and not already self-daemonized)
+
+Important:
+
+- If a role is currently being run manually through one of those wrapper-needed harnesses, register it as `Execution Mode: manual` until a real non-interactive launch method is confirmed.
+- Do not point a manual Antigravity or similar role at `{AUTO_CLAUDE_CYCLE}` just because Claude is installed on the same machine.
+- Mixed-harness swarms are valid, but the registry should reflect reality role by role.
 
 ## Wake Messages
 
 Each auto-managed role may also define a short `Wake Message` in `ROLE_LAUNCH_REGISTRY.md`.
 
 The Runner writes that message into `_messages/<Role>.md` when it launches or nudges the role.
+
+## Immediate Wake Requests
+
+Scheduled intervals are the fallback, not the only trigger.
+
+If a Telegram message arrives or one active role assigns urgent work to another role, the system should not wait for the next normal interval.
+
+The built-in wake request path is:
+
+- append a line to `Runner/_wake_requests.md`
+- format: `[timestamp] RoleName: reason`
+- example: `[2026-04-18T14:45:00Z] Chief_of_Staff: telegram_message`
+
+The Runner polls this file on a short fast-wake interval and will:
+
+- `nudge` the role immediately if it is already active
+- `launch` the role immediately if it is stale or missing
+
+This means:
+
+- Telegram can wake `Chief_of_Staff` right away
+- `Chief_of_Staff` can wake `Researcher` or `Engineer` right away after dispatching work
+- scheduled intervals remain as the safety net if no urgent wake request was written
 
 That helps a freshly relaunched harness know what to do next, for example:
 
@@ -225,6 +332,8 @@ Important limitation:
 
 - The Runner can relaunch or nudge a role, but it cannot magically drive an already-open interactive CLI window unless that harness itself can continue work autonomously.
 - In practice, the Runner works best when it can relaunch the role cleanly and leave a concrete wake message waiting in `_messages/<Role>.md`.
+- For Claude Code specifically, interval automation works best as repeated short `claude -p` work cycles rather than trying to force an already-open terminal window to behave like a daemon.
+- The same principle applies to every other harness family: prefer repeated short scheduled work cycles or a true wrapper/daemon path, not “one human-opened terminal should stay smart forever.”
 
 ## Recommended Workflow
 
@@ -249,6 +358,8 @@ Use this when you already have `Chief_of_Staff` running and want the Runner conf
 This setup should normally be performed by the active `Chief_of_Staff` during the first-run walkthrough as part of onboarding, not by forcing the operator to hand-edit Runner files first.
 
 After the first-pass Runner setup is complete, `Chief_of_Staff` should try to start the Runner daemon for the operator if the local harness can safely execute the start command. If it cannot, it should immediately provide the exact command to run next.
+
+The operator should not have to discover or invent a separate Runner setup prompt. If Runner is present, `Chief_of_Staff` should own this setup path by default.
 
 Recommended instruction to give `Chief_of_Staff`:
 

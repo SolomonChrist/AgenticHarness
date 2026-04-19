@@ -119,6 +119,7 @@ body {
 .active { background: rgba(98,193,138,0.16); color: var(--good); }
 .stale { background: rgba(232,123,68,0.16); color: var(--warn); }
 .unclaimed { background: rgba(125,146,165,0.16); color: var(--muted); }
+.working { background: rgba(90,168,255,0.16); color: var(--info); }
 
 .agent-body {
   padding: 18px;
@@ -153,6 +154,39 @@ body {
 }
 
 .events, .projects { display: flex; flex-direction: column; gap: 10px; }
+.daemon-grid, .workzone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.daemon-card {
+  position: relative;
+  min-height: 156px;
+  overflow: hidden;
+}
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.meta-row b {
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.micro {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
 .line {
   padding: 10px 12px;
   border-radius: 12px;

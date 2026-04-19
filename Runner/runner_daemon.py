@@ -23,6 +23,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from coordination_io import append_line as append_line_safe, atomic_write_text
+
 
 RUNNING = True
 
@@ -64,10 +70,52 @@ def parse_iso(value: str) -> Optional[datetime]:
 
 
 def append_line(path: Path, line: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existing = path.read_text(encoding="utf-8") if path.exists() else ""
-    prefix = "" if not existing or existing.endswith("\n") else "\n"
-    path.write_text(existing + prefix + line + "\n", encoding="utf-8")
+    append_line_safe(path, line)
+
+
+def quote_command_arg(value: str) -> str:
+    text = str(value)
+    if os.name == "nt":
+        if not text:
+            return '""'
+        if any(ch in text for ch in ' \t"&()[]{}^=;!+,`~'):
+            return '"' + text.replace('"', '""') + '"'
+        return text
+    try:
+        import shlex
+
+        return shlex.quote(text)
+    except Exception:
+        return text
+
+
+def escape_template_value(value: str) -> str:
+    text = str(value)
+    if os.name == "nt":
+        return text.replace('"', '\\"')
+    try:
+        import shlex
+
+        return shlex.quote(text)
+    except Exception:
+        return text.replace('"', '\\"')
+
+
+def cli_model_arg(provider: str, model_profile: str) -> str:
+    text = (model_profile or "").strip()
+    if not text:
+        return ""
+
+    normalized_provider = provider.strip().lower()
+
+    # Claude Code wants a concrete model id such as
+    # `claude-haiku-4-5-20251001`, not a human-facing label like
+    # `Haiku 4.5`. If the registry only has a display label, let the CLI
+    # use its current default model instead of failing every cycle.
+    if normalized_provider == "claude":
+        return text if text.startswith("claude-") else ""
+
+    return text
 
 
 def log_event(event_file: Path, message: str) -> None:
@@ -77,6 +125,26 @@ def log_event(event_file: Path, message: str) -> None:
 def process_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            process_query_limited_information = 0x1000
+            still_active = 259
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+            if not handle:
+                return False
+            try:
+                exit_code = wintypes.DWORD()
+                if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                    return False
+                return exit_code.value == still_active
+            finally:
+                kernel32.CloseHandle(handle)
+        except Exception:
+            return False
     try:
         os.kill(pid, 0)
         return True
@@ -158,6 +226,12 @@ def parse_markdown_records(path: Path) -> List[Dict[str, object]]:
     return records
 
 
+def markdown_scalar(value: object) -> str:
+    if isinstance(value, list):
+        return ""
+    return str(value or "").strip()
+
+
 def role_names_from_roles_file(path: Path) -> List[str]:
     names: List[str] = []
     if not path.exists():
@@ -185,6 +259,7 @@ class LeaseStatus:
 class RoleLaunchConfig:
     role: str
     enabled: bool
+    automation_ready: bool
     execution_mode: str
     harness_key: str
     harness_type: str
@@ -213,8 +288,12 @@ class RunnerDaemon:
         self.heartbeat_root = self.harness_root / "_heartbeat"
         self.messages_root = self.harness_root / "_messages"
         self.task_file = self.harness_root / "LAYER_TASK_LIST.md"
+        self.wake_requests_file = self.runner_root / "_wake_requests.md"
+        self.reminders_file = self.runner_root / "_reminders.json"
         self.state_path = self.runner_root / ".runner_state.json"
+        self.runtime_path = self.runner_root / ".runner_runtime.json"
         self.generated_prompt_root = self.runner_root / "_generated_prompts"
+        self.started_at = iso_now()
         self.state = self.load_state()
 
     def load_state(self) -> Dict[str, object]:
@@ -227,7 +306,70 @@ class RunnerDaemon:
 
     def save_state(self) -> None:
         self.runner_root.mkdir(parents=True, exist_ok=True)
-        self.state_path.write_text(json.dumps(self.state, indent=2), encoding="utf-8")
+        atomic_write_text(self.state_path, json.dumps(self.state, indent=2))
+
+    def count_pending_wake_requests(self) -> int:
+        if not self.wake_requests_file.exists():
+            return 0
+        lines = [line.strip() for line in self.wake_requests_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+        seen = set(self.state.get("wake_requests_seen", []))
+        return sum(1 for line in lines if line not in seen)
+
+    def load_reminders(self) -> List[Dict[str, object]]:
+        if not self.reminders_file.exists():
+            return []
+        try:
+            data = json.loads(self.reminders_file.read_text(encoding="utf-8"))
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
+
+    def save_reminders(self, reminders: List[Dict[str, object]]) -> None:
+        self.runner_root.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(self.reminders_file, json.dumps(reminders, indent=2))
+
+    def process_due_reminders(self) -> None:
+        reminders = self.load_reminders()
+        if not reminders:
+            return
+        now = now_local()
+        changed = False
+        for reminder in reminders:
+            if str(reminder.get("status", "")).lower() != "pending":
+                continue
+            due_at = parse_iso(str(reminder.get("due_at", "")))
+            if not due_at or due_at > now:
+                continue
+            human_id = str(reminder.get("human_id", "")).strip()
+            text = str(reminder.get("text", "")).strip()
+            if not human_id or not text:
+                reminder["status"] = "error"
+                reminder["error"] = "missing human_id or text"
+                changed = True
+                continue
+            human_file = self.messages_root / f"human_{human_id}.md"
+            append_line(human_file, f"[{iso_now()}] [Chief_of_Staff] Reminder: {text}.")
+            reminder["status"] = "sent"
+            reminder["sent_at"] = iso_now()
+            changed = True
+            log_event(self.event_file, f"REMINDER_SENT - Sent reminder to {human_id}: {text}")
+        if changed:
+            self.save_reminders(reminders)
+
+    def update_runtime_status(self, status: str, *, last_error: str = "", runner_cfg: Optional[Dict[str, str]] = None) -> None:
+        cfg = runner_cfg or self.load_runner_config()
+        payload = {
+            "component": "runner",
+            "status": status,
+            "pid": os.getpid(),
+            "started_at": self.started_at,
+            "updated_at": iso_now(),
+            "enabled": cfg.get("Runner Enabled", "NO"),
+            "mode": cfg.get("Runner Mode", "DRY_RUN"),
+            "pending_wake_requests": self.count_pending_wake_requests(),
+            "last_error": last_error,
+        }
+        atomic_write_text(self.runtime_path, json.dumps(payload, indent=2))
 
     def load_runner_config(self) -> Dict[str, str]:
         return read_key_value_file(self.config_path)
@@ -246,22 +388,23 @@ class RunnerDaemon:
                 wake_triggers = []
             configs[role] = RoleLaunchConfig(
                 role=role,
-                enabled=parse_bool(str(record.get("Enabled", "")), default=False),
-                execution_mode=str(record.get("Execution Mode", "interval")).strip().lower() or "interval",
-                harness_key=str(record.get("Harness Key", "")).strip(),
-                harness_type=str(record.get("Harness Type", "")).strip(),
-                launch_command=str(record.get("Launch Command", "")).strip(),
-                working_directory=str(record.get("Working Directory", "")).strip(),
-                model_profile=str(record.get("Model / Profile", "")).strip(),
-                bootstrap_file=str(record.get("Bootstrap File", "")).strip(),
-                startup_prompt=str(record.get("Startup Prompt", "")).strip(),
-                wake_message=str(record.get("Wake Message", "")).strip(),
-                check_interval_minutes=parse_int(str(record.get("Check Interval Minutes", "5")), 5),
+                enabled=parse_bool(markdown_scalar(record.get("Enabled", "")), default=False),
+                automation_ready=parse_bool(markdown_scalar(record.get("Automation Ready", "")), default=False),
+                execution_mode=markdown_scalar(record.get("Execution Mode", "interval")).lower() or "interval",
+                harness_key=markdown_scalar(record.get("Harness Key", "")),
+                harness_type=markdown_scalar(record.get("Harness Type", "")),
+                launch_command=markdown_scalar(record.get("Launch Command", "")),
+                working_directory=markdown_scalar(record.get("Working Directory", "")),
+                model_profile=markdown_scalar(record.get("Model / Profile", "")),
+                bootstrap_file=markdown_scalar(record.get("Bootstrap File", "")),
+                startup_prompt=markdown_scalar(record.get("Startup Prompt", "")),
+                wake_message=markdown_scalar(record.get("Wake Message", "")),
+                check_interval_minutes=parse_int(markdown_scalar(record.get("Check Interval Minutes", "5")), 5),
                 wake_triggers=[trigger.strip() for trigger in wake_triggers if trigger.strip()],
-                max_concurrent_sessions=parse_int(str(record.get("Max Concurrent Sessions", "1")), 1),
-                registration_source=str(record.get("Registration Source", "")).strip(),
-                last_confirmed=str(record.get("Last Confirmed", "")).strip(),
-                notes=str(record.get("Notes", "")).strip(),
+                max_concurrent_sessions=parse_int(markdown_scalar(record.get("Max Concurrent Sessions", "1")), 1),
+                registration_source=markdown_scalar(record.get("Registration Source", "")),
+                last_confirmed=markdown_scalar(record.get("Last Confirmed", "")),
+                notes=markdown_scalar(record.get("Notes", "")),
             )
         return configs
 
@@ -307,9 +450,52 @@ class RunnerDaemon:
         self.state["files"][key] = mtime
         return changed
 
+    def consume_wake_requests(self) -> Dict[str, List[str]]:
+        requests: Dict[str, List[str]] = {}
+        if not self.wake_requests_file.exists():
+            return requests
+        lines = self.wake_requests_file.read_text(encoding="utf-8").splitlines()
+        seen = set(self.state.setdefault("wake_requests_seen", []))
+        updated_seen = set(seen)
+        for raw in lines:
+            line = raw.strip()
+            if not line or line in seen:
+                continue
+            updated_seen.add(line)
+            if "]" in line:
+                tail = line.split("]", 1)[1].strip()
+            else:
+                tail = line
+            if ":" in tail:
+                role, reason = tail.split(":", 1)
+                role = role.strip()
+                reason = reason.strip() or "wake_request"
+            else:
+                role = tail.strip()
+                reason = "wake_request"
+            if role:
+                requests.setdefault(role, []).append(reason)
+        self.state["wake_requests_seen"] = list(updated_seen)[-1000:]
+        return requests
+
+    def clear_launch_throttle_if_healthy(self, role: str, lease: LeaseStatus) -> None:
+        if not lease.active:
+            return
+        state = self.role_state(role)
+        for key in ["failure_count", "cooldown_until", "last_failed_attempt_at", "last_throttle_log", "last_launch_suppressed_until"]:
+            state.pop(key, None)
+
     def role_state(self, role: str) -> Dict[str, object]:
         roles = self.state.setdefault("roles", {})
         return roles.setdefault(role, {})
+
+    def log_unregistered_role_once(self, role: str) -> None:
+        state = self.role_state(role)
+        last_notice = parse_iso(str(state.get("last_unregistered_notice_at", "")))
+        if last_notice and now_local() < last_notice + timedelta(minutes=10):
+            return
+        state["last_unregistered_notice_at"] = iso_now()
+        log_event(self.event_file, f"RUNNER_NOTICE - Role {role} exists but is not registered in Runner/ROLE_LAUNCH_REGISTRY.md.")
 
     def interval_due(self, role: str, minutes: int) -> bool:
         state = self.role_state(role)
@@ -341,20 +527,94 @@ class RunnerDaemon:
     def render_launch_command(self, config: RoleLaunchConfig, prompt_file: Path) -> str:
         cwd = Path(config.working_directory).expanduser() if config.working_directory else self.harness_root
         prompt_text = self.build_prompt_text(config)
+        command = self.effective_launch_command(config, prompt_file, cwd)
         replacements = {
             "{ROLE}": config.role,
             "{HARNESS_ROOT}": str(self.harness_root),
             "{WORKDIR}": str(cwd),
             "{BOOTSTRAP_FILE}": config.bootstrap_file or "",
             "{PROMPT_FILE}": str(prompt_file),
-            "{PROMPT_TEXT}": prompt_text.replace('"', '\\"'),
+            "{PROMPT}": escape_template_value(prompt_text),
+            "{PROMPT_TEXT}": escape_template_value(prompt_text),
+            "{MODEL}": config.model_profile or "",
             "{HARNESS_KEY}": config.harness_key or "",
             "{HARNESS_TYPE}": config.harness_type or "",
             "{MODEL_PROFILE}": config.model_profile or "",
         }
-        command = config.launch_command
         for placeholder, value in replacements.items():
             command = command.replace(placeholder, value)
+        return command
+
+    def command_looks_placeholder(self, command: str) -> bool:
+        text = (command or "").strip().lower()
+        if not text:
+            return True
+        if text in {"tbd", "todo", "unknown", "(blank)"}:
+            return True
+        if text.startswith("start new ") or text.startswith("start "):
+            return True
+        return False
+
+    def prefers_claude_cycle(self, config: RoleLaunchConfig) -> bool:
+        harness = " ".join(
+            part for part in [config.harness_key, config.harness_type, config.model_profile] if part
+        ).lower()
+        return "claude" in harness
+
+    def build_default_claude_cycle_command(self, config: RoleLaunchConfig, prompt_file: Path, cwd: Path) -> str:
+        script = self.runner_root / "claude_role_cycle.py"
+        python_cmd = "py" if os.name == "nt" else "python3"
+        model_arg = cli_model_arg("claude", config.model_profile)
+        parts = [
+            python_cmd,
+            str(script),
+            "--role",
+            config.role,
+            "--workdir",
+            str(cwd),
+            "--prompt-file",
+            str(prompt_file),
+        ]
+        if config.bootstrap_file:
+            parts.extend(["--bootstrap-file", config.bootstrap_file])
+        if model_arg:
+            parts.extend(["--model", model_arg])
+        return " ".join(quote_command_arg(part) for part in parts)
+
+    def build_generic_cycle_command(self, provider: str, config: RoleLaunchConfig, prompt_file: Path, cwd: Path) -> str:
+        script = self.runner_root / "harness_role_cycle.py"
+        python_cmd = "py" if os.name == "nt" else "python3"
+        model_arg = cli_model_arg(provider, config.model_profile)
+        parts = [
+            python_cmd,
+            str(script),
+            "--provider",
+            provider,
+            "--role",
+            config.role,
+            "--workdir",
+            str(cwd),
+            "--prompt-file",
+            str(prompt_file),
+        ]
+        if config.bootstrap_file:
+            parts.extend(["--bootstrap-file", config.bootstrap_file])
+        if model_arg:
+            parts.extend(["--model", model_arg])
+        return " ".join(quote_command_arg(part) for part in parts)
+
+    def effective_launch_command(self, config: RoleLaunchConfig, prompt_file: Path, cwd: Path) -> str:
+        command = (config.launch_command or "").strip()
+        if "{AUTO_CLAUDE_CYCLE}" in command:
+            return command.replace("{AUTO_CLAUDE_CYCLE}", self.build_default_claude_cycle_command(config, prompt_file, cwd))
+        if "{AUTO_OPENCODE_CYCLE}" in command:
+            return command.replace("{AUTO_OPENCODE_CYCLE}", self.build_generic_cycle_command("opencode", config, prompt_file, cwd))
+        if "{AUTO_GOOSE_CYCLE}" in command:
+            return command.replace("{AUTO_GOOSE_CYCLE}", self.build_generic_cycle_command("goose", config, prompt_file, cwd))
+        if "{AUTO_OLLAMA_CYCLE}" in command:
+            return command.replace("{AUTO_OLLAMA_CYCLE}", self.build_generic_cycle_command("ollama", config, prompt_file, cwd))
+        if self.command_looks_placeholder(command) and self.prefers_claude_cycle(config):
+            return self.build_default_claude_cycle_command(config, prompt_file, cwd)
         return command
 
     def append_role_message(self, role: str, message: str) -> None:
@@ -362,6 +622,9 @@ class RunnerDaemon:
             return
         path = self.messages_root / f"{role}.md"
         append_line(path, f"[{iso_now()}] [Runner] {message}")
+        # Prevent the Runner from interpreting its own nudge/write as a fresh
+        # external message change on the next polling loop.
+        self.state.setdefault("files", {})[f"message::{role}"] = self.file_mtime(path)
 
     def build_wake_message(self, config: RoleLaunchConfig, reason: str) -> str:
         if config.wake_message:
@@ -393,6 +656,9 @@ class RunnerDaemon:
         prompt_file = self.write_prompt_file(config)
         command = self.render_launch_command(config, prompt_file)
         self.append_role_message(config.role, self.build_wake_message(config, reason))
+        state = self.role_state(config.role)
+        state["last_launch_at"] = iso_now()
+        state["last_launch_attempt_at"] = state["last_launch_at"]
         try:
             proc = subprocess.Popen(
                 command,
@@ -400,23 +666,74 @@ class RunnerDaemon:
                 shell=True,
             )
         except Exception as exc:
+            state["failure_count"] = int(state.get("failure_count", 0) or 0) + 1
+            state["last_launch_error"] = str(exc)
             log_event(self.event_file, f"RUNNER_ERROR - Failed to launch {config.role}: {exc}")
             return
 
-        state = self.role_state(config.role)
-        state["last_launch_at"] = iso_now()
         state["pid"] = proc.pid
         state["last_mode"] = config.execution_mode
+        state["last_launch_error"] = ""
         log_event(
             self.event_file,
             f"RUNNER_WAKE - Launched {config.role} in {config.execution_mode} mode via {config.harness_type or 'unknown harness'}. Reason: {reason}. Prompt file: {prompt_file.name}.",
         )
 
-    def role_action(self, config: RoleLaunchConfig, lease: LeaseStatus, runner_cfg: Dict[str, str], task_changed: bool) -> tuple[str, str]:
+    def allow_launch(self, config: RoleLaunchConfig, lease: LeaseStatus, runner_cfg: Dict[str, str], reason: str = "") -> bool:
+        state = self.role_state(config.role)
+        now = now_local()
+        normal_backoff_seconds = max(5, parse_int(runner_cfg.get("Launch Retry Backoff Seconds", "60"), 60))
+        urgent_backoff_seconds = max(2, parse_int(runner_cfg.get("Urgent Wake Backoff Seconds", "8"), 8))
+        urgent_reasons = {"telegram_message", "operator_message", "wake_request"}
+        backoff_seconds = urgent_backoff_seconds if reason in urgent_reasons else normal_backoff_seconds
+        failure_threshold = max(1, parse_int(runner_cfg.get("Launch Failure Threshold", "3"), 3))
+        cooldown_seconds = max(30, parse_int(runner_cfg.get("Launch Failure Cooldown Seconds", "300"), 300))
+
+        cooldown_until = parse_iso(str(state.get("cooldown_until", "")))
+        if cooldown_until and cooldown_until > now:
+            marker = cooldown_until.isoformat(timespec="seconds")
+            if state.get("last_throttle_log") != marker:
+                log_event(
+                    self.event_file,
+                    f"RUNNER_SUPPRESS - Suppressed launch for {config.role} until {marker}. Reason: cooldown after repeated failed launches.",
+                )
+                state["last_throttle_log"] = marker
+            return False
+
+        last_launch = parse_iso(str(state.get("last_launch_attempt_at", "")))
+        if last_launch:
+            suppressed_until = last_launch + timedelta(seconds=backoff_seconds)
+            if suppressed_until > now:
+                marker = suppressed_until.isoformat(timespec="seconds")
+                if state.get("last_launch_suppressed_until") != marker:
+                    log_event(
+                        self.event_file,
+                        f"RUNNER_SUPPRESS - Suppressed launch for {config.role} until {marker}. Reason: retry backoff.",
+                    )
+                    state["last_launch_suppressed_until"] = marker
+                return False
+
+            # CLI harness cycles are intentionally short-lived: the process can
+            # exit cleanly after writing a reply, renewing a lease, or deciding
+            # there is nothing to do. Do not count "process exited" as failure.
+            # Only concrete launch exceptions increment failure_count.
+
+        return True
+
+    def role_action(self, config: RoleLaunchConfig, lease: LeaseStatus, runner_cfg: Dict[str, str], task_changed: bool, wake_requests: Dict[str, List[str]]) -> tuple[str, str]:
         if not config.enabled:
+            return "", ""
+        if not config.automation_ready:
             return "", ""
         if config.execution_mode == "manual":
             return "", ""
+
+        role_wake_requests = wake_requests.get(config.role, [])
+        if role_wake_requests:
+            reason = role_wake_requests[-1]
+            if config.execution_mode == "interval" and reason in {"telegram_message", "wake_request", "operator_message"}:
+                return "launch", reason
+            return ("nudge", reason) if lease.active else ("launch", reason)
 
         wake_on_stale = parse_bool(runner_cfg.get("Wake On Stale Lease", "YES"), True)
         wake_on_task = parse_bool(runner_cfg.get("Wake On Task Change", "YES"), True)
@@ -478,7 +795,10 @@ class RunnerDaemon:
         runner_cfg = self.load_runner_config()
         mode = runner_cfg.get("Runner Mode", "DRY_RUN").strip().upper() or "DRY_RUN"
         enabled = parse_bool(runner_cfg.get("Runner Enabled", "NO"), False)
+        self.update_runtime_status("active", runner_cfg=runner_cfg)
+        self.process_due_reminders()
         task_changed = self.task_changed()
+        wake_requests = self.consume_wake_requests()
 
         role_names = role_names_from_roles_file(self.roles_path)
         registry = self.load_role_registry()
@@ -486,15 +806,17 @@ class RunnerDaemon:
         for role in role_names:
             config = registry.get(role)
             if not config:
-                log_event(self.event_file, f"RUNNER_NOTICE - Role {role} exists but is not registered in Runner/ROLE_LAUNCH_REGISTRY.md.")
+                self.log_unregistered_role_once(role)
                 continue
             lease = self.read_lease(role)
+            self.clear_launch_throttle_if_healthy(role, lease)
             if not enabled or mode == "DRY_RUN":
                 self.dry_run(config, lease)
                 continue
-            action, reason = self.role_action(config, lease, runner_cfg, task_changed)
+            action, reason = self.role_action(config, lease, runner_cfg, task_changed, wake_requests)
             if action == "launch":
-                self.launch_role(config, reason)
+                if self.allow_launch(config, lease, runner_cfg, reason):
+                    self.launch_role(config, reason)
             elif action == "nudge":
                 self.nudge_role(config, reason)
 
@@ -506,7 +828,10 @@ class RunnerDaemon:
                 self.run_once()
             except Exception as exc:
                 log_event(self.event_file, f"RUNNER_ERROR - {exc}")
-            time.sleep(30)
+                self.update_runtime_status("error", last_error=str(exc))
+            cfg = self.load_runner_config()
+            sleep_seconds = max(1, parse_int(cfg.get("Fast Wake Poll Seconds", "1"), 1))
+            time.sleep(sleep_seconds)
 
 
 def shutdown(*_args) -> None:
@@ -527,8 +852,11 @@ def main() -> int:
             enabled=cfg.get("Runner Enabled", "NO"),
         )
     )
-    daemon.run_forever()
-    daemon.save_state()
+    try:
+        daemon.run_forever()
+    finally:
+        daemon.save_state()
+        daemon.update_runtime_status("stopped", runner_cfg=cfg)
     return 0
 
 

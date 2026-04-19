@@ -18,6 +18,7 @@ This file is for the optional Runner daemon and for `Chief_of_Staff` to understa
 ### ROLE
 Role:
 Enabled:
+Automation Ready:
 Execution Mode:
 Harness Key:
 Harness Type:
@@ -57,9 +58,16 @@ Notes:
 ## Example Notes
 
 - `Execution Mode` should be one of: `persistent`, `interval`, `manual`
+- `Automation Ready` should stay `NO` until that role has completed at least one successful manual first claim on the chosen harness for this install
 - `Launch Command` may be blank for human/manual runners
 - `Harness Key` should match an entry in `Runner/HARNESS_CATALOG.md` when possible
-- `Launch Command` may use placeholders such as `{WORKDIR}`, `{PROMPT_FILE}`, `{PROMPT_TEXT}`, `{ROLE}`, and `{BOOTSTRAP_FILE}`
+- `Launch Command` may use placeholders such as `{PROMPT}`, `{PROMPT_FILE}`, `{PROMPT_TEXT}`, `{ROLE}`, `{WORKDIR}`, `{MODEL}`, and `{BOOTSTRAP_FILE}`
+- `Launch Command: {AUTO_CLAUDE_CYCLE}` tells the Runner to use the built-in Claude Code scheduled automation launcher
+- `Launch Command: {AUTO_OPENCODE_CYCLE}` tells the Runner to use the built-in OpenCode scheduled automation launcher
+- `Launch Command: {AUTO_GOOSE_CYCLE}` tells the Runner to use the built-in Goose scheduled automation launcher
+- `Launch Command: {AUTO_OLLAMA_CYCLE}` tells the Runner to use the built-in Ollama scheduled automation launcher
+- Custom CLI commands may be stored directly, for example: `cliname [FLAGS] "{PROMPT}" [ARGS]`
+- For Claude Code auto-cycles, `Model / Profile` should be a real CLI model id such as `claude-haiku-4-5-20251001`, or left blank to use the CLI default. Do not store only a display label like `Haiku 4.5` if you expect Runner to pass `--model`.
 - `Wake Message` is the short instruction the Runner should write into `_messages/<Role>.md` when it launches or nudges that role
 - `Chief_of_Staff` should usually have the shortest interval or persistent mode
 - Manual human-run roles can still claim roles and report work through the markdown files
@@ -69,10 +77,11 @@ Notes:
 ### ROLE
 Role: Chief_of_Staff
 Enabled: NO
+Automation Ready: NO
 Execution Mode: interval
 Harness Key:
 Harness Type: Claude Code
-Launch Command:
+Launch Command: {AUTO_CLAUDE_CYCLE}
 Working Directory:
 Model / Profile:
 Bootstrap File: AGENTIC_HARNESS.md
@@ -91,13 +100,14 @@ Notes: Usually the shortest interval. Fill in the actual launch command for your
 ### ROLE
 Role: Researcher
 Enabled: NO
+Automation Ready: NO
 Execution Mode: interval
 Harness Key:
-Harness Type: OpenCode/Ollama
-Launch Command:
+Harness Type: Claude Code
+Launch Command: {AUTO_CLAUDE_CYCLE}
 Working Directory:
 Model / Profile:
-Bootstrap File: AGENTIC_HARNESS_TINY.md
+Bootstrap File: AGENTIC_HARNESS.md
 Startup Prompt:
 Wake Message: Check status, review assigned research tasks, and continue active work.
 Check Interval Minutes: 5
@@ -108,15 +118,16 @@ Wake Triggers:
 Max Concurrent Sessions: 1
 Registration Source:
 Last Confirmed:
-Notes: Use interval mode unless the harness can truly stay alive.
+Notes: Use interval mode unless the harness can truly stay alive. Claude Code can use the built-in scheduled automation cycle.
 
 ### ROLE
 Role: Engineer
 Enabled: NO
-Execution Mode: persistent
+Automation Ready: NO
+Execution Mode: interval
 Harness Key:
-Harness Type: Antigravity
-Launch Command:
+Harness Type: Claude Code
+Launch Command: {AUTO_CLAUDE_CYCLE}
 Working Directory:
 Model / Profile:
 Bootstrap File: AGENTIC_HARNESS.md
@@ -129,7 +140,7 @@ Wake Triggers:
 Max Concurrent Sessions: 1
 Registration Source:
 Last Confirmed:
-Notes: Persistent mode works best if the harness can remain alive.
+Notes: Interval mode is the safest default for Claude Code scheduled work cycles. Use `persistent` only when you have a true always-on launcher.
 
 ### HUMAN RUNNER
 Human ID:

@@ -6,61 +6,74 @@
   <title>Agentic Harness Visualizer - 3D World</title>
   <style>
     :root{
-      --bg:#07101a;
-      --panel:rgba(7,11,18,.86);
-      --line:rgba(232,164,34,.28);
-      --ink:#dbe6f2;
-      --muted:#7f90a6;
-      --amber:#e8a422;
-      --green:#5dba7a;
-      --warn:#e8a422;
-      --red:#e85a34;
-      --blue:#5d9eba;
+      --bg:#f1f5f9;
+      --panel:rgba(255,255,255,.9);
+      --line:rgba(37,99,235,.15);
+      --ink:#1e293b;
+      --muted:#64748b;
+      --amber:#2563eb;
+      --green:#10b981;
+      --warn:#f59e0b;
+      --red:#ef4444;
+      --blue:#3b82f6;
     }
     *{box-sizing:border-box;margin:0;padding:0}
-    html,body{height:100%;overflow:hidden;background:var(--bg);font-family:Courier New,monospace;color:var(--ink)}
+    html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink)}
     #scene{display:block;width:100vw;height:100vh}
     #topbar{
       position:fixed;top:0;left:0;right:0;z-index:10;
       display:flex;justify-content:space-between;align-items:center;
-      padding:.7rem 1rem;background:var(--panel);backdrop-filter:blur(10px);
-      border-bottom:1px solid var(--line)
+      padding:.8rem 1.5rem;background:var(--panel);backdrop-filter:blur(16px);
+      border-bottom:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.05)
     }
-    #brand{font-size:.9rem;font-weight:bold;letter-spacing:.12em;color:var(--amber)}
-    #stats{display:flex;gap:1rem;font-size:.7rem;color:var(--muted)}
-    #stats b{color:var(--ink)}
-    #modes{position:fixed;top:52px;right:0;z-index:10;display:flex;flex-direction:column}
+    #brand{font-size:.85rem;font-weight:800;letter-spacing:.05em;color:var(--amber);text-transform:uppercase}
+    #stats{display:flex;gap:1.5rem;font-size:.75rem;color:var(--muted)}
+    #stats b{color:var(--ink);font-weight:700}
+    #modes{position:fixed;top:60px;right:0;z-index:10;display:flex;flex-direction:column;gap:4px;padding:1rem}
     #modes a{
-      text-decoration:none;color:var(--muted);font-size:.65rem;letter-spacing:.08em;
-      padding:.45rem .8rem;background:var(--panel);border-left:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.06)
+      text-decoration:none;color:var(--muted);font-size:.7rem;font-weight:600;
+      padding:.6rem 1rem;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+      backdrop-filter:blur(8px);transition:all .2s;text-align:center;min-width:100px;
     }
-    #modes a.active,#modes a:hover{color:var(--amber);border-left-color:var(--amber)}
+    #modes a.active,#modes a:hover{color:var(--amber);border-color:var(--amber);background:#fff;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)}
     #legend{
-      position:fixed;left:1rem;top:58px;z-index:10;
-      background:var(--panel);padding:.75rem .9rem;border:1px solid rgba(255,255,255,.06);border-radius:8px;
-      font-size:.65rem;line-height:1.8
+      position:fixed;left:1.5rem;top:70px;z-index:10;
+      background:var(--panel);padding:1rem;border:1px solid var(--line);border-radius:12px;
+      font-size:.7rem;line-height:2;backdrop-filter:blur(8px);box-shadow:0 4px 6px -1px rgba(0,0,0,0.05)
     }
-    .sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:.45rem}
-    .good{background:var(--green)} .stale{background:var(--warn)} .idle{background:#3a4455} .bad{background:var(--red)}
+    #health-strip{
+      position:fixed;left:1.5rem;right:8.75rem;bottom:1.5rem;z-index:10;
+      display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:.75rem;
+      pointer-events:none;
+    }
+    .health-card{
+      background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.85rem 1rem;
+      backdrop-filter:blur(10px);box-shadow:0 10px 20px rgba(15,23,42,0.08)
+    }
+    .health-card .k{font-size:.64rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
+    .health-card .v{font-size:.95rem;font-weight:800;color:var(--ink)}
+    .health-card .m{font-size:.72rem;color:var(--muted);margin-top:.28rem}
+    .sw{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:.6rem;vertical-align:middle}
+    .good{background:var(--green)} .stale{background:var(--warn)} .idle{background:#94a3b8} .bad{background:var(--red)}
     #inspector{
-      position:fixed;left:1rem;bottom:1rem;z-index:10;max-width:360px;
-      background:var(--panel);border:1px solid var(--line);border-radius:8px;
-      padding:.9rem 1rem;line-height:1.6;display:none
+      position:fixed;left:1.5rem;bottom:1.5rem;z-index:10;max-width:380px;
+      background:var(--panel);border:1px solid var(--amber);border-radius:12px;
+      padding:1.2rem;line-height:1.6;display:none;backdrop-filter:blur(12px);box-shadow:0 20px 25px -5px rgba(0,0,0,0.1)
     }
-    #inspector h3{font-size:.85rem;color:var(--amber);margin-bottom:.35rem}
-    #inspector p{font-size:.72rem;color:var(--muted)}
-    #inspector p strong{color:var(--ink)}
+    #inspector h3{font-size:.9rem;font-weight:800;color:var(--amber);margin-bottom:.5rem;text-transform:uppercase}
+    #inspector p{font-size:.8rem;color:var(--muted)}
+    #inspector p strong{color:var(--ink);font-weight:700}
     #controls{
-      position:fixed;right:1rem;bottom:1rem;z-index:10;text-align:right;
-      font-size:.65rem;color:var(--muted);line-height:1.7;
-      background:var(--panel);padding:.75rem .9rem;border:1px solid rgba(255,255,255,.06);border-radius:8px
+      position:fixed;right:1.5rem;bottom:1.5rem;z-index:10;text-align:right;
+      font-size:.7rem;font-weight:500;color:var(--muted);line-height:1.8;
+      background:var(--panel);padding:1rem;border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px)
     }
     #loading{
       position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
-      gap:.6rem;background:var(--bg);z-index:30
+      gap:.8rem;background:var(--bg);z-index:30
     }
-    #loading .title{color:var(--amber);letter-spacing:.14em}
-    #loading .sub{font-size:.7rem;color:var(--muted)}
+    #loading .title{color:var(--amber);letter-spacing:.1em;font-weight:800}
+    #loading .sub{font-size:.75rem;color:var(--muted);font-weight:500}
   </style>
 </head>
 <body>
@@ -87,11 +100,33 @@
   </div>
   <div id="legend">
     <div><span class="sw good"></span>active</div>
-    <div><span class="sw stale"></span>stale</div>
-    <div><span class="sw idle"></span>unclaimed</div>
-    <div><span class="sw bad"></span>blocked/high alert</div>
+    <div><span class="sw stale"></span>stale / degraded</div>
+    <div><span class="sw idle"></span>unclaimed / idle</div>
+    <div><span class="sw bad"></span>blocked / high alert</div>
   </div>
   <div id="inspector"></div>
+  <div id="health-strip">
+    <div class="health-card">
+      <div class="k">Runner</div>
+      <div class="v" id="runner-health">-</div>
+      <div class="m" id="runner-meta">-</div>
+    </div>
+    <div class="health-card">
+      <div class="k">Telegram</div>
+      <div class="v" id="telegram-health">-</div>
+      <div class="m" id="telegram-meta">-</div>
+    </div>
+    <div class="health-card">
+      <div class="k">Visualizer</div>
+      <div class="v" id="visualizer-health">-</div>
+      <div class="m" id="visualizer-meta">-</div>
+    </div>
+    <div class="health-card">
+      <div class="k">Wake Queue</div>
+      <div class="v" id="wake-health">-</div>
+      <div class="m" id="wake-meta">-</div>
+    </div>
+  </div>
   <div id="controls">
     WASD to move<br />
     Shift to move faster<br />
@@ -117,7 +152,7 @@
     let yaw = 0;
     let pitch = -0.18;
 
-    const STATUS = { working:0xe8a422, idle:0x5d9eba, stale:0xe85a34, unclaimed:0x3a4455, unknown:0x7f90a6 };
+    const STATUS = { working:0x0284c7, idle:0x64748b, stale:0xd97706, unclaimed:0x94a3b8, unknown:0x475569 };
 
     function shortTime(iso) {
       if (!iso) return "-";
@@ -179,85 +214,149 @@
       document.getElementById("generated-at").textContent = shortTime(s.generated_at);
     }
 
+    function updateHealthStrip(s) {
+      const daemons = s.daemons || {};
+      const runner = daemons.runner || {};
+      const telegram = daemons.telegram || {};
+      const visualizer = daemons.visualizer || {};
+      const wake = daemons.wake_queue || {};
+
+      document.getElementById("runner-health").textContent = `${normalizeText(runner.status, "inactive").toUpperCase()} / ${normalizeText(runner.mode, "unknown").toUpperCase()}`;
+      document.getElementById("runner-meta").textContent = `enabled ${normalizeText(runner.enabled, "NO")} | updated ${shortTime(runner.updated_at)}`;
+
+      document.getElementById("telegram-health").textContent = normalizeText(telegram.status, "inactive").toUpperCase();
+      document.getElementById("telegram-meta").textContent = telegram.bot_name
+        ? `${telegram.bot_name} | updated ${shortTime(telegram.updated_at)}`
+        : `updated ${shortTime(telegram.updated_at)}`;
+
+      document.getElementById("visualizer-health").textContent = normalizeText(visualizer.status, "active").toUpperCase();
+      document.getElementById("visualizer-meta").textContent = `updated ${shortTime(visualizer.updated_at)}`;
+
+      document.getElementById("wake-health").textContent = String(wake.pending || 0);
+      document.getElementById("wake-meta").textContent = wake.last_request
+        ? normalizeText(wake.last_request)
+        : "queue clear";
+    }
+
     function initThree() {
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x081018);
-      scene.fog = new THREE.Fog(0x081018, 60, 240);
+      scene.background = new THREE.Color(0x94a3b8);
+      scene.fog = new THREE.Fog(0x94a3b8, 100, 350);
 
-      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 500);
-      camera.position.set(0, 12, 34);
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 20, 60);
 
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
       clock = new THREE.Clock();
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
 
-      scene.add(new THREE.AmbientLight(0x405070, 2.1));
-      const sun = new THREE.DirectionalLight(0xaac4ff, 1.25);
-      sun.position.set(40, 60, 20);
+      scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+      const sun = new THREE.DirectionalLight(0xfff4e0, 1.8);
+      sun.position.set(100, 40, 50);
       sun.castShadow = true;
+      sun.shadow.mapSize.width = 2048;
+      sun.shadow.mapSize.height = 2048;
       scene.add(sun);
-      scene.add(new THREE.HemisphereLight(0x607080, 0x11151b, 1.1));
+      
+      const bounce = new THREE.DirectionalLight(0x0284c7, 0.5);
+      bounce.position.set(-60, 20, -30);
+      scene.add(bounce);
+
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x475569, 0.6));
 
       const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(420, 420),
-        new THREE.MeshStandardMaterial({ color: 0x16202d, roughness: 0.95 })
+        new THREE.PlaneGeometry(1000, 1000),
+        new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9, metalness: 0.1 })
       );
       floor.rotation.x = -Math.PI / 2;
       floor.receiveShadow = true;
       scene.add(floor);
 
-      const grid = new THREE.GridHelper(420, 84, 0x223245, 0x1a2535);
+      const grid = new THREE.GridHelper(1000, 100, 0x0284c7, 0x94a3b8);
       grid.position.y = 0.02;
+      grid.material.transparent = true;
+      grid.material.opacity = 0.2;
       scene.add(grid);
 
-      addStars();
+      addCityscape();
       addRoads();
       renderer.setAnimationLoop(render);
     }
 
-    function addStars() {
-      const geo = new THREE.BufferGeometry();
-      const count = 1800;
-      const pos = new Float32Array(count * 3);
-      for (let i = 0; i < count; i++) {
-        pos[i * 3] = (Math.random() - 0.5) * 400;
-        pos[i * 3 + 1] = 60 + Math.random() * 150;
-        pos[i * 3 + 2] = (Math.random() - 0.5) * 400;
+    function addCityscape() {
+      const towerMat = new THREE.MeshStandardMaterial({ 
+        color: 0xffffff, 
+        transparent: true, 
+        opacity: 0.15,
+        roughness: 0.2
+      });
+      const glassMat = new THREE.MeshStandardMaterial({
+        color: 0x0284c7,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.4,
+        transparent: true,
+        opacity: 0.1
+      });
+
+      for (let i = 0; i < 80; i++) {
+        const h = 20 + Math.random() * 120;
+        const w = 10 + Math.random() * 20;
+        const d = 10 + Math.random() * 20;
+        const group = new THREE.Group();
+        
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), towerMat);
+        tower.position.y = h / 2;
+        group.add(tower);
+
+        // Window glow dots
+        if (Math.random() > 0.5) {
+          const winGeo = new THREE.BoxGeometry(w + 0.2, 0.8, d + 0.2);
+          const win = new THREE.Mesh(winGeo, glassMat);
+          win.position.y = Math.random() * h;
+          group.add(win);
+        }
+
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 140 + Math.random() * 200;
+        group.position.x = Math.cos(angle) * dist;
+        group.position.z = Math.sin(angle) * dist;
+        scene.add(group);
       }
-      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-      scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xcfe3ff, size: 0.45, sizeAttenuation: true })));
     }
 
     function addRoads() {
-      const roadMat = new THREE.MeshStandardMaterial({ color: 0x0b1018, roughness: 0.92 });
-      [0, 54, -54].forEach(z => {
-        const road = new THREE.Mesh(new THREE.BoxGeometry(340, 0.02, 8), roadMat);
-        road.position.set(0, 0.03, z);
+      const roadMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.7 });
+      [0, 80, -80].forEach(z => {
+        const road = new THREE.Mesh(new THREE.BoxGeometry(800, 0.05, 16), roadMat);
+        road.position.set(0, 0.04, z);
         scene.add(road);
       });
     }
 
-    function makeLabel(text, color, width = 320, height = 72, font = "bold 22px Courier New") {
+    function makeLabel(text, color, width = 360, height = 72, font = "bold 20px -apple-system, sans-serif") {
       const labelCanvas = document.createElement("canvas");
       labelCanvas.width = width;
       labelCanvas.height = height;
       const ctx = labelCanvas.getContext("2d");
-      ctx.fillStyle = "rgba(8,12,18,.82)";
-      ctx.fillRect(0, 8, width, height - 16);
-      ctx.fillStyle = "#" + color.toString(16).padStart(6, "0");
-      ctx.fillRect(8, 18, 6, Math.max(18, height - 36));
-      ctx.fillStyle = "#edf2f7";
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.roundRect(0, 4, width, height - 8, 4);
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#" + color.toString(16).padStart(6, "0");
+      ctx.stroke();
+      ctx.fillStyle = "#0f172a";
       ctx.font = font;
-      ctx.fillText(String(text).slice(0, 28), 24, Math.round(height * 0.58));
+      ctx.fillText(String(text).slice(0, 32), 20, Math.round(height * 0.58));
       const tex = new THREE.CanvasTexture(labelCanvas);
-      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
       const sprite = new THREE.Sprite(mat);
-      sprite.scale.set(width / 38, height / 38, 1);
+      sprite.scale.set(width / 40, height / 40, 1);
       return sprite;
     }
 
@@ -280,8 +379,8 @@
       officeData.forEach((project, index) => {
         const row = Math.floor(index / cols);
         const col = index % cols;
-        const ox = (col - (cols - 1) / 2) * 58;
-        const oz = row * 58 - 18;
+        const ox = (col - (cols - 1) / 2) * 75;
+        const oz = row * 75 - 20;
         const office = createOffice(project, ox, oz, index);
         offices.push(office);
         clickables.push(office.building);
@@ -300,22 +399,22 @@
       group.position.set(x, 0, z);
       group.userData = { kind: "office", data: project };
 
-      const colors = [0xe8a422, 0x5dba7a, 0x5d9eba, 0x9b7dea];
+      const colors = [0x0284c7, 0x059669, 0x7c3aed, 0xd97706];
       const accent = colors[index % colors.length];
-      const w = 24, d = 20, h = 8;
+      const w = 32, d = 28, h = 12;
 
       const base = new THREE.Mesh(
-        new THREE.BoxGeometry(w, 0.3, d),
-        new THREE.MeshStandardMaterial({ color: 0x1c2633, roughness: 0.95 })
+        new THREE.BoxGeometry(w, 0.5, d),
+        new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.8, metalness: 0.2 })
       );
-      base.position.y = 0.15;
+      base.position.y = 0.25;
       base.receiveShadow = true;
       base.userData = { kind: "office", data: project };
       group.add(base);
 
-      const wallMat = new THREE.MeshStandardMaterial({ color: 0x243244, roughness: 0.72 });
-      const accentMat = new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.25 });
-      [[w, h, 0.5, 0, h / 2, -d / 2], [w, h, 0.5, 0, h / 2, d / 2], [0.5, h, d, -w / 2, h / 2, 0], [0.5, h, d, w / 2, h / 2, 0]]
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.1 });
+      const accentMat = new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.15 });
+      [[w, h, 0.8, 0, h / 2, -d / 2], [w, h, 0.8, 0, h / 2, d / 2], [0.8, h, d, -w / 2, h / 2, 0], [0.8, h, d, w / 2, h / 2, 0]]
         .forEach((cfg, i) => {
           const mesh = new THREE.Mesh(new THREE.BoxGeometry(cfg[0], cfg[1], cfg[2]), i === 1 ? accentMat : wallMat);
           mesh.position.set(cfg[3], cfg[4], cfg[5]);
@@ -324,31 +423,31 @@
           group.add(mesh);
         });
 
-      for (let i = -8; i <= 8; i += 8) {
+      for (let i = -12; i <= 12; i += 12) {
         const win = new THREE.Mesh(
-          new THREE.BoxGeometry(5, 2.1, 0.1),
-          new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.55, transparent: true, opacity: 0.35 })
+          new THREE.BoxGeometry(8, 4, 0.1),
+          new THREE.MeshStandardMaterial({ color: 0x0ea5e9, emissive: 0x0ea5e9, emissiveIntensity: 0.2, transparent: true, opacity: 0.25 })
         );
-        win.position.set(i, 4.1, d / 2 + 0.26);
+        win.position.set(i, 6, d / 2 + 0.45);
         group.add(win);
       }
 
       const desk = new THREE.Mesh(
-        new THREE.BoxGeometry(5.4, 0.28, 2.4),
-        new THREE.MeshStandardMaterial({ color: 0x382614, roughness: 0.72 })
+        new THREE.BoxGeometry(8, 0.4, 4),
+        new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.4 })
       );
-      desk.position.set(0, 0.9, -2);
+      desk.position.set(0, 1.5, -4);
       group.add(desk);
 
       const monitor = new THREE.Mesh(
-        new THREE.BoxGeometry(1.8, 1.2, 0.1),
-        new THREE.MeshStandardMaterial({ color: 0x070c14, emissive: accent, emissiveIntensity: 0.45 })
+        new THREE.BoxGeometry(3, 2, 0.1),
+        new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: accent, emissiveIntensity: 0.3 })
       );
-      monitor.position.set(0, 1.8, -2.6);
+      monitor.position.set(0, 2.5, -4.8);
       group.add(monitor);
 
       const label = makeLabel(project.title || project.slug, accent);
-      label.position.set(0, h + 1.6, 0);
+      label.position.set(0, h + 2.5, 0);
       group.add(label);
 
       scene.add(group);
@@ -358,42 +457,42 @@
     function createBot(role, office, index) {
       const group = new THREE.Group();
       const visual = getRoleVisual(role);
-      const color = visual.color || STATUS.unknown;
-      const radius = 4.5 + (index % 3) * 1.8;
+      const color = visual.color || 0x475569;
+      const radius = 5 + (index % 3) * 2.5;
       const angle = (index / Math.max(1, state.roles.length || 1)) * Math.PI * 2;
       const homeX = office.group.position.x + Math.cos(angle) * radius;
       const homeZ = office.group.position.z + Math.sin(angle) * radius;
-      group.position.set(homeX, 0.25, homeZ);
+      group.position.set(homeX, 0.6, homeZ);
 
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.9, 0.08, 8, 24),
-        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.4, transparent: true, opacity: 0.65 })
+        new THREE.TorusGeometry(1.5, 0.12, 12, 40),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.2, transparent: true, opacity: 0.5 })
       );
       ring.rotation.x = Math.PI / 2;
-      ring.position.y = 0.05;
+      ring.position.y = 0.08;
       group.add(ring);
 
       const body = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.55, 1.35, 4, 10),
-        new THREE.MeshStandardMaterial({ color: 0x1a2232, emissive: color, emissiveIntensity: role.status === "active" ? 0.42 : 0.15, roughness: 0.55 })
+        new THREE.CapsuleGeometry(0.8, 1.8, 12, 24),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.2 })
       );
       body.castShadow = true;
       body.userData = { kind: "bot", data: role };
       group.add(body);
 
       const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.38, 12, 12),
-        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9 })
+        new THREE.SphereGeometry(0.55, 16, 16),
+        new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.8 })
       );
-      head.position.y = 1.25;
+      head.position.y = 1.55;
       group.add(head);
 
       const label = makeLabel(role.role, color);
-      label.position.set(0, 2.3, 0);
+      label.position.set(0, 3.5, 0);
       group.add(label);
 
-      const taskLabel = makeLabel(visual.detail, color, 360, 60, "bold 18px Courier New");
-      taskLabel.position.set(0, 3.6, 0);
+      const taskLabel = makeLabel(visual.detail, color, 400, 60, "bold 18px -apple-system, sans-serif");
+      taskLabel.position.set(0, 5, 0);
       group.add(taskLabel);
 
       scene.add(group);
@@ -429,6 +528,10 @@
           <h3>Bot: ${data.role}</h3>
           <p><strong>Status:</strong> ${data.status}</p>
           <p><strong>Holder:</strong> ${data.claimed_by || "unclaimed"}</p>
+          <p><strong>Automation mode:</strong> ${data.automation_mode || "-"}</p>
+          <p><strong>Automation ready:</strong> ${data.automation_ready || "NO"}</p>
+          <p><strong>Registered harness:</strong> ${data.registered_harness_type || "-"}</p>
+          <p><strong>Actual harness:</strong> ${data.actual_harness || "-"}</p>
           <p><strong>Project:</strong> ${data.project || "-"}</p>
           <p><strong>Task:</strong> ${data.task || "-"}</p>
           <p><strong>Lease:</strong> ${data.lease_expires_at || "-"}</p>
@@ -442,6 +545,7 @@
         const res = await fetch(stateUrl, { cache: "no-store" });
         state = await res.json();
         updateTopbar(state);
+        updateHealthStrip(state);
         buildWorld(state);
       } catch (err) {
         console.error(err);
@@ -454,12 +558,12 @@
       bots.forEach((bot, index) => {
         bot.phase += delta * (1.5 + bot.speed);
         bot.drift += delta * bot.speed;
-        const roam = bot.state === "working" ? 3.2 : bot.state === "idle" ? 1.4 : 0.8;
+        const roam = bot.state === "working" ? 3.5 : bot.state === "idle" ? 1.5 : 1.0;
         const targetX = bot.homeX + Math.sin(bot.drift * 0.7 + index) * roam;
-        const targetZ = bot.homeZ + Math.cos(bot.drift * 0.5 + index) * roam;
+        const targetZ = bot.homeZ + Math.sin(bot.drift * 0.5 + index) * roam;
         bot.group.position.x += (targetX - bot.group.position.x) * 0.02;
         bot.group.position.z += (targetZ - bot.group.position.z) * 0.02;
-        bot.group.position.y = 0.25 + Math.sin(bot.phase) * bot.bob;
+        bot.group.position.y = 0.6 + Math.sin(bot.phase) * bot.bob;
         bot.group.rotation.y += 0.005 + bot.speed * 0.004;
         bot.ring.material.opacity = bot.state === "working"
           ? 0.55 + Math.abs(Math.sin(bot.phase)) * 0.35

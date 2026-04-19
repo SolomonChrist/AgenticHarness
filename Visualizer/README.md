@@ -39,6 +39,7 @@ Windows:
 py Visualizer\visualizer_server.py
 python Visualizer\visualizer_server.py
 Visualizer\start_visualizer.bat
+py service_manager.py start visualizer
 ```
 
 Then open:

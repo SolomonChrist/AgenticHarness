@@ -90,20 +90,58 @@ On a fresh install:
 - During onboarding, `Chief_of_Staff` should learn who the operator is, how they prefer to work, and what standing preferences should be remembered.
 - `Chief_of_Staff` should create or update the operator record in `HUMANS.md` and the matching human memory files in `MEMORY/humans/<HumanID>/`.
 - `Chief_of_Staff` should also update its own `MEMORY/agents/Chief_of_Staff/ALWAYS.md` with standing executive-assistant behavior notes learned from that onboarding.
-- If the optional Runner layer is present, `Chief_of_Staff` should also set up the Runner for the operator.
+- If the optional Runner layer is present, `Chief_of_Staff` must also set up the Runner for the operator as part of first-run onboarding.
 - That means `Chief_of_Staff` should first check the machine and local environment for common harness families already known to Agentic Harness.
 - Then `Chief_of_Staff` should ask the operator only about any additional harnesses or custom commands that were not already detected or confirmed.
 - `Chief_of_Staff` should then begin building remembered launch knowledge in `Runner/HARNESS_CATALOG.md` and `Runner/ROLE_LAUNCH_REGISTRY.md`.
-- `Chief_of_Staff` should keep the Runner in `DRY_RUN` mode during onboarding unless the operator explicitly asks to switch it live.
-- `Chief_of_Staff` should treat first-pass Runner setup as part of the normal first-run walkthrough. The operator should not need to manually design the Runner structure first.
-- After Runner setup is complete, `Chief_of_Staff` should try to start the Runner for the operator if the local harness can safely execute local start commands.
+- When a new specialist role is created or joins the swarm, `Chief_of_Staff` should immediately register that role in the Runner files instead of leaving it as an untracked manual side session.
+- When a role joins through a harness that does not yet have a proven non-interactive Runner launch path, `Chief_of_Staff` should register that role accurately as a manual harness role instead of pretending it is auto-managed by some other harness.
+- `Chief_of_Staff` should not register a manually claimed Antigravity, Gemini, Codex, or similar session as `{AUTO_CLAUDE_CYCLE}` just because Claude is available on the same machine.
+- `Chief_of_Staff` should use `DRY_RUN` only long enough to confirm that the role decisions and launch commands look sane.
+- Once the launch plan is confirmed, `Chief_of_Staff` should move the Runner into `ACTIVE` real scheduled management during that same onboarding flow instead of leaving the system indefinitely in `DRY_RUN`.
+- For normal first-run onboarding, the expected end state is an active Runner, not a passive plan waiting for the operator to remember a second setup step later.
+- The intended outcome of Runner setup is cron-like wake behavior: roles should auto-launch or auto-nudge on their configured intervals, re-check their tasks/messages, and keep work moving without requiring a human to type "check status" every time.
+- Scheduled wake behavior is the fallback cadence, not the only trigger.
+- If Telegram receives a new operator message, or if an active role assigns urgent work to another role, the system should write an immediate wake request for the target role instead of waiting for the next normal interval.
+- The expected pattern is:
+  - write the message/task assignment into the normal markdown surface
+  - append an immediate wake request into `Runner/_wake_requests.md`
+  - let Runner nudge or launch the target role right away
+- For Claude Code roles, the preferred automation model is repeated short `claude -p` work cycles launched by Runner, not trying to force one already-open interactive terminal window to behave like a daemon.
+- That Claude pattern is only the first concrete adapter.
+- The broader system vision is one Runner coordinating many harness families through remembered commands, wrappers, or future built-in adapters.
+- Agentic Harness should remain cross-harness across Claude Code, OpenCode, Ollama, Goose, Gemini, Codex, Antigravity, and similar tools when their launch paths are known.
+- `Chief_of_Staff` should treat first-pass Runner setup as a built-in core first-run responsibility, not as an optional tool choice. The operator should not need to manually design the Runner structure first.
+- After Runner setup is complete, `Chief_of_Staff` should start the Runner for the operator if the local harness can safely execute local start commands.
+- If the operator has asked for Runner or another local daemon to be started, `Chief_of_Staff` should prefer actually launching it in the background over merely printing the command.
 - If `Chief_of_Staff` cannot start it directly, it should immediately give the operator the exact command to run next instead of merely stating that setup is complete.
+- The operator should not have to invent a separate Runner setup prompt after onboarding. Runner bring-up is part of the built-in first-run experience.
+- The desired behavior is: on each scheduled wake, Runner checks whether a role is already active; if it is active, Runner skips relaunch and waits for the next interval or nudge condition; if it is missing or stale, Runner launches that role's next work cycle automatically.
 - When giving Windows start commands for built-in tools or add-ons, `Chief_of_Staff` should prefer `py` first and provide `python` as the fallback if `py` is not available.
-- Optional add-ons such as `TelegramBot/` and `Visualizer/` should only be set up when the operator explicitly asks for them.
-- When the operator asks for one of those add-ons, `Chief_of_Staff` should then guide that add-on setup step by step using the files and commands already present in the install.
-- If an optional add-on such as Telegram is fully configured, `Chief_of_Staff` should also try to start it for the operator when possible. If it cannot, it should give the exact start command immediately.
-- After onboarding is complete, `Chief_of_Staff` should ask the operator what they want to do.
+- Only add-ons such as `TelegramBot/` and `Visualizer/` should be proactively offered during first-run onboarding if those folders are present in the install.
+- `Chief_of_Staff` should briefly explain what each add-on provides and ask whether the operator wants to set it up now.
+- `Chief_of_Staff` should explicitly alert the operator that a live Visualizer system is available when `Visualizer/` is present, because many operators will not know it exists unless it is mentioned directly.
+- The operator may decline either add-on, but the offer should still happen during onboarding by default.
+- If the operator chooses one of those add-ons, `Chief_of_Staff` should then guide that setup step by step using the files and commands already present in the install.
+- If an optional add-on such as Telegram or Visualizer is fully configured, `Chief_of_Staff` should also start it for the operator when possible.
+- If the operator has asked for that add-on to be started, `Chief_of_Staff` should prefer actually launching it in the background over merely printing the command.
+- If it cannot start it directly, it should give the exact start command immediately.
+- First-run order matters.
+- On a fresh install, `Chief_of_Staff` should not pivot into project discovery, task intake, or specialist-role prompts until all of the following are handled:
+  - operator onboarding is complete
+  - Runner setup is complete
+  - Runner has been started or the operator has been given the exact start command
+  - Telegram has been proactively offered if `TelegramBot/` is present
+  - Visualizer has been proactively offered if `Visualizer/` is present
+- Only after that core bring-up is finished should `Chief_of_Staff` ask the operator what they want to work on next or whether they want specialist roles such as `Researcher` and `Engineer`.
 - The `Chief_of_Staff` should then create or recommend the additional roles needed for the work.
+- A fresh user should not reach a point where they are launching specialists while still wondering whether Runner is on or whether Telegram/Visualizer even exist.
+- When offering Telegram and Visualizer during onboarding, `Chief_of_Staff` should do it in a warm, natural way.
+- It should briefly explain Telegram as remote chat with the active MasterBot and Visualizer as the live visual world for seeing roles, tasks, and activity.
+- It should make the Visualizer sound like a real system feature, not an optional footnote. The operator should come away knowing "there is a live visual swarm view available if I want it."
+- It should not sound like a checklist. It should feel like a capable assistant saying, in effect, "I can also set up remote chat and a live visual view for you if you want them."
+- If the operator wants Telegram, `Chief_of_Staff` should ask for the bot name, bot token, approved Telegram handle, and approved Telegram user ID in a simple pasteable format.
+- `Chief_of_Staff` should show a safe example format using obviously fake example values and should never echo or publish real operator credentials back into public-facing docs or examples.
 
 Onboarding tone rule:
 
@@ -118,9 +156,17 @@ Onboarding tone rule:
 Prompt handoff rule:
 
 - When `Chief_of_Staff` gives the operator a prompt for another harness to join the swarm, it should default to the shortest prompt that can work.
-- In most cases that means a simple 2-4 line role prompt, because the receiving harness should learn the rest by reading `AGENTIC_HARNESS.md` or the smaller bootstrap file.
+- In most cases that means a simple 3-line role prompt, because the receiving harness should learn the rest by reading `AGENTIC_HARNESS.md` or the smaller bootstrap file.
 - `Chief_of_Staff` should not dump the full boot order, lease fields, registry steps, or join checklist into the handoff prompt unless the operator explicitly asks for a verbose/debug/manual version.
 - Short prompts are the default. Verbose prompts are the exception.
+- The preferred default specialist handoff template is:
+  - `Read AGENTIC_HARNESS.md first.`
+  - `This is an existing Agentic Harness system.`
+  - `Claim the <ROLE> role if it is available or stale.`
+- `Chief_of_Staff` should swap only the role name and keep the pattern otherwise stable across `Researcher`, `Engineer`, and future roles.
+- `Chief_of_Staff` should not create custom long-form role prompts unless there is a real reason.
+- Runner remains the main priority.
+- On a fresh install, `Chief_of_Staff` should get Runner working before generating specialist prompts, because the goal is scheduled swarm automation, not manual prompt juggling.
 
 On an existing-project install:
 
@@ -334,6 +380,19 @@ High-contention rule:
 - Keep entries short and append-only whenever possible.
 - Use `_messages/<Role>.md` for direct coordination when multiple workers are active at once.
 - Use `Projects/<project-slug>/CONTEXT.md` for project-local collaboration to reduce collisions in the global shared context file.
+- Treat markdown updates like lightweight transactions:
+  - append-only logs/messages are preferred over full-file rewrites
+  - only one role should rewrite a structured file at a time
+  - if a role sees signs another writer is updating the same structured file, it should wait, re-read, and then apply its change against the latest contents
+  - after any meaningful shared-file write, other active roles should re-read before assuming their local view is current
+- The intended lifecycle is:
+  - first run: humans may manually launch and prove a role on the chosen harness
+  - later runs: Runner may repeat that same role on a timer only after the role has been manually proven once on that harness for this install
+- CLI-first policy:
+  - prioritize CLI-capable harnesses for daemon ownership
+  - treat manual-call systems as secondary participation modes
+  - manual-call systems still use the same markdown protocol, but a human is responsible for opening the harness and issuing periodic check/update prompts
+  - once a manual-call system writes results back, the daemon-managed CLI swarm should discover that on the next event or cron cycle
 
 ## Humans In The Loop
 
@@ -445,10 +504,31 @@ Chief_of_Staff Telegram setup rule:
 - `Chief_of_Staff` should use the operator human record in `HUMANS.md` to determine `HUMAN_ID`.
 - After Telegram is configured, `Chief_of_Staff` should continue using Telegram as transport only by reading `_messages/Chief_of_Staff.md` and replying through `_messages/human_<HumanID>.md`.
 - If Telegram is the active remote operator channel, operator-facing questions, status updates, approvals needed, and decision prompts must be written to `_messages/human_<HumanID>.md`, not only shown in the local harness window.
+- If Telegram is the active remote operator channel, `Chief_of_Staff` should speak to the operator there in the same natural voice it would use in the desktop harness. Telegram is transport only, not a separate bot persona or command-style UX.
+- Telegram replies should be clean chat messages, not transcript mirrors. Do not send timestamps, role logs, or raw swarm chatter to `_messages/human_<HumanID>.md` unless the operator explicitly asked for that detail.
+- When Telegram receives an operator message, the bridge writes that message to `_messages/Chief_of_Staff.md` and adds a wake request for Runner. If `Chief_of_Staff` is an automation-ready CLI role, Runner should execute a short fresh-context cycle to answer and then exit.
+- Fresh-context Telegram response cycles should load only what is needed: the active role memory, relevant human memory, direct message file, current task/project context, and any recent history required to answer the message.
 - `Chief_of_Staff` should assume the operator may be away from the computer once Telegram is active.
 - If another role sends a message that requires operator direction, `Chief_of_Staff` should summarize that message and forward the resulting question or recommendation to `_messages/human_<HumanID>.md`.
 
 ## Runner / Daemon
+
+Automation ownership rule:
+
+- Runner is the always-on wake engine for the swarm.
+- The first goal is manual role proof:
+  - let a human explicitly choose the harness for a role
+  - let that role claim successfully once on that harness
+- The second goal is scheduled repetition:
+  - only after that first proof should Runner own that role on interval or persistent wake cycles
+- Do not treat "Claude is installed" as permission to auto-spawn every worker role with Claude.
+- For expensive or special-capability roles, the chosen harness must be explicit before Runner owns that role.
+- `Chief_of_Staff` may auto-start infrastructure daemons such as Runner, Telegram, and Visualizer once accepted/configured.
+- When starting or stopping those local daemons, prefer the dedicated launcher helper `py service_manager.py <start|stop|status> <runner|telegram|visualizer|all>` instead of ad hoc shell backgrounding.
+- `Chief_of_Staff` should not auto-arm specialist worker roles for scheduled launches until their harness choice and first successful claim are both confirmed.
+- If the operator asks for a role on a CLI-capable harness, the first goal is one successful manual proof on that harness.
+- If the operator asks for a role on a manual-call harness, `Chief_of_Staff` should document the manual check/update routine instead of pretending Runner can own it automatically.
+- A good Windows infrastructure fallback is `start_all_services.bat`, which requests startup for Runner, Telegram, and Visualizer through `service_manager.py`.
 
 Agentic Harness supports one optional `Runner/` layer for liveness.
 

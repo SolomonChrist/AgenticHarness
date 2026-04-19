@@ -8,13 +8,15 @@ This layer only moves messages between Telegram and the Agentic Harness markdown
 from __future__ import annotations
 
 import html
+import hashlib
 import json
 import os
+import re
 import signal
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 try:
@@ -26,6 +28,12 @@ except ImportError:
 
 
 HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from coordination_io import append_line as append_line_safe, atomic_write_text, read_text
+
 load_dotenv(HERE / ".env.telegram")
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -38,7 +46,8 @@ HARNESS_ROOT = Path(os.getenv("HARNESS_ROOT", str(HERE.parent))).resolve()
 HUMAN_ID = os.getenv("HUMAN_ID", "").strip()
 BOT_NAME = os.getenv("BOT_NAME", "Harness Bridge").strip() or "Harness Bridge"
 OWNER_NAME = os.getenv("OWNER_NAME", "Operator").strip() or "Operator"
-POLL_INTERVAL = max(5, int(os.getenv("POLL_INTERVAL_SECONDS", "10")))
+POLL_INTERVAL = max(1, int(os.getenv("POLL_INTERVAL_SECONDS", "2")))
+REPLY_WAIT_SECONDS = max(0, int(os.getenv("TELEGRAM_REPLY_WAIT_SECONDS", "20")))
 
 if not BOT_TOKEN:
     print("TELEGRAM_BOT_TOKEN not set.")
@@ -56,9 +65,12 @@ API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 RUNNING = True
 DATA_DIR = HERE / "data"
 STATE_FILE = DATA_DIR / "state.json"
+RUNTIME_FILE = DATA_DIR / "runtime.json"
 CHIEF_FILE = HARNESS_ROOT / "_messages" / "Chief_of_Staff.md"
 HUMAN_FILE = HARNESS_ROOT / "_messages" / f"human_{HUMAN_ID}.md"
 EVENT_FILE = HARNESS_ROOT / "LAYER_LAST_ITEMS_DONE.md"
+RUNNER_WAKE_FILE = HARNESS_ROOT / "Runner" / "_wake_requests.md"
+REMINDERS_FILE = HARNESS_ROOT / "Runner" / "_reminders.json"
 
 
 def ensure_dirs() -> None:
@@ -68,52 +80,76 @@ def ensure_dirs() -> None:
 
 def load_state() -> dict:
     if not STATE_FILE.exists():
-        return {"last_update_id": 0, "seen_human_lines": []}
+        return {"last_update_id": 0, "seen_human_message_hashes": []}
     try:
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        state.setdefault("last_update_id", 0)
+        state.setdefault("seen_human_message_hashes", [])
+        return state
     except Exception:
-        return {"last_update_id": 0, "seen_human_lines": []}
+        return {"last_update_id": 0, "seen_human_message_hashes": []}
 
 
 def save_state(state: dict) -> None:
     ensure_dirs()
-    STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    with STATE_LOCK:
+        atomic_write_text(STATE_FILE, json.dumps(state, indent=2))
+
+
+def update_runtime(status: str, *, last_error: str = "") -> None:
+    ensure_dirs()
+    payload = {
+        "component": "telegram",
+        "status": status,
+        "pid": os.getpid(),
+        "bot_name": BOT_NAME,
+        "harness_root": str(HARNESS_ROOT),
+        "human_id": HUMAN_ID,
+        "updated_at": iso_now(),
+        "last_error": last_error,
+        "harness_root_valid": validate_root(),
+        "chief_file_exists": CHIEF_FILE.exists(),
+        "human_file_exists": HUMAN_FILE.exists(),
+    }
+    atomic_write_text(RUNTIME_FILE, json.dumps(payload, indent=2))
 
 
 STATE = load_state()
+LAST_TELEGRAM_ERROR = ""
+STATE_LOCK = threading.Lock()
 
 
 def tg(method: str, **kwargs) -> dict:
+    global LAST_TELEGRAM_ERROR
     try:
         response = requests.post(f"{API_BASE}/{method}", json=kwargs, timeout=20)
-        return response.json()
-    except Exception:
-        return {"ok": False}
+        payload = response.json()
+        if not payload.get("ok"):
+            LAST_TELEGRAM_ERROR = f"{method}: {payload.get('description', payload)}"
+            update_runtime("degraded", last_error=LAST_TELEGRAM_ERROR)
+        return payload
+    except Exception as exc:
+        LAST_TELEGRAM_ERROR = f"{method}: {exc}"
+        update_runtime("degraded", last_error=LAST_TELEGRAM_ERROR)
+        return {"ok": False, "description": str(exc)}
 
 
-def send(chat_id: int, text: str) -> None:
+def send(chat_id: int, text: str) -> bool:
     safe = html.escape(text, quote=False)
     chunks = [safe[i:i + 3900] for i in range(0, max(len(safe), 1), 3900)]
+    ok = True
     for chunk in chunks:
-        tg("sendMessage", chat_id=chat_id, text=chunk, parse_mode="HTML")
+        result = tg("sendMessage", chat_id=chat_id, text=chunk, parse_mode="HTML")
+        ok = ok and bool(result.get("ok"))
+    return ok
 
 
 def is_allowed(user_id: int | None) -> bool:
     return bool(user_id in ALLOWED_USER_IDS)
 
 
-def read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8")
-    except Exception:
-        return ""
-
-
 def append_line(path: Path, line: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existing = read_text(path)
-    prefix = "" if not existing or existing.endswith("\n") else "\n"
-    path.write_text(existing + prefix + line + "\n", encoding="utf-8")
+    append_line_safe(path, line)
 
 
 def iso_now() -> str:
@@ -131,6 +167,7 @@ def validate_root() -> bool:
 def write_user_message(message: str, source: str = "telegram") -> None:
     ts = iso_now()
     append_line(CHIEF_FILE, f"[{ts}] [{source}] [{HUMAN_ID}] {message}")
+    append_line(RUNNER_WAKE_FILE, f"[{ts}] Chief_of_Staff: telegram_message")
     log_event(f"[{ts}] [TELEGRAM_BRIDGE] NOTIFY - Operator message routed to Chief_of_Staff")
 
 
@@ -140,7 +177,69 @@ def write_wake_message() -> None:
         CHIEF_FILE,
         f"[{ts}] [telegram] [{HUMAN_ID}] Wake request received. Please review messages and continue orchestration.",
     )
+    append_line(RUNNER_WAKE_FILE, f"[{ts}] Chief_of_Staff: wake_request")
     log_event(f"[{ts}] [TELEGRAM_BRIDGE] NOTIFY - Wake request sent to Chief_of_Staff")
+
+
+def parse_reminder_request(text: str) -> tuple[datetime, str] | None:
+    match = re.search(
+        r"\bremind\s+me\s+in\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours)\s+(?:to\s+)?(.+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    amount = int(match.group(1))
+    unit = match.group(2).lower()
+    reminder_text = match.group(3).strip(" .")
+    if not reminder_text:
+        return None
+    if unit.startswith("second"):
+        due_at = datetime.now().astimezone() + timedelta(seconds=amount)
+    elif unit.startswith("minute"):
+        due_at = datetime.now().astimezone() + timedelta(minutes=amount)
+    else:
+        due_at = datetime.now().astimezone() + timedelta(hours=amount)
+    return due_at, reminder_text
+
+
+def queue_reminder(text: str) -> str | None:
+    parsed = parse_reminder_request(text)
+    if not parsed:
+        return None
+    due_at, reminder_text = parsed
+    try:
+        reminders = json.loads(read_text(REMINDERS_FILE) or "[]")
+        if not isinstance(reminders, list):
+            reminders = []
+    except Exception:
+        reminders = []
+    reminders.append(
+        {
+            "id": hashlib.sha256(f"{HUMAN_ID}|{due_at.isoformat()}|{reminder_text}".encode("utf-8")).hexdigest()[:16],
+            "human_id": HUMAN_ID,
+            "due_at": due_at.isoformat(timespec="seconds"),
+            "text": reminder_text,
+            "status": "pending",
+            "created_at": iso_now(),
+            "source": "telegram",
+        }
+    )
+    REMINDERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(REMINDERS_FILE, json.dumps(reminders, indent=2))
+    log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] REMINDER_QUEUED - Reminder due {due_at.isoformat(timespec='seconds')}")
+    return f"Got it. I'll remind you in {format_relative_due(due_at)}."
+
+
+def format_relative_due(due_at: datetime) -> str:
+    seconds = max(1, int((due_at - datetime.now().astimezone()).total_seconds()))
+    if seconds < 90:
+        return f"{seconds} seconds"
+    minutes = round(seconds / 60)
+    if minutes < 90:
+        return f"{minutes} minutes"
+    hours = round(minutes / 60)
+    return f"{hours} hours"
 
 
 def help_text() -> str:
@@ -155,40 +254,154 @@ def help_text() -> str:
     )
 
 
-def handle_command(text: str) -> str:
+def handle_command(text: str) -> str | None:
     if text.startswith("/start") or text.startswith("/help"):
         return help_text()
     if text.startswith("/wake"):
         write_wake_message()
-        return "Wake message sent to Chief_of_Staff."
+        return "Okay, I nudged the Chief_of_Staff."
+    reminder_reply = queue_reminder(text)
+    if reminder_reply:
+        write_user_message(text)
+        return reminder_reply
     write_user_message(text)
-    return "Message sent to Chief_of_Staff."
+    return None
+
+
+def normalize_reply_text(text: str) -> str:
+    lines: list[str] = []
+    for raw in text.strip().splitlines():
+        line = raw.rstrip()
+        if line.strip() == "---":
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def clean_legacy_reply_line(line: str) -> str:
+    # Convert "[timestamp] [Chief_of_Staff] hello" into just "hello".
+    match = re.match(r"^\[[^\]]+\]\s+\[Chief_of_Staff\]\s*(.*)$", line.strip())
+    if match:
+        return match.group(1).strip()
+    return line.strip()
+
+
+def extract_outbound_messages(content: str) -> list[str]:
+    messages: list[str] = []
+    current: list[str] = []
+
+    def flush() -> None:
+        if not current:
+            return
+        text = normalize_reply_text("\n".join(current))
+        current.clear()
+        if text:
+            messages.append(text)
+
+    for raw in content.splitlines():
+        line = raw.rstrip()
+        if re.match(r"^\[[^\]]+\]\s+\[[^\]]+\]\s*", line.strip()):
+            flush()
+            cleaned = clean_legacy_reply_line(line)
+            # Telegram should only emit operator-facing Chief_of_Staff replies.
+            if cleaned != line.strip():
+                current.append(cleaned)
+            continue
+        if current:
+            current.append(line)
+        elif line.strip() and not line.strip().startswith("#"):
+            # Plain reply mode for harnesses that write only the clean body.
+            current.append(line)
+
+    flush()
+    return messages
+
+
+def extract_chief_replies(content: str) -> list[str]:
+    messages: list[str] = []
+    for raw in content.splitlines():
+        line = raw.rstrip()
+        if not re.match(r"^\[[^\]]+\]\s+\[Chief_of_Staff\]\s*", line.strip()):
+            continue
+        cleaned = clean_legacy_reply_line(line)
+        text = normalize_reply_text(cleaned)
+        if text:
+            messages.append(text)
+    return messages
+
+
+def message_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def collect_outbound_messages() -> list[str]:
+    outbound_messages = extract_outbound_messages(read_text(HUMAN_FILE))
+    # Live desktop harnesses often reply in the same Chief inbox they read.
+    # Forward only explicit Chief_of_Staff replies from that file, never raw
+    # operator messages or specialist role chatter.
+    outbound_messages.extend(extract_chief_replies(read_text(CHIEF_FILE)))
+    return outbound_messages
+
+
+def forward_new_outbound_messages() -> bool:
+    with STATE_LOCK:
+        seen = set(STATE.get("seen_human_message_hashes", []))
+        changed = False
+        sent_any = False
+        for entry in collect_outbound_messages():
+            digest = message_hash(entry)
+            if digest in seen:
+                continue
+            sent_to_anyone = False
+            for user_id in ALLOWED_USER_IDS:
+                sent_to_anyone = send(user_id, entry) or sent_to_anyone
+            if sent_to_anyone:
+                seen.add(digest)
+                changed = True
+                sent_any = True
+                log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] SEND - Forwarded Chief_of_Staff reply to Telegram")
+            else:
+                log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] ERROR - Could not forward reply to Telegram: {LAST_TELEGRAM_ERROR or 'unknown send failure'}")
+        if changed:
+            STATE["seen_human_message_hashes"] = list(seen)[-1000:]
+            atomic_write_text(STATE_FILE, json.dumps(STATE, indent=2))
+        return sent_any
+
+
+def mark_existing_outbound_seen() -> None:
+    with STATE_LOCK:
+        seen = set(STATE.get("seen_human_message_hashes", []))
+        for entry in collect_outbound_messages():
+            seen.add(message_hash(entry))
+        STATE["seen_human_message_hashes"] = list(seen)[-1000:]
+        atomic_write_text(STATE_FILE, json.dumps(STATE, indent=2))
+
+
+def wait_for_chief_reply() -> bool:
+    if REPLY_WAIT_SECONDS <= 0:
+        return False
+    deadline = time.time() + REPLY_WAIT_SECONDS
+    while RUNNING and time.time() < deadline:
+        if forward_new_outbound_messages():
+            return True
+        time.sleep(0.5)
+    return False
 
 
 def poll_human_replies() -> None:
     while RUNNING:
-        content = read_text(HUMAN_FILE)
-        seen = set(STATE.get("seen_human_lines", []))
-        changed = False
-        for line in content.splitlines():
-            entry = line.strip()
-            if not entry or entry in seen:
-                continue
-            for user_id in ALLOWED_USER_IDS:
-                send(user_id, entry)
-            seen.add(entry)
-            changed = True
-        if changed:
-            STATE["seen_human_lines"] = list(seen)[-1000:]
-            save_state(STATE)
+        update_runtime("active")
+        forward_new_outbound_messages()
         time.sleep(POLL_INTERVAL)
 
 
 def poll_updates() -> None:
     global RUNNING
     while RUNNING:
+        update_runtime("active")
         response = tg("getUpdates", timeout=25, offset=STATE.get("last_update_id", 0) + 1)
         if not response.get("ok"):
+            update_runtime("degraded", last_error="telegram_api_unavailable")
             time.sleep(3)
             continue
         for update in response.get("result", []):
@@ -203,7 +416,10 @@ def poll_updates() -> None:
                 send(chat.get("id"), "Unauthorized.")
                 continue
             reply = handle_command(text)
-            send(chat.get("id"), reply)
+            if reply:
+                send(chat.get("id"), reply)
+            else:
+                wait_for_chief_reply()
             save_state(STATE)
 
 
@@ -211,6 +427,7 @@ def shutdown(*_args) -> None:
     global RUNNING
     RUNNING = False
     save_state(STATE)
+    update_runtime("stopped")
     sys.exit(0)
 
 
@@ -219,12 +436,29 @@ def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
     print(f"Starting {BOT_NAME} for {HARNESS_ROOT}")
-    if not validate_root():
+    me = tg("getMe")
+    if not me.get("ok"):
+        error = me.get("description", LAST_TELEGRAM_ERROR or "getMe failed")
+        print(f"Telegram bot validation failed: {error}")
+        log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] ERROR - Telegram bot validation failed: {error}")
+        update_runtime("error", last_error=f"getMe failed: {error}")
+        raise SystemExit(1)
+    username = me.get("result", {}).get("username", BOT_NAME)
+    print(f"Connected to Telegram bot @{username}")
+    root_ok = validate_root()
+    if not root_ok:
         print(f"Harness root not found or missing AGENTIC_HARNESS.md: {HARNESS_ROOT}")
+        log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] ERROR - Invalid harness root: {HARNESS_ROOT}")
     if not CHIEF_FILE.exists():
-        CHIEF_FILE.write_text("", encoding="utf-8")
+        atomic_write_text(CHIEF_FILE, "")
     if not HUMAN_FILE.exists():
-        HUMAN_FILE.write_text("", encoding="utf-8")
+        atomic_write_text(HUMAN_FILE, "")
+    mark_existing_outbound_seen()
+    update_runtime("active")
+    log_event(
+        f"[{iso_now()}] [TELEGRAM_BRIDGE] START - Telegram bridge started for {BOT_NAME}. "
+        f"Human file ready: {HUMAN_FILE.name}. Root valid: {'YES' if root_ok else 'NO'}."
+    )
     threading.Thread(target=poll_human_replies, daemon=True).start()
     poll_updates()
 
