@@ -20,6 +20,10 @@ REQUIRED_FILES = [
     "COMMANDS.md",
     "RELEASE.md",
     "configure_role_daemon.py",
+    "production_check.py",
+    "swarm_status.py",
+    "send_human_reply.py",
+    "wake_role.py",
     "service_manager.py",
     "coordination_io.py",
     "Runner/runner_daemon.py",
@@ -30,6 +34,10 @@ REQUIRED_FILES = [
 
 COMPILE_FILES = [
     "configure_role_daemon.py",
+    "production_check.py",
+    "swarm_status.py",
+    "send_human_reply.py",
+    "wake_role.py",
     "service_manager.py",
     "coordination_io.py",
     "reset_to_fresh_state.py",

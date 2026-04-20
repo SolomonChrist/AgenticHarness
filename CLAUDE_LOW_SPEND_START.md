@@ -18,6 +18,7 @@ Low-spend mode: do not read the full protocol unless blocked, do not auto-launch
 - `Chief_of_Staff` should ask for the operator's name, working/update style, and Telegram/Visualizer preference before worker-role setup or project intake.
 - `Chief_of_Staff` should write `HUMANS.md`, `MEMORY/humans/<HumanID>/ALWAYS.md`, and `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` during that first-run setup.
 - Start infrastructure with `start_all_services.bat` or `py service_manager.py start all`.
+- After infrastructure starts, daemonize `Chief_of_Staff` with `configure_role_daemon.py` and verify with `py production_check.py` before telling the operator they can close Claude Code.
 - Register specialist roles as manual-first until they prove themselves once.
 - Prefer local or cheaper CLI harnesses for `Researcher`, `Engineer`, QA, and other worker roles.
 - Treat Antigravity and other GUI-only harnesses as manual-call systems.
@@ -46,5 +47,6 @@ Avoid reading large docs, generated artifacts, visualizer vendor files, full eve
 - Claude creates the human/operator record and memory.
 - Claude configures Runner, Telegram, and Visualizer infrastructure.
 - Claude starts infrastructure with `py service_manager.py start all` or tells the operator to use `start_all_services.bat`.
+- Claude runs or gives the exact `configure_role_daemon.py` command, then confirms `py production_check.py` passes.
 - Claude asks which non-Claude/local/manual harnesses should own worker roles.
 - Claude does not start `Researcher`, `Engineer`, or QA on Claude unless explicitly approved.

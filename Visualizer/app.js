@@ -178,6 +178,51 @@ function renderWorkzone(state) {
   `;
 }
 
+function renderChat(state) {
+  const host = document.getElementById("chat-log");
+  if (!host) return;
+  const items = state.operator_chat || [];
+  host.innerHTML = "";
+  items.slice(-24).forEach(item => {
+    const bubble = document.createElement("div");
+    bubble.className = `chat-bubble ${item.from === "operator" ? "operator" : "chief"}`;
+    bubble.textContent = item.text || "";
+    host.appendChild(bubble);
+  });
+  host.scrollTop = host.scrollHeight;
+}
+
+async function sendChatMessage(message) {
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message })
+  });
+  if (!res.ok) throw new Error(`chat failed: ${res.status}`);
+  await refresh();
+}
+
+function setupChat() {
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("chat-input");
+  if (!form || !input) return;
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const message = input.value.trim();
+    if (!message) return;
+    input.value = "";
+    input.placeholder = "Sending...";
+    try {
+      await sendChatMessage(message);
+    } catch (err) {
+      console.error(err);
+      input.placeholder = "Could not send. Check Visualizer server.";
+      return;
+    }
+    input.placeholder = "Message Chief_of_Staff from the browser...";
+  });
+}
+
 async function refresh() {
   try {
     const res = await fetch(stateUrl, { cache: "no-store" });
@@ -189,10 +234,12 @@ async function refresh() {
     renderProjects(state);
     renderDaemons(state);
     renderWorkzone(state);
+    renderChat(state);
   } catch (err) {
     console.error(err);
   }
 }
 
+setupChat();
 refresh();
 setInterval(refresh, 5000);

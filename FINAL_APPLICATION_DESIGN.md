@@ -91,7 +91,13 @@ py configure_role_daemon.py --role Chief_of_Staff --provider opencode --model mi
 py configure_role_daemon.py --role Chief_of_Staff --provider ollama --model llama3.1 --start-runner
 ```
 
-After this, the original desktop harness window can be closed. Runner owns fresh CLI cycles for `Chief_of_Staff`.
+After this, run:
+
+```powershell
+py production_check.py
+```
+
+Only close the original desktop harness window when that check passes. Runner owns fresh CLI cycles for `Chief_of_Staff` only after daemon handoff is verified.
 
 ## Role Lifecycle
 
@@ -187,6 +193,8 @@ Telegram must:
 - forward only clean operator-facing replies
 - hide timestamps, raw logs, and internal chatter
 - support deterministic reminders without relying on the LLM to remember later
+- distinguish "Telegram bridge active" from "Chief responder daemon active"
+- tell the operator the daemon handoff command if the bridge is active but Chief is not daemonized
 
 Reminder flow:
 
@@ -212,6 +220,15 @@ Runner responsibilities:
 - write daemon runtime state for Visualizer
 
 Runner should prefer correctness and cost safety over aggressive automation.
+
+## Research And Web Questions
+
+Normal operator questions are first-class work.
+
+- Online or tool-capable providers should use available web, browser, search, or online LLM abilities for current questions.
+- Local-only providers should answer from available context and give concise verification steps, or route the request to a web-capable role.
+- Harness capability notes should record whether a provider is online, web/search-capable, browser/tool-capable, local-only, or manual-only.
+- Data organization and life-operations projects are expected use cases; `Chief_of_Staff` may recommend roles like `Researcher`, `Data Organizer`, `Documentation`, `Operations`, or `Engineer`.
 
 ## Visualizer Behavior
 
@@ -291,6 +308,7 @@ The final application is production-ready when:
 - operator onboarding works
 - Telegram can chat with `Chief_of_Staff`
 - `configure_role_daemon.py` can daemonize `Chief_of_Staff`
+- `production_check.py` confirms that `Chief_of_Staff` is actually daemonized before the desktop harness closes
 - Runner can wake `Chief_of_Staff` from Telegram and timer events
 - reminders work deterministically
 - specialist roles can be manually claimed

@@ -1,4 +1,4 @@
-# START HERE
+﻿# START HERE
 
 Agentic Harness is designed to be safe to try in a brand-new folder first.
 
@@ -104,6 +104,8 @@ start_all_services.bat
 
 That launcher requests startup for Runner, Telegram, and Visualizer through `service_manager.py`.
 
+Starting services is not the same thing as daemonizing `Chief_of_Staff`. `py service_manager.py start runner` starts the scheduler only. It does not create the background Chief brain unless `Chief_of_Staff` has also been registered with `configure_role_daemon.py`.
+
 ## Chief Of Staff Daemon Handoff
 
 After `Chief_of_Staff` has completed the first manual setup and onboarding, you can hand that role to the Runner daemon so the original desktop harness window can be closed.
@@ -130,6 +132,14 @@ py configure_role_daemon.py --role Chief_of_Staff --provider custom --name my-cl
 
 This records the role in `Runner/ROLE_LAUNCH_REGISTRY.md`, turns Runner `ACTIVE`, and lets Telegram or timer wake requests launch short fresh-context `Chief_of_Staff` CLI cycles.
 
+Verify the handoff before closing your original harness window:
+
+```powershell
+py production_check.py
+```
+
+If it passes, it is safe to close the desktop harness. If it fails, keep the harness open and run the corrective command it prints.
+
 Use the same pattern for every CLI-capable role after that role has been manually claimed once:
 
 ```powershell
@@ -145,6 +155,7 @@ Production rule:
 - after daemon handoff: Runner owns timer wakes, Telegram wakes, stale lease recovery, and role dispatch wakeups
 - if a harness cannot be launched from the command line, keep it manual and document the human call steps in that role's message file
 - any prompt-based CLI can be registered with a command template that uses `{PROMPT}`, `{PROMPT_FILE}`, `{ROLE}`, `{WORKDIR}`, and `{MODEL}`
+- final setup message: "Telegram and Visualizer are running. I still need daemon handoff before you close this window."
 
 That add-on offer should feel human, not robotic.
 
@@ -184,4 +195,4 @@ Open:
 - `BACKUP_AND_RECOVERY.md`
 - `SYSTEM_MAP.md`
 
-Those are the “how do I recover / what do I back up / what is this system” docs.
+Those are the "how do I recover / what do I back up / what is this system" docs.

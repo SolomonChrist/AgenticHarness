@@ -51,6 +51,13 @@ Default Working Directory:
 Default Role Types:
 - 
 Model / Profile Notes:
+Capabilities:
+- Online LLM:
+- Web/Search Capable:
+- Browser/Tool Capable:
+- Local Only:
+- Manual Only:
+Fallback Instructions:
 Prompt / Bootstrap Notes:
 Last Confirmed:
 Learned From:

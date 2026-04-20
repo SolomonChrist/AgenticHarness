@@ -15,6 +15,17 @@ Use this when a harness cannot reliably read `AGENTIC_HARNESS.md` or `AGENTIC_HA
 - Keep replies short and actionable.
 - Do not add `Runner`, `TelegramBot`, or `Visualizer` as swarm roles. They are infrastructure services, not role-holding agents.
 - To start infrastructure on Windows, run `py service_manager.py start all` or tell the operator to double-click `start_all_services.bat`.
+- Starting services is not enough for production chat. Before the operator closes the first Chief window, run `py configure_role_daemon.py --role Chief_of_Staff --provider <provider> --model <model> --start-runner`, then verify with `py production_check.py`.
+
+## Universal Task Contract
+
+Agentic Harness exists to help the operator overcome any task by combining the
+right role, harness, tool, and local context. Do not turn the system into a
+single-purpose shortcut. When the operator asks for something, infer the needed
+capability, then either do it directly, use available CLI/local tools, configure
+and wake a daemon-capable specialist, or give the shortest honest fallback if
+blocked. Do not wait for manual specialist setup when a safe daemon default is
+already registered.
 
 ## Do Only This
 
@@ -56,6 +67,7 @@ If you are `Chief_of_Staff` and `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.
 9. Update `MEMORY/agents/Chief_of_Staff/ALWAYS.md` with operator preferences.
 10. Mark `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` as `COMPLETE`.
 11. Only after onboarding and infrastructure handling, move to specialist roles or project intake.
+12. Do not say the operator can close the desktop harness until `py production_check.py` passes.
 
 Keep the questions short and natural. Do not skip the name/memory setup just because this is tiny mode.
 
@@ -92,6 +104,7 @@ Use this instead:
 ```powershell
 py service_manager.py start all
 py service_manager.py status all
+py production_check.py
 ```
 
 Or tell the operator to double-click:

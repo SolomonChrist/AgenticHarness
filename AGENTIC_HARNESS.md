@@ -23,6 +23,10 @@ If your context window is very small, prioritize only these rules first:
 - While active, periodically re-check your direct message file, the task board, and your current project context instead of waiting forever for a human to prompt you.
 - As a practical default, roles should re-check those files on every lease renewal and after each meaningful work step.
 - Use `_messages/<Role>.md` for direct coordination when possible.
+- Message files are long-lived files. If `_messages/<Role>.md` or `_messages/human_<HumanID>.md` already exists, append or update it; do not use a blind create/write operation that expects the file to be absent.
+- Preferred safe helper commands:
+  - `py send_human_reply.py "message text"` for clean operator replies
+  - `py wake_role.py --role Chief_of_Staff --reason telegram_message` for immediate Runner wakes
 - Use `Projects/<project-slug>/CONTEXT.md` for project-local coordination.
 - Do not create new projects, optional add-on work, or side initiatives unless the operator or `Chief_of_Staff` explicitly asked for them.
 - During bootstrap, do not adopt `TelegramBot/`, `Visualizer/`, or any optional add-on as project work unless the operator explicitly assigned that work.
@@ -34,6 +38,14 @@ If your context window is very small, prioritize only these rules first:
 - Keep orchestration portable, inspectable, and easy to back up.
 - Allow role-based swarms to survive restarts, model swaps, and harness changes.
 - Keep the system simple enough that the files alone remain the source of truth.
+
+## Universal Task Contract
+
+- Agentic Harness exists to help the operator overcome any task through the right combination of role, harness, tool, and local context.
+- Do not hard-code one-off user intents into Telegram, Visualizer, or Runner. Those surfaces route intent; agents solve it.
+- When the operator asks for something, infer the needed capability and either do it directly, use available CLI/local tools, configure and wake a daemon-capable specialist, or give the shortest honest fallback if truly blocked.
+- Do not ask the operator to manually set up a specialist when a safe daemon-capable default is already registered.
+- Do not claim that a specialist is required for simple factual, status, reminder, file, web, data, or coding requests unless the current role actually lacks the needed capability and cannot create/use a tool.
 
 ## Source Of Truth
 
@@ -113,6 +125,10 @@ On a fresh install:
 - Agentic Harness should remain cross-harness across Claude Code, OpenCode, Ollama, Goose, Gemini, Codex, Antigravity, and similar tools when their launch paths are known.
 - `Chief_of_Staff` should treat first-pass Runner setup as a built-in core first-run responsibility, not as an optional tool choice. The operator should not need to manually design the Runner structure first.
 - After Runner setup is complete, `Chief_of_Staff` should start the Runner for the operator if the local harness can safely execute local start commands.
+- Starting Runner is not the same as daemonizing `Chief_of_Staff`.
+- Before saying production setup is complete or telling the operator they may close the desktop harness, `Chief_of_Staff` must ensure `configure_role_daemon.py` has registered `Chief_of_Staff` as `Enabled: YES`, `Automation Ready: YES`, with a real launch command, and Runner is in `ACTIVE` mode.
+- The verification command is `py production_check.py`.
+- If that check fails, `Chief_of_Staff` must say plainly: "Telegram and Visualizer are running. I still need daemon handoff before you close this window."
 - If the operator has asked for Runner or another local daemon to be started, `Chief_of_Staff` should prefer actually launching it in the background over merely printing the command.
 - If `Chief_of_Staff` cannot start it directly, it should immediately give the operator the exact command to run next instead of merely stating that setup is complete.
 - The operator should not have to invent a separate Runner setup prompt after onboarding. Runner bring-up is part of the built-in first-run experience.
@@ -136,6 +152,7 @@ On a fresh install:
 - Only after that core bring-up is finished should `Chief_of_Staff` ask the operator what they want to work on next or whether they want specialist roles such as `Researcher` and `Engineer`.
 - The `Chief_of_Staff` should then create or recommend the additional roles needed for the work.
 - A fresh user should not reach a point where they are launching specialists while still wondering whether Runner is on or whether Telegram/Visualizer even exist.
+- A fresh user should also not reach a point where Telegram is active but the background `Chief_of_Staff` responder is not daemonized.
 - When offering Telegram and Visualizer during onboarding, `Chief_of_Staff` should do it in a warm, natural way.
 - It should briefly explain Telegram as remote chat with the active MasterBot and Visualizer as the live visual world for seeing roles, tasks, and activity.
 - It should make the Visualizer sound like a real system feature, not an optional footnote. The operator should come away knowing "there is a live visual swarm view available if I want it."
@@ -175,6 +192,15 @@ On an existing-project install:
 - The first `Chief_of_Staff` should inspect that project structure and contents.
 - The `Chief_of_Staff` should recommend which roles are needed.
 - The operator decides which roles to add to `ROLES.md`.
+
+## Research And Web Questions
+
+`Chief_of_Staff` should treat normal operator questions as real work.
+
+- If the operator asks something that can be answered with current web/search information, use available browser, web, search, or online LLM tools immediately when the active harness supports them.
+- If the active harness is local-only or offline and cannot browse, give a best-effort answer from available context and then provide concise verification steps or route the task to a web-capable role.
+- Harness capability notes should record whether a provider is online, web/search-capable, browser/tool-capable, local-only, or manual-only.
+- For data organization and life-operations projects, `Chief_of_Staff` may recommend specialist roles such as `Researcher`, `Data Organizer`, `Engineer`, `Documentation`, or `Operations`, but should ask before creating a project or adding roles.
 
 ## Work Until Done
 
@@ -502,11 +528,15 @@ Chief_of_Staff Telegram setup rule:
 - If the operator provides a Telegram bot token and Telegram user ID, `Chief_of_Staff` should be able to configure `TelegramBot/.env.telegram` for the current install.
 - `Chief_of_Staff` should use the current harness root as `HARNESS_ROOT`.
 - `Chief_of_Staff` should use the operator human record in `HUMANS.md` to determine `HUMAN_ID`.
+- `Chief_of_Staff` should use production chat defaults unless the operator asks otherwise: `POLL_INTERVAL_SECONDS=2`, `TELEGRAM_REPLY_WAIT_SECONDS=90`, `TELEGRAM_ACK_AFTER_SECONDS=0`, and `TELEGRAM_TYPING_INTERVAL_SECONDS=4`.
 - After Telegram is configured, `Chief_of_Staff` should continue using Telegram as transport only by reading `_messages/Chief_of_Staff.md` and replying through `_messages/human_<HumanID>.md`.
 - If Telegram is the active remote operator channel, operator-facing questions, status updates, approvals needed, and decision prompts must be written to `_messages/human_<HumanID>.md`, not only shown in the local harness window.
 - If Telegram is the active remote operator channel, `Chief_of_Staff` should speak to the operator there in the same natural voice it would use in the desktop harness. Telegram is transport only, not a separate bot persona or command-style UX.
 - Telegram replies should be clean chat messages, not transcript mirrors. Do not send timestamps, role logs, or raw swarm chatter to `_messages/human_<HumanID>.md` unless the operator explicitly asked for that detail.
 - When Telegram receives an operator message, the bridge writes that message to `_messages/Chief_of_Staff.md` and adds a wake request for Runner. If `Chief_of_Staff` is an automation-ready CLI role, Runner should execute a short fresh-context cycle to answer and then exit.
+- Telegram is not considered fully working unless the Runner daemon is alive and able to launch the automation-ready `Chief_of_Staff` role. If Runner is stopped, Telegram should report that exact condition instead of sending repeated "working on it" acknowledgements.
+- Telegram should use Telegram's typing indicator while waiting for a Chief cycle instead of filling the chat with repeated placeholder messages.
+- If a daemonized Chief cycle prints a clean answer to stdout but does not update `_messages/human_<HumanID>.md`, Runner should treat that stdout as the human-facing reply so Telegram is not left silent.
 - Fresh-context Telegram response cycles should load only what is needed: the active role memory, relevant human memory, direct message file, current task/project context, and any recent history required to answer the message.
 - `Chief_of_Staff` should assume the operator may be away from the computer once Telegram is active.
 - If another role sends a message that requires operator direction, `Chief_of_Staff` should summarize that message and forward the resulting question or recommendation to `_messages/human_<HumanID>.md`.

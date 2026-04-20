@@ -17,6 +17,14 @@ py ship_check.py
 
 The ship check must pass before release.
 
+For a live production install after onboarding:
+
+```powershell
+py production_check.py
+```
+
+Do not tell a user they can close the original `Chief_of_Staff` harness until this passes.
+
 ## Manual Review
 
 - Confirm `TelegramBot/.env.telegram` does not exist.
@@ -33,6 +41,9 @@ The ship check must pass before release.
 - `py service_manager.py stop all`
 - `py service_manager.py status all`
 - `py configure_role_daemon.py --role <ROLE> --provider <claude|opencode|goose|ollama|custom> --model <MODEL> --start-runner`
+- `py production_check.py`
+- `py send_human_reply.py "message"`
+- `py wake_role.py --role <ROLE> --reason <reason>`
 - `py reset_to_fresh_state.py`
 - `py ship_check.py`
 - `GET http://127.0.0.1:8787/api/state`

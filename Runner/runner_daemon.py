@@ -293,6 +293,7 @@ class RunnerDaemon:
         self.state_path = self.runner_root / ".runner_state.json"
         self.runtime_path = self.runner_root / ".runner_runtime.json"
         self.generated_prompt_root = self.runner_root / "_generated_prompts"
+        self.role_run_log_root = self.runner_root / "role_runs"
         self.started_at = iso_now()
         self.state = self.load_state()
 
@@ -500,9 +501,14 @@ class RunnerDaemon:
     def interval_due(self, role: str, minutes: int) -> bool:
         state = self.role_state(role)
         last_launch = parse_iso(str(state.get("last_launch_at", "")))
-        if last_launch is None:
+        last_nudge = parse_iso(str(state.get("last_nudge_at", "")))
+        last_activity = max(
+            [value for value in [last_launch, last_nudge] if value is not None],
+            default=None,
+        )
+        if last_activity is None:
             return True
-        return now_local() >= last_launch + timedelta(minutes=minutes)
+        return now_local() >= last_activity + timedelta(minutes=minutes)
 
     def tracked_process_alive(self, role: str) -> bool:
         state = self.role_state(role)
@@ -659,24 +665,39 @@ class RunnerDaemon:
         state = self.role_state(config.role)
         state["last_launch_at"] = iso_now()
         state["last_launch_attempt_at"] = state["last_launch_at"]
+        self.role_run_log_root.mkdir(parents=True, exist_ok=True)
+        role_log = self.role_run_log_root / f"{config.role}.log"
+        log_handle = open(role_log, "a", encoding="utf-8", errors="replace")
+        log_handle.write(f"\n[{state['last_launch_at']}] RUNNER launching {config.role}. Reason: {reason}\n")
+        log_handle.write(f"Command: {command}\n\n")
+        log_handle.flush()
         try:
             proc = subprocess.Popen(
                 command,
                 cwd=str(cwd),
                 shell=True,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
             )
         except Exception as exc:
+            log_handle.close()
             state["failure_count"] = int(state.get("failure_count", 0) or 0) + 1
             state["last_launch_error"] = str(exc)
             log_event(self.event_file, f"RUNNER_ERROR - Failed to launch {config.role}: {exc}")
             return
+        finally:
+            try:
+                log_handle.close()
+            except Exception:
+                pass
 
         state["pid"] = proc.pid
         state["last_mode"] = config.execution_mode
         state["last_launch_error"] = ""
+        state["last_launch_log"] = str(role_log)
         log_event(
             self.event_file,
-            f"RUNNER_WAKE - Launched {config.role} in {config.execution_mode} mode via {config.harness_type or 'unknown harness'}. Reason: {reason}. Prompt file: {prompt_file.name}.",
+            f"RUNNER_WAKE - Launched {config.role} in {config.execution_mode} mode via {config.harness_type or 'unknown harness'}. Reason: {reason}. Prompt file: {prompt_file.name}. Log: {role_log.name}.",
         )
 
     def allow_launch(self, config: RoleLaunchConfig, lease: LeaseStatus, runner_cfg: Dict[str, str], reason: str = "") -> bool:

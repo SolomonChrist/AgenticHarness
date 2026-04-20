@@ -33,8 +33,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from coordination_io import append_line as append_line_safe, atomic_write_text, read_text
+from control_actions import maybe_handle_control_message
+from message_filters import clean_operator_reply
 
-load_dotenv(HERE / ".env.telegram")
+load_dotenv(HERE / ".env.telegram", encoding="utf-8-sig")
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 ALLOWED_USER_IDS = [
@@ -47,7 +49,9 @@ HUMAN_ID = os.getenv("HUMAN_ID", "").strip()
 BOT_NAME = os.getenv("BOT_NAME", "Harness Bridge").strip() or "Harness Bridge"
 OWNER_NAME = os.getenv("OWNER_NAME", "Operator").strip() or "Operator"
 POLL_INTERVAL = max(1, int(os.getenv("POLL_INTERVAL_SECONDS", "2")))
-REPLY_WAIT_SECONDS = max(0, int(os.getenv("TELEGRAM_REPLY_WAIT_SECONDS", "20")))
+REPLY_WAIT_SECONDS = max(0, int(os.getenv("TELEGRAM_REPLY_WAIT_SECONDS", "90")))
+ACK_AFTER_SECONDS = max(0, int(os.getenv("TELEGRAM_ACK_AFTER_SECONDS", "0")))
+TYPING_INTERVAL_SECONDS = max(2, int(os.getenv("TELEGRAM_TYPING_INTERVAL_SECONDS", "4")))
 
 if not BOT_TOKEN:
     print("TELEGRAM_BOT_TOKEN not set.")
@@ -66,11 +70,15 @@ RUNNING = True
 DATA_DIR = HERE / "data"
 STATE_FILE = DATA_DIR / "state.json"
 RUNTIME_FILE = DATA_DIR / "runtime.json"
+LOCK_FILE = DATA_DIR / "telegram.lock"
 CHIEF_FILE = HARNESS_ROOT / "_messages" / "Chief_of_Staff.md"
 HUMAN_FILE = HARNESS_ROOT / "_messages" / f"human_{HUMAN_ID}.md"
 EVENT_FILE = HARNESS_ROOT / "LAYER_LAST_ITEMS_DONE.md"
 RUNNER_WAKE_FILE = HARNESS_ROOT / "Runner" / "_wake_requests.md"
 REMINDERS_FILE = HARNESS_ROOT / "Runner" / "_reminders.json"
+RUNNER_CONFIG_FILE = HARNESS_ROOT / "Runner" / "RUNNER_CONFIG.md"
+ROLE_REGISTRY_FILE = HARNESS_ROOT / "Runner" / "ROLE_LAUNCH_REGISTRY.md"
+RUNNER_RUNTIME_FILE = HARNESS_ROOT / "Runner" / ".runner_runtime.json"
 
 
 def ensure_dirs() -> None:
@@ -97,6 +105,7 @@ def save_state(state: dict) -> None:
 
 
 def update_runtime(status: str, *, last_error: str = "") -> None:
+    chief_ready = chief_daemon_ready()
     ensure_dirs()
     payload = {
         "component": "telegram",
@@ -110,6 +119,9 @@ def update_runtime(status: str, *, last_error: str = "") -> None:
         "harness_root_valid": validate_root(),
         "chief_file_exists": CHIEF_FILE.exists(),
         "human_file_exists": HUMAN_FILE.exists(),
+        "chief_responder_ready": chief_ready,
+        "chief_responder_status": "daemon_ready" if chief_ready else "bridge_only_needs_chief_daemon",
+        "runner_daemon_alive": runner_daemon_alive(),
     }
     atomic_write_text(RUNTIME_FILE, json.dumps(payload, indent=2))
 
@@ -144,6 +156,10 @@ def send(chat_id: int, text: str) -> bool:
     return ok
 
 
+def send_typing(chat_id: int) -> None:
+    tg("sendChatAction", chat_id=chat_id, action="typing")
+
+
 def is_allowed(user_id: int | None) -> bool:
     return bool(user_id in ALLOWED_USER_IDS)
 
@@ -162,6 +178,129 @@ def log_event(line: str) -> None:
 
 def validate_root() -> bool:
     return (HARNESS_ROOT / "AGENTIC_HARNESS.md").exists()
+
+
+def markdown_scalar(text: str, key: str) -> str:
+    match = re.search(rf"^{re.escape(key)}:[ \t]*(.*)$", text, flags=re.MULTILINE)
+    return match.group(1).strip() if match else ""
+
+
+def role_registry_block(role: str) -> str:
+    text = read_text(ROLE_REGISTRY_FILE)
+    pattern = re.compile(
+        rf"### ROLE\s*\nRole:\s*{re.escape(role)}\s*\n.*?(?=\n### |\Z)",
+        flags=re.DOTALL,
+    )
+    match = pattern.search(text)
+    return match.group(0) if match else ""
+
+
+def truthy_value(value: str) -> bool:
+    return value.strip().upper() in {"YES", "TRUE", "ACTIVE", "ENABLED"}
+
+
+def process_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            process_query_limited_information = 0x1000
+            still_active = 259
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+            if not handle:
+                return False
+            try:
+                exit_code = wintypes.DWORD()
+                if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                    return False
+                return exit_code.value == still_active
+            finally:
+                kernel32.CloseHandle(handle)
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def acquire_single_instance_lock() -> None:
+    ensure_dirs()
+    try:
+        existing = json.loads(read_text(LOCK_FILE) or "{}")
+    except Exception:
+        existing = {}
+    existing_pid = int(existing.get("pid", 0) or 0)
+    if existing_pid and process_alive(existing_pid) and existing_pid != os.getpid():
+        print(f"Telegram bridge already running for this workspace (pid {existing_pid}).")
+        raise SystemExit(0)
+    atomic_write_text(
+        LOCK_FILE,
+        json.dumps({"pid": os.getpid(), "started_at": iso_now()}, indent=2),
+    )
+
+
+def release_single_instance_lock() -> None:
+    try:
+        existing = json.loads(read_text(LOCK_FILE) or "{}")
+    except Exception:
+        existing = {}
+    if int(existing.get("pid", 0) or 0) == os.getpid():
+        try:
+            LOCK_FILE.unlink()
+        except OSError:
+            pass
+
+
+def runner_daemon_alive() -> bool:
+    try:
+        runtime = json.loads(read_text(RUNNER_RUNTIME_FILE) or "{}")
+    except Exception:
+        return False
+    if str(runtime.get("status", "")).lower() != "active":
+        return False
+    try:
+        pid = int(runtime.get("pid", 0) or 0)
+    except Exception:
+        pid = 0
+    return process_alive(pid)
+
+
+def chief_daemon_ready() -> bool:
+    runner_mode = markdown_scalar(read_text(RUNNER_CONFIG_FILE), "Runner Mode").upper()
+    block = role_registry_block("Chief_of_Staff")
+    return (
+        runner_mode == "ACTIVE"
+        and truthy_value(markdown_scalar(block, "Enabled"))
+        and truthy_value(markdown_scalar(block, "Automation Ready"))
+        and bool(markdown_scalar(block, "Launch Command"))
+        and runner_daemon_alive()
+    )
+
+
+def chief_daemon_fallback_text() -> str:
+    if not runner_daemon_alive():
+        return (
+            "I got your message, but the Runner daemon is not active right now, "
+            "so the background Chief responder is not being launched.\n\n"
+            "On the computer, run:\n"
+            "py service_manager.py start runner\n\n"
+            "Then verify with:\n"
+            "py production_check.py"
+        )
+    return (
+        "I got your message, but the Chief_of_Staff daemon handoff is not complete yet. "
+        "Telegram is connected, but the background Chief responder is not armed.\n\n"
+        "On the computer, run:\n"
+        "py configure_role_daemon.py --role Chief_of_Staff --provider claude --model claude-haiku-4-5-20251001 --start-runner\n\n"
+        "Then run:\n"
+        "py production_check.py"
+    )
 
 
 def write_user_message(message: str, source: str = "telegram") -> None:
@@ -260,6 +399,10 @@ def handle_command(text: str) -> str | None:
     if text.startswith("/wake"):
         write_wake_message()
         return "Okay, I nudged the Chief_of_Staff."
+    control_reply = maybe_handle_control_message(text)
+    if control_reply:
+        write_user_message(text)
+        return control_reply
     reminder_reply = queue_reminder(text)
     if reminder_reply:
         write_user_message(text)
@@ -275,12 +418,24 @@ def normalize_reply_text(text: str) -> str:
         if line.strip() == "---":
             continue
         lines.append(line)
-    return "\n".join(lines).strip()
+    return clean_operator_reply("\n".join(lines).strip())
+
+
+def repair_mojibake(text: str) -> str:
+    if not any(marker in text for marker in ("â", "ðŸ", "Ã")):
+        return text
+    try:
+        repaired = text.encode("cp1252").decode("utf-8")
+    except UnicodeError:
+        return text
+    return repaired if repaired.count("�") <= text.count("�") else text
 
 
 def clean_legacy_reply_line(line: str) -> str:
     # Convert "[timestamp] [Chief_of_Staff] hello" into just "hello".
-    match = re.match(r"^\[[^\]]+\]\s+\[Chief_of_Staff\]\s*(.*)$", line.strip())
+    # Human outbox files are operator-facing by definition, so aliases like
+    # [Oyster_Biggs] should be stripped too.
+    match = re.match(r"^\[[^\]]+\]\s+\[[^\]]+\]\s*(.*)$", line.strip())
     if match:
         return match.group(1).strip()
     return line.strip()
@@ -377,13 +532,22 @@ def mark_existing_outbound_seen() -> None:
         atomic_write_text(STATE_FILE, json.dumps(STATE, indent=2))
 
 
-def wait_for_chief_reply() -> bool:
+def wait_for_chief_reply(chat_id: int | None = None) -> bool:
     if REPLY_WAIT_SECONDS <= 0:
         return False
     deadline = time.time() + REPLY_WAIT_SECONDS
+    ack_deadline = time.time() + ACK_AFTER_SECONDS if ACK_AFTER_SECONDS else None
+    ack_sent = False
+    next_typing_at = 0.0
     while RUNNING and time.time() < deadline:
         if forward_new_outbound_messages():
             return True
+        if chat_id and time.time() >= next_typing_at:
+            send_typing(chat_id)
+            next_typing_at = time.time() + TYPING_INTERVAL_SECONDS
+        if chat_id and ack_deadline and not ack_sent and time.time() >= ack_deadline:
+            send(chat_id, "I'm checking now.")
+            ack_sent = True
         time.sleep(0.5)
     return False
 
@@ -418,8 +582,12 @@ def poll_updates() -> None:
             reply = handle_command(text)
             if reply:
                 send(chat.get("id"), reply)
+            elif not chief_daemon_ready():
+                send(chat.get("id"), chief_daemon_fallback_text())
             else:
-                wait_for_chief_reply()
+                replied = wait_for_chief_reply(chat.get("id"))
+                if not replied:
+                    send(chat.get("id"), "I'm still working on that. I'll send the result here when it is ready.")
             save_state(STATE)
 
 
@@ -428,11 +596,13 @@ def shutdown(*_args) -> None:
     RUNNING = False
     save_state(STATE)
     update_runtime("stopped")
+    release_single_instance_lock()
     sys.exit(0)
 
 
 def main() -> None:
     ensure_dirs()
+    acquire_single_instance_lock()
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
     print(f"Starting {BOT_NAME} for {HARNESS_ROOT}")

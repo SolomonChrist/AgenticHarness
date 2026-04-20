@@ -158,8 +158,10 @@ On a fresh install:
 - the first harness claims `Chief_of_Staff`
 - on the first run, `Chief_of_Staff` should onboard the operator and build the initial operator memory
 - it should write or update `HUMANS.md`, `MEMORY/humans/<HumanID>/`, and its own `MEMORY/agents/Chief_of_Staff/ALWAYS.md`
-- if `Runner/` is present, `Chief_of_Staff` should also perform the first-pass Runner setup during onboarding and leave it in `DRY_RUN` unless explicitly told otherwise
-- after that setup, `Chief_of_Staff` should try to start the Runner or give the operator the exact command immediately if it cannot
+- if `Runner/` is present, `Chief_of_Staff` should perform the first-pass Runner setup during onboarding
+- after Telegram/Visualizer setup, `Chief_of_Staff` must daemonize itself with `configure_role_daemon.py` or tell the operator the exact command
+- `py service_manager.py start runner` starts the scheduler only; it does not daemonize `Chief_of_Staff`
+- only after `py production_check.py` passes is it safe to close the original desktop harness window
 - optional add-ons like `TelegramBot/` and `Visualizer/` should be introduced only when the operator asks for them
 - when an add-on like Telegram is explicitly configured, `Chief_of_Staff` should try to start it or immediately provide the exact command to start it
 - after onboarding is complete, it asks the operator what they want to do
@@ -205,6 +207,30 @@ Telegram is meant to feel like a normal chat with the active `Chief_of_Staff`.
 When a message arrives from Telegram, the bridge writes it into `_messages/Chief_of_Staff.md` and wakes Runner. If `Chief_of_Staff` is registered as an automation-ready CLI role, Runner should launch one short fresh-context command cycle, let it answer, write the reply to `_messages/human_<HumanID>.md`, and exit until the next message or timer.
 
 Telegram should only send clean operator-facing replies and major milestones. It should not forward timestamps, internal role logs, event stream lines, or raw swarm chatter.
+
+Production chat defaults are intentionally responsive: `POLL_INTERVAL_SECONDS=2`, `TELEGRAM_ACK_AFTER_SECONDS=0`, `TELEGRAM_TYPING_INTERVAL_SECONDS=4`, and `TELEGRAM_REPLY_WAIT_SECONDS=90`. That means Telegram should show a typing indicator while Chief works, then forward the final Chief reply when the daemon cycle writes the human outbox or returns a clean stdout answer.
+
+If Telegram is active but `Chief_of_Staff` has not been daemonized, Telegram should say so clearly and provide the daemon handoff command instead of pretending the background responder is ready.
+
+If Telegram is active but Runner itself is not alive, Telegram should say so clearly and provide `py service_manager.py start runner`. A bridge-only acknowledgement is not considered a working Chief chat.
+
+When replying through markdown, existing `_messages/human_<HumanID>.md` files must be appended or updated. Do not use a create-only `Write(...)` operation on an existing outbox file.
+
+Safe helper commands are available:
+
+```powershell
+py send_human_reply.py "Hello Solomon, I am online."
+py wake_role.py --role Chief_of_Staff --reason telegram_message
+```
+
+## Research And Web Questions
+
+`Chief_of_Staff` is expected to answer normal operator questions, including questions that require web or Google-style research.
+
+- If the active harness has online/web/browser/search tools, it should use them immediately for current information.
+- If the active harness is local-only or offline, it should give a best-effort answer and concise verification steps, or route the task to a web-capable role.
+- Harness records should note whether a provider is online, web/search-capable, browser/tool-capable, local-only, or manual-only.
+- Data organization and life-operations projects are expected first-use cases; `Chief_of_Staff` may recommend roles like `Researcher`, `Data Organizer`, `Documentation`, `Operations`, or `Engineer`.
 
 ## Existing Project Adoption
 
@@ -715,7 +741,15 @@ This is the safest way to learn the system before pointing it at important live 
 Windows cleanup note:
 
 - If you are trying to delete an old Agentic Harness test folder and Windows says files are still in use, you may still have background Python processes from `Runner`, `TelegramBot`, or `Visualizer`.
-- In that case, close any obvious terminal windows first, then use:
+- To see what is actually alive before guessing, run:
+
+```powershell
+py swarm_status.py
+py production_check.py
+```
+
+- `swarm_status.py` shows always-on daemons, daemonized roles, last role-cycle launch times, role-cycle PIDs, wake queue count, recent events, and per-role launch logs.
+- If you still need to delete the folder, close any obvious terminal windows first, then use:
 
 ```powershell
 taskkill /F /IM python.exe
@@ -996,6 +1030,7 @@ Use the Telegram bot token and Telegram user ID I provide.
 Write the correct values into TelegramBot/.env.telegram.
 Use the current harness root for HARNESS_ROOT.
 Use the operator Human ID from HUMANS.md for HUMAN_ID.
+Use POLL_INTERVAL_SECONDS=2, TELEGRAM_ACK_AFTER_SECONDS=0, TELEGRAM_TYPING_INTERVAL_SECONDS=4, and TELEGRAM_REPLY_WAIT_SECONDS=90.
 After writing the file, continue using Telegram as transport only by reading _messages/Chief_of_Staff.md and replying through _messages/human_<HumanID>.md.
 ```
 

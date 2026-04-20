@@ -16,5 +16,7 @@ if "%PROVIDER%"=="" (
 
 py configure_role_daemon.py --role Chief_of_Staff --provider %PROVIDER% --model "%MODEL%" --interval-minutes 2 --bootstrap-file AGENTIC_HARNESS_TINY.md --start-runner
 echo.
-echo If this completed successfully, you may close the original desktop Chief_of_Staff window.
+py production_check.py
+echo.
+echo Only close the original desktop Chief_of_Staff window if production_check.py says PRODUCTION CHECK PASSED.
 pause

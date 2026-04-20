@@ -29,7 +29,9 @@ VIS_RUNTIME_FILE = VIS_ROOT / ".visualizer_runtime.json"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from coordination_io import atomic_write_text
+from coordination_io import append_line, atomic_write_text
+from control_actions import maybe_handle_control_message
+from message_filters import clean_operator_reply
 
 
 def read_text(path: Path) -> str:
@@ -251,6 +253,69 @@ def collect_daemon_statuses() -> Dict[str, Dict[str, object]]:
     return daemons
 
 
+def active_human_id() -> str:
+    humans = read_text(ROOT / "HUMANS.md")
+    match = re.search(r"^ID:[ \t]*(.+)$", humans, flags=re.MULTILINE)
+    return match.group(1).strip() if match else "operator"
+
+
+def write_operator_message(message: str, source: str = "visualizer") -> None:
+    human_id = active_human_id()
+    ts = datetime.now().astimezone().isoformat(timespec="seconds")
+    append_line(ROOT / "_messages" / "Chief_of_Staff.md", f"[{ts}] [{source}] [{human_id}] {message}")
+    append_line(RUNNER_ROOT / "_wake_requests.md", f"[{ts}] Chief_of_Staff: operator_message")
+    append_line(ROOT / "LAYER_LAST_ITEMS_DONE.md", f"[{ts}] [VISUALIZER_CHAT] NOTIFY - Operator message routed to Chief_of_Staff")
+
+
+def write_human_reply(message: str) -> None:
+    human_id = active_human_id()
+    ts = datetime.now().astimezone().isoformat(timespec="seconds")
+    append_line(ROOT / "_messages" / f"human_{human_id}.md", f"[{ts}] [Chief_of_Staff] {message}")
+
+
+def clean_chat_line(line: str) -> str:
+    text = line.strip()
+    match = re.match(r"^\[[^\]]+\]\s+\[[^\]]+\]\s+(?:\[[^\]]+\]\s+)?(.*)$", text)
+    return match.group(1).strip() if match else text
+
+
+def chat_timestamp(line: str) -> str:
+    match = re.match(r"^\[([^\]]+)\]", line.strip())
+    return match.group(1) if match else ""
+
+
+def collect_operator_chat(limit: int = 30) -> List[Dict[str, str]]:
+    human_id = active_human_id()
+    items: List[Dict[str, str]] = []
+    for raw in read_text(ROOT / "_messages" / "Chief_of_Staff.md").splitlines():
+        if f"[{human_id}]" in raw:
+            items.append({"from": "operator", "text": clean_chat_line(raw), "timestamp": chat_timestamp(raw)})
+    current: List[str] = []
+    current_timestamp = ""
+    for raw in read_text(ROOT / "_messages" / f"human_{human_id}.md").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if re.match(r"^\[[^\]]+\]\s+\[[^\]]+\]", line):
+            if current:
+                text = clean_operator_reply("\n".join(current).strip())
+                if text:
+                    items.append({"from": "chief", "text": text, "timestamp": current_timestamp})
+            current = [clean_chat_line(line)]
+            current_timestamp = chat_timestamp(line)
+        elif current:
+            current.append(line)
+        else:
+            current = [line]
+            current_timestamp = ""
+    if current:
+        text = clean_operator_reply("\n".join(current).strip())
+        if text:
+            items.append({"from": "chief", "text": text, "timestamp": current_timestamp})
+    items.sort(key=lambda item: item.get("timestamp", ""))
+    return items[-limit:]
+
+
 def collect_lease_state() -> List[Dict[str, object]]:
     now = datetime.now().astimezone()
     registry = collect_role_registry()
@@ -419,6 +484,7 @@ def build_state() -> Dict[str, object]:
         "daemons": daemons,
         "recent_events": tail_lines(ROOT / "LAYER_LAST_ITEMS_DONE.md", limit=25),
         "recent_context": tail_lines(ROOT / "LAYER_SHARED_TEAM_CONTEXT.md", limit=15),
+        "operator_chat": collect_operator_chat(),
     }
 
 
@@ -440,6 +506,35 @@ class VisualizerHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/":
             self.path = "/world2d.html"
         return super().do_GET()
+
+    def do_POST(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path != "/api/chat":
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            body = self.rfile.read(min(length, 65536))
+            payload = json.loads(body.decode("utf-8"))
+            message = str(payload.get("message", "")).strip()
+        except Exception:
+            self.send_error(HTTPStatus.BAD_REQUEST, "Invalid JSON body")
+            return
+        if not message:
+            self.send_error(HTTPStatus.BAD_REQUEST, "Message cannot be empty")
+            return
+        write_operator_message(message)
+        control_reply = maybe_handle_control_message(message)
+        quick_reply = control_reply
+        if quick_reply:
+            write_human_reply(quick_reply)
+        response = json.dumps({"ok": True, "handled": bool(quick_reply)}).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(response)))
+        self.end_headers()
+        self.wfile.write(response)
 
     def log_message(self, fmt: str, *args) -> None:
         return

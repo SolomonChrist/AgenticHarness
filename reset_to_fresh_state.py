@@ -362,6 +362,13 @@ Default Working Directory:
 Default Role Types:
 - 
 Model / Profile Notes:
+Capabilities:
+- Online LLM:
+- Web/Search Capable:
+- Browser/Tool Capable:
+- Local Only:
+- Manual Only:
+Fallback Instructions:
 Prompt / Bootstrap Notes:
 Last Confirmed:
 Learned From:
@@ -576,6 +583,7 @@ Notes:
 - `Wake Message` is the short instruction the Runner should write into `_messages/<Role>.md` when it launches or nudges that role
 - `Chief_of_Staff` should usually have the shortest interval or persistent mode
 - Manual human-run roles can still claim roles and report work through the markdown files
+- Do not blind-write this existing file from a harness. Use `configure_role_daemon.py` or read-then-update so existing registrations are preserved.
 
 ## Example Entries
 

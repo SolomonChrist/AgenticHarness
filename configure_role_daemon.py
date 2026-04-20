@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from coordination_io import atomic_write_text, read_text
+
 
 ROOT = Path(__file__).resolve().parent
 RUNNER_CONFIG = ROOT / "Runner" / "RUNNER_CONFIG.md"
@@ -38,12 +40,12 @@ def replace_key(text: str, key: str, value: str) -> str:
 
 
 def set_runner_active() -> None:
-    text = RUNNER_CONFIG.read_text(encoding="utf-8")
+    text = read_text(RUNNER_CONFIG)
     text = replace_key(text, "Runner Enabled", "YES")
     text = replace_key(text, "Runner Mode", "ACTIVE")
     text = replace_key(text, "Fast Wake Poll Seconds", "1")
     text = replace_key(text, "Urgent Wake Backoff Seconds", "8")
-    RUNNER_CONFIG.write_text(text, encoding="utf-8")
+    atomic_write_text(RUNNER_CONFIG, text)
 
 
 def provider_details(provider: str, name: str, command_template: str) -> tuple[str, str, str]:
@@ -63,9 +65,10 @@ def role_block(role: str, provider: str, model: str, interval: int, bootstrap: s
     harness_type, launch_command, provider_key = provider_details(provider, name, command_template)
     harness_key = f"{provider_key}-{model}".strip("-") if model else provider_key
     prompt = (
-        f"This is an existing Agentic Harness system. "
-        f"Claim or renew the {role} role if available or stale, check messages and tasks, "
-        "reply to the operator when needed, then exit."
+        f"This is an existing Agentic Harness system. Run a low-spend {role} daemon cycle. "
+        "Check only the minimal files needed for the newest message or task. "
+        "Answer simple operator messages directly. Do not create specialist setup work unless explicitly requested. "
+        "Reply to the operator when needed, then exit."
     )
     wake_message = "Check operator messages, check status, reply if needed, and continue orchestration."
     if role != "Chief_of_Staff":
@@ -97,7 +100,7 @@ Notes: Daemon-owned CLI cycle. Safe to close the original desktop/manual harness
 
 
 def upsert_role(role: str, provider: str, model: str, interval: int, bootstrap: str, name: str, command_template: str) -> None:
-    text = ROLE_REGISTRY.read_text(encoding="utf-8")
+    text = read_text(ROLE_REGISTRY)
     block = role_block(role, provider, model, interval, bootstrap, name, command_template).rstrip()
     pattern = re.compile(
         rf"### ROLE\s*\nRole:\s*{re.escape(role)}\s*\n.*?(?=\n### |\Z)",
@@ -107,13 +110,13 @@ def upsert_role(role: str, provider: str, model: str, interval: int, bootstrap: 
         text = pattern.sub(lambda _match: block, text, count=1)
     else:
         text = text.rstrip() + "\n\n" + block + "\n"
-    ROLE_REGISTRY.write_text(text, encoding="utf-8")
+    atomic_write_text(ROLE_REGISTRY, text)
 
 
 def upsert_custom_harness(name: str, command_template: str, model: str) -> None:
     if not name.strip():
         return
-    catalog = HARNESS_CATALOG.read_text(encoding="utf-8")
+    catalog = read_text(HARNESS_CATALOG)
     key = f"custom-{name.strip()}"
     block = f"""### HARNESS
 Harness Key: {key}
@@ -140,7 +143,7 @@ Notes: User-supplied prompt-based CLI provider.
         catalog = pattern.sub(lambda _match: block, catalog, count=1)
     else:
         catalog = catalog.rstrip() + "\n\n" + block + "\n"
-    HARNESS_CATALOG.write_text(catalog, encoding="utf-8")
+    atomic_write_text(HARNESS_CATALOG, catalog)
 
 
 def start_runner() -> int:
