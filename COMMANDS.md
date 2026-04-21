@@ -17,6 +17,8 @@ stop_all_services.bat
 status_all_services.bat
 ```
 
+`start_all_services.bat` starts Runner and Visualizer, opens the Visualizer command center in your browser, and starts Telegram only if `TelegramBot/.env.telegram` has real credentials.
+
 Important: these commands start the infrastructure services only. They do not daemonize `Chief_of_Staff`. After first-run onboarding, run the daemon handoff command below before closing the desktop harness.
 
 ## First Manual Claim Prompt
@@ -27,6 +29,8 @@ This is a fresh Agentic Harness install.
 Claim the Chief_of_Staff role if it is available.
 Run normal first-run onboarding: ask my name, create my human memory, set up Runner, and offer Telegram/Visualizer before specialist roles.
 ```
+
+After daemon handoff, use Visualizer as the default local chat and dashboard. Telegram is optional remote/mobile access.
 
 ## Existing Role Claim Prompt
 
@@ -41,7 +45,12 @@ Claim the <ROLE> role if it is available or stale.
 ```powershell
 py configure_role_daemon.py --role Chief_of_Staff --provider claude --model claude-haiku-4-5-20251001 --start-runner
 py configure_role_daemon.py --role Chief_of_Staff --provider opencode --model minimax-m2.5-free --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider gemini --model gemini-2.5-pro --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider codex --model gpt-5.4 --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider goose --model claude-4-sonnet --start-runner
 py configure_role_daemon.py --role Chief_of_Staff --provider ollama --model llama3.1 --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider deepagents --model gpt-5.4 --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider openclaw --model default-agent --start-runner
 ```
 
 After handoff, verify:
@@ -57,8 +66,23 @@ Only close the original desktop harness after this reports `PRODUCTION CHECK PAS
 ```powershell
 py configure_role_daemon.py --role Researcher --provider opencode --model minimax-m2.5-free --start-runner
 py configure_role_daemon.py --role QA --provider claude --model claude-haiku-4-5-20251001 --start-runner
+py configure_role_daemon.py --role Engineer --provider codex --model gpt-5.4 --start-runner
+py configure_role_daemon.py --role Researcher --provider gemini --model gemini-2.5-flash --start-runner
 py configure_role_daemon.py --role Documentation --provider ollama --model llama3.1 --start-runner
 ```
+
+Built-in provider keys:
+
+- `claude`
+- `opencode`
+- `gemini`
+- `codex`
+- `goose`
+- `ollama`
+- `deepagents`
+- `openclaw`
+
+For current-information work, prefer a web-capable Chief provider such as Claude with Chrome integration, Codex with live search, Gemini, or another configured online provider. Ollama is intentionally local/offline by default.
 
 ## Register A Custom CLI Provider
 

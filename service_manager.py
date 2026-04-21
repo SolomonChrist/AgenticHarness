@@ -44,6 +44,27 @@ SERVICES = {
 }
 
 
+def read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except FileNotFoundError:
+        return ""
+
+
+def scalar(text: str, key: str) -> str:
+    import re
+
+    match = re.search(rf"^{re.escape(key)}:[ \t]*(.*)$", text, flags=re.MULTILINE)
+    return match.group(1).strip() if match else ""
+
+
+def telegram_configured() -> bool:
+    env_text = read_text(ROOT / "TelegramBot" / ".env.telegram")
+    token = scalar(env_text, "TELEGRAM_BOT_TOKEN")
+    users = scalar(env_text, "TELEGRAM_ALLOWED_USER_IDS")
+    return bool(token and users and not token.startswith("YOUR_"))
+
+
 def load_runtime(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -172,6 +193,9 @@ def main(argv: list[str]) -> int:
     action = argv[1]
     target = argv[2].lower()
     names = list(SERVICES) if target == "all" else [target]
+    if action == "start" and target == "all" and not telegram_configured():
+        names = [name for name in names if name != "telegram"]
+        print("telegram: skipped (not configured; optional add-on)")
     if any(name not in SERVICES for name in names):
         print("Unknown service.")
         return 1

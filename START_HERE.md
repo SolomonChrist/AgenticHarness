@@ -21,6 +21,11 @@ The goal is that every shipped update should behave like a fresh download, not l
 
 ## First-Time Setup
 
+Agentic Harness starts in two phases:
+
+- **Phase 1: manual onboarding in your chosen harness.** Open Claude Code, OpenCode, Goose, Codex CLI, Gemini CLI, or another trusted harness in this folder and let it claim `Chief_of_Staff`.
+- **Phase 2: operate from Visualizer.** After onboarding and daemon handoff, Visualizer is the default local command center. Telegram is optional remote/mobile chat if you configure it.
+
 1. Create a fresh folder.
 2. Copy Agentic Harness into that folder.
 3. Open one harness you already trust.
@@ -30,6 +35,7 @@ The goal is that every shipped update should behave like a fresh download, not l
 Read AGENTIC_HARNESS.md first.
 This is a fresh Agentic Harness install.
 Claim the Chief_of_Staff role if it is available.
+Run normal first-run onboarding.
 ```
 
 If your harness has a very small context window, use:
@@ -58,6 +64,8 @@ See `CLAUDE_LOW_SPEND_START.md` before running a Claude-based setup.
 
 - onboard you
 - create your human/operator memory
+- explain that Visualizer is the default local command center after setup
+- offer Telegram as an optional remote chat add-on, not a required dependency
 - if `Runner/` is present, set up the Runner during onboarding as a built-in core step
 - Runner is not an optional add-on; it is part of the core bring-up when `Runner/` exists
 - leave Runner in `DRY_RUN` only long enough to verify the launch plan, then move it to `ACTIVE` real always-on wake behavior in that same onboarding flow
@@ -102,7 +110,7 @@ Preferred infrastructure launcher on Windows:
 start_all_services.bat
 ```
 
-That launcher requests startup for Runner, Telegram, and Visualizer through `service_manager.py`.
+That launcher starts Runner and Visualizer through `service_manager.py`, opens Visualizer in your browser, and starts Telegram only when real Telegram credentials are configured.
 
 Starting services is not the same thing as daemonizing `Chief_of_Staff`. `py service_manager.py start runner` starts the scheduler only. It does not create the background Chief brain unless `Chief_of_Staff` has also been registered with `configure_role_daemon.py`.
 
@@ -121,8 +129,17 @@ Direct command examples:
 ```powershell
 py configure_role_daemon.py --role Chief_of_Staff --provider claude --model claude-haiku-4-5-20251001 --start-runner
 py configure_role_daemon.py --role Chief_of_Staff --provider opencode --model minimax-m2.5-free --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider gemini --model gemini-2.5-pro --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider codex --model gpt-5.4 --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider goose --model claude-4-sonnet --start-runner
 py configure_role_daemon.py --role Chief_of_Staff --provider ollama --model llama3.1 --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider deepagents --model gpt-5.4 --start-runner
+py configure_role_daemon.py --role Chief_of_Staff --provider openclaw --model default-agent --start-runner
 ```
+
+Built-in provider keys are `claude`, `opencode`, `gemini`, `codex`, `goose`, `ollama`, `deepagents`, and `openclaw`. You should not need to explain these command shapes during onboarding; Agentic Harness already knows the non-interactive launch patterns and records your chosen model/profile.
+
+For a Chief that should answer weather, web, and current-info questions directly, choose a web-capable online provider. Claude daemon cycles enable Chrome integration when available, Codex daemon cycles enable live search, and Gemini/OpenCode/Goose/DeepAgents/OpenClaw depend on their configured provider/tools. Ollama is local/offline by default and should give verification steps or route to a web-capable role for current facts.
 
 Custom CLI example:
 

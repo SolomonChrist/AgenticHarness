@@ -32,6 +32,12 @@ if str(ROOT) not in sys.path:
 from coordination_io import append_line, atomic_write_text
 from control_actions import maybe_handle_control_message
 from message_filters import clean_operator_reply
+from operator_messaging import (
+    active_human_id as shared_active_human_id,
+    append_operator_message,
+    append_operator_reply,
+    collect_conversation,
+)
 
 
 def read_text(path: Path) -> str:
@@ -59,7 +65,10 @@ def parse_markdown_table(path: Path) -> Dict[str, str]:
 def parse_markdown_records(path: Path) -> List[Dict[str, object]]:
     if not path.exists():
         return []
-    lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    if path.name == "ROLE_LAUNCH_REGISTRY.md" and "## Active Registrations" in text:
+        text = text.split("## Active Registrations", 1)[1]
+    lines = text.splitlines()
     records: List[Dict[str, object]] = []
     current: Optional[Dict[str, object]] = None
     current_list_key: Optional[str] = None
@@ -107,7 +116,23 @@ def parse_markdown_records(path: Path) -> List[Dict[str, object]]:
                 current_list_key = key
     if current:
         records.append(current)
-    return records
+    by_role: Dict[str, Dict[str, object]] = {}
+    final: List[Dict[str, object]] = []
+    for record in records:
+        if record.get("_type") != "role":
+            final.append(record)
+            continue
+        role = str(record.get("Role", "")).strip()
+        if role:
+            existing = by_role.get(role)
+            current_ready = str(record.get("Enabled", "")).upper() == "YES" or str(record.get("Automation Ready", "")).upper() == "YES"
+            existing_ready = bool(existing) and (
+                str(existing.get("Enabled", "")).upper() == "YES" or str(existing.get("Automation Ready", "")).upper() == "YES"
+            )
+            if existing is None or (current_ready and not existing_ready):
+                by_role[role] = record
+    final.extend(by_role.values())
+    return final
 
 
 def markdown_scalar(value: object) -> str:
@@ -253,24 +278,139 @@ def collect_daemon_statuses() -> Dict[str, Dict[str, object]]:
     return daemons
 
 
+def telegram_configured() -> bool:
+    env_text = read_text(TELEGRAM_ROOT / ".env.telegram")
+    token_match = re.search(r"^TELEGRAM_BOT_TOKEN=(.+)$", env_text, flags=re.MULTILINE)
+    users_match = re.search(r"^TELEGRAM_ALLOWED_USER_IDS=(.+)$", env_text, flags=re.MULTILINE)
+    token = token_match.group(1).strip() if token_match else ""
+    users = users_match.group(1).strip() if users_match else ""
+    return bool(token and not token.startswith("YOUR_") and users)
+
+
+def service_health(daemons: Dict[str, Dict[str, object]]) -> List[Dict[str, object]]:
+    specs = [
+        ("runner", "Runner", "critical", True),
+        ("visualizer", "Visualizer", "critical", True),
+        ("telegram", "Telegram", "optional_after_config", telegram_configured()),
+    ]
+    rows: List[Dict[str, object]] = []
+    for key, label, priority, required in specs:
+        data = daemons.get(key, {})
+        status = str(data.get("status", "inactive"))
+        alive = bool(data.get("alive", status == "active"))
+        ok = alive or (key == "telegram" and not required)
+        rows.append(
+            {
+                "key": key,
+                "label": label,
+                "priority": priority,
+                "required": required,
+                "configured": required if key == "telegram" else True,
+                "status": status,
+                "alive": alive,
+                "ok": ok,
+                "last_error": str(data.get("last_error", "")),
+                "updated_at": str(data.get("updated_at", "")),
+            }
+        )
+    return rows
+
+
+def production_health(roles: List[Dict[str, object]], daemons: Dict[str, Dict[str, object]]) -> Dict[str, object]:
+    services = service_health(daemons)
+    role_rows: List[Dict[str, object]] = []
+    for role in roles:
+        mode = str(role.get("automation_mode", "unregistered"))
+        enabled = str(role.get("registered_enabled", "")).upper()
+        ready = str(role.get("automation_ready", "")).upper()
+        launch = str(role.get("registered_launch_command", ""))
+        automation_ok = mode == "manual" or (enabled == "YES" and ready == "YES" and bool(launch))
+        role_rows.append(
+            {
+                "role": role.get("role", ""),
+                "status": role.get("status", ""),
+                "holder": role.get("claimed_by", "") or "unclaimed",
+                "harness": role.get("harness_name", "") or role.get("registered_harness_type", ""),
+                "model": role.get("model_name", "") or role.get("registered_model_profile", ""),
+                "mode": mode,
+                "enabled": enabled or "NO",
+                "automation_ready": ready or "NO",
+                "automation_ok": automation_ok,
+            }
+        )
+    ok = all(bool(service.get("ok")) for service in services)
+    chief = next((role for role in role_rows if role.get("role") == "Chief_of_Staff"), None)
+    if chief:
+        ok = ok and bool(chief.get("automation_ok"))
+    return {
+        "ok": ok,
+        "services": services,
+        "roles": role_rows,
+        "summary": {
+            "service_failures": len([service for service in services if not service.get("ok")]),
+            "registered_roles": len(role_rows),
+            "automation_ready_roles": len([role for role in role_rows if role.get("automation_ok")]),
+        },
+    }
+
+
+def corrective_commands(health: Dict[str, object]) -> List[str]:
+    commands: List[str] = []
+    services = {str(row.get("key", "")): row for row in health.get("services", []) if isinstance(row, dict)}
+    if not services.get("runner", {}).get("ok"):
+        commands.append("py service_manager.py start runner")
+    if not services.get("visualizer", {}).get("ok"):
+        commands.append("py service_manager.py start visualizer")
+    chief = next((row for row in health.get("roles", []) if row.get("role") == "Chief_of_Staff"), None)
+    if chief and not chief.get("automation_ok"):
+        model = str(chief.get("model", "") or "claude-haiku-4-5-20251001")
+        harness = str(chief.get("harness", "") or "").lower()
+        provider = "opencode" if "opencode" in harness else "ollama" if "ollama" in harness else "goose" if "goose" in harness else "claude"
+        commands.append(f"py configure_role_daemon.py --role Chief_of_Staff --provider {provider} --model {model} --start-runner")
+    return commands
+
+
+def phase_state(health: Dict[str, object]) -> Dict[str, object]:
+    chief = next((row for row in health.get("roles", []) if row.get("role") == "Chief_of_Staff"), None)
+    if not chief:
+        return {
+            "phase": "phase_1_onboarding",
+            "label": "Phase 1: Chief setup needed",
+            "ready": False,
+            "message": "Open your chosen harness, read AGENTIC_HARNESS.md, and claim Chief_of_Staff.",
+        }
+    if not chief.get("automation_ok"):
+        return {
+            "phase": "phase_1_daemon_handoff",
+            "label": "Phase 1: Daemon handoff needed",
+            "ready": False,
+            "message": "Chief exists, but Runner cannot launch it in the background yet.",
+        }
+    if not health.get("ok"):
+        return {
+            "phase": "phase_2_needs_attention",
+            "label": "Phase 2: Service attention needed",
+            "ready": False,
+            "message": "Chief is daemonized, but one required service needs attention.",
+        }
+    return {
+        "phase": "phase_2_ready",
+        "label": "Phase 2: Ready",
+        "ready": True,
+        "message": "Visualizer is the local command center. Telegram is optional remote chat.",
+    }
+
+
 def active_human_id() -> str:
-    humans = read_text(ROOT / "HUMANS.md")
-    match = re.search(r"^ID:[ \t]*(.+)$", humans, flags=re.MULTILINE)
-    return match.group(1).strip() if match else "operator"
+    return shared_active_human_id(ROOT)
 
 
-def write_operator_message(message: str, source: str = "visualizer") -> None:
-    human_id = active_human_id()
-    ts = datetime.now().astimezone().isoformat(timespec="seconds")
-    append_line(ROOT / "_messages" / "Chief_of_Staff.md", f"[{ts}] [{source}] [{human_id}] {message}")
-    append_line(RUNNER_ROOT / "_wake_requests.md", f"[{ts}] Chief_of_Staff: operator_message")
-    append_line(ROOT / "LAYER_LAST_ITEMS_DONE.md", f"[{ts}] [VISUALIZER_CHAT] NOTIFY - Operator message routed to Chief_of_Staff")
+def write_operator_message(message: str, source: str = "visualizer") -> Dict[str, str]:
+    return append_operator_message(ROOT, message, source=source, human_id=active_human_id())
 
 
 def write_human_reply(message: str) -> None:
-    human_id = active_human_id()
-    ts = datetime.now().astimezone().isoformat(timespec="seconds")
-    append_line(ROOT / "_messages" / f"human_{human_id}.md", f"[{ts}] [Chief_of_Staff] {message}")
+    append_operator_reply(ROOT, message, human_id=active_human_id(), channel="visualizer")
 
 
 def clean_chat_line(line: str) -> str:
@@ -285,35 +425,7 @@ def chat_timestamp(line: str) -> str:
 
 
 def collect_operator_chat(limit: int = 30) -> List[Dict[str, str]]:
-    human_id = active_human_id()
-    items: List[Dict[str, str]] = []
-    for raw in read_text(ROOT / "_messages" / "Chief_of_Staff.md").splitlines():
-        if f"[{human_id}]" in raw:
-            items.append({"from": "operator", "text": clean_chat_line(raw), "timestamp": chat_timestamp(raw)})
-    current: List[str] = []
-    current_timestamp = ""
-    for raw in read_text(ROOT / "_messages" / f"human_{human_id}.md").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if re.match(r"^\[[^\]]+\]\s+\[[^\]]+\]", line):
-            if current:
-                text = clean_operator_reply("\n".join(current).strip())
-                if text:
-                    items.append({"from": "chief", "text": text, "timestamp": current_timestamp})
-            current = [clean_chat_line(line)]
-            current_timestamp = chat_timestamp(line)
-        elif current:
-            current.append(line)
-        else:
-            current = [line]
-            current_timestamp = ""
-    if current:
-        text = clean_operator_reply("\n".join(current).strip())
-        if text:
-            items.append({"from": "chief", "text": text, "timestamp": current_timestamp})
-    items.sort(key=lambda item: item.get("timestamp", ""))
-    return items[-limit:]
+    return collect_conversation(ROOT, active_human_id(), limit=limit)
 
 
 def collect_lease_state() -> List[Dict[str, object]]:
@@ -475,6 +587,8 @@ def collect_projects() -> List[Dict[str, str]]:
 def build_state() -> Dict[str, object]:
     leases = collect_lease_state()
     daemons = collect_daemon_statuses()
+    health = production_health(leases, daemons)
+    phase = phase_state(health)
     return {
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "roles": leases,
@@ -482,6 +596,9 @@ def build_state() -> Dict[str, object]:
         "task_items": collect_task_items(),
         "projects": collect_projects(),
         "daemons": daemons,
+        "production_health": health,
+        "production_phase": phase,
+        "corrective_commands": corrective_commands(health),
         "recent_events": tail_lines(ROOT / "LAYER_LAST_ITEMS_DONE.md", limit=25),
         "recent_context": tail_lines(ROOT / "LAYER_SHARED_TEAM_CONTEXT.md", limit=15),
         "operator_chat": collect_operator_chat(),
@@ -492,13 +609,18 @@ class VisualizerHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(VIS_ROOT), **kwargs)
 
+    def end_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/state":
             payload = json.dumps(build_state()).encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
@@ -523,15 +645,24 @@ class VisualizerHandler(SimpleHTTPRequestHandler):
         if not message:
             self.send_error(HTTPStatus.BAD_REQUEST, "Message cannot be empty")
             return
-        write_operator_message(message)
+        routed = write_operator_message(message)
         control_reply = maybe_handle_control_message(message)
         quick_reply = control_reply
         if quick_reply:
             write_human_reply(quick_reply)
-        response = json.dumps({"ok": True, "handled": bool(quick_reply)}).encode("utf-8")
+        state = build_state()
+        response = json.dumps(
+            {
+                "ok": True,
+                "handled": bool(quick_reply),
+                "message_id": routed.get("id", ""),
+                "delivery": "answered" if quick_reply else "queued",
+                "production_phase": state.get("production_phase", {}),
+                "corrective_commands": state.get("corrective_commands", []),
+            }
+        ).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(response)))
         self.end_headers()
         self.wfile.write(response)

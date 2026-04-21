@@ -216,6 +216,50 @@ body {
   border-color: rgba(90,168,255,.35);
 }
 
+.chat-drawer {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 30;
+  width: min(440px, calc(100vw - 40px));
+  max-height: min(640px, calc(100vh - 40px));
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(11, 18, 27, 0.94);
+  border: 1px solid rgba(90,168,255,.35);
+  box-shadow: 0 24px 70px rgba(0,0,0,.38);
+  backdrop-filter: blur(14px);
+}
+
+.chat-status {
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+  background: rgba(90,168,255,0.09);
+  border: 1px solid rgba(90,168,255,0.18);
+}
+
+.chat-status.ready {
+  color: #9ee6c3;
+  border-color: rgba(52,211,153,.28);
+  background: rgba(52,211,153,.09);
+}
+
+.chat-status.waiting {
+  color: #ffd48a;
+  border-color: rgba(226,161,63,.35);
+  background: rgba(226,161,63,.1);
+}
+
+.chat-status.failed {
+  color: #ffb4b4;
+  border-color: rgba(248,113,113,.35);
+  background: rgba(248,113,113,.1);
+}
+
 .chat-log {
   min-height: 220px;
   max-height: 360px;
@@ -285,4 +329,10 @@ body {
   }
   .hero, .stats, .world-grid { grid-template-columns: 1fr; }
   .side { border-left: 0; border-top: 1px solid rgba(32,48,64,.8); }
+  .chat-drawer {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+  }
 }

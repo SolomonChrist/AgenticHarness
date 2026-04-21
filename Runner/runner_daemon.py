@@ -122,6 +122,10 @@ def log_event(event_file: Path, message: str) -> None:
     append_line(event_file, f"[{iso_now()}] [RUNNER] {message}")
 
 
+def reason_category(reason: str) -> str:
+    return (reason or "").split(":", 1)[0].strip()
+
+
 def process_alive(pid: int) -> bool:
     if pid <= 0:
         return False
@@ -530,7 +534,7 @@ class RunnerDaemon:
         prompt_file.write_text(prompt_text + ("\n" if prompt_text else ""), encoding="utf-8")
         return prompt_file
 
-    def render_launch_command(self, config: RoleLaunchConfig, prompt_file: Path) -> str:
+    def render_launch_command(self, config: RoleLaunchConfig, prompt_file: Path, reason: str = "") -> str:
         cwd = Path(config.working_directory).expanduser() if config.working_directory else self.harness_root
         prompt_text = self.build_prompt_text(config)
         command = self.effective_launch_command(config, prompt_file, cwd)
@@ -546,6 +550,7 @@ class RunnerDaemon:
             "{HARNESS_KEY}": config.harness_key or "",
             "{HARNESS_TYPE}": config.harness_type or "",
             "{MODEL_PROFILE}": config.model_profile or "",
+            "{REASON}": reason or "",
         }
         for placeholder, value in replacements.items():
             command = command.replace(placeholder, value)
@@ -567,7 +572,7 @@ class RunnerDaemon:
         ).lower()
         return "claude" in harness
 
-    def build_default_claude_cycle_command(self, config: RoleLaunchConfig, prompt_file: Path, cwd: Path) -> str:
+    def build_default_claude_cycle_command(self, config: RoleLaunchConfig, prompt_file: Path, cwd: Path, reason: str = "") -> str:
         script = self.runner_root / "claude_role_cycle.py"
         python_cmd = "py" if os.name == "nt" else "python3"
         model_arg = cli_model_arg("claude", config.model_profile)
@@ -580,6 +585,8 @@ class RunnerDaemon:
             str(cwd),
             "--prompt-file",
             str(prompt_file),
+            "--reason",
+            reason,
         ]
         if config.bootstrap_file:
             parts.extend(["--bootstrap-file", config.bootstrap_file])
@@ -587,7 +594,7 @@ class RunnerDaemon:
             parts.extend(["--model", model_arg])
         return " ".join(quote_command_arg(part) for part in parts)
 
-    def build_generic_cycle_command(self, provider: str, config: RoleLaunchConfig, prompt_file: Path, cwd: Path) -> str:
+    def build_generic_cycle_command(self, provider: str, config: RoleLaunchConfig, prompt_file: Path, cwd: Path, reason: str = "") -> str:
         script = self.runner_root / "harness_role_cycle.py"
         python_cmd = "py" if os.name == "nt" else "python3"
         model_arg = cli_model_arg(provider, config.model_profile)
@@ -602,6 +609,8 @@ class RunnerDaemon:
             str(cwd),
             "--prompt-file",
             str(prompt_file),
+            "--reason",
+            reason,
         ]
         if config.bootstrap_file:
             parts.extend(["--bootstrap-file", config.bootstrap_file])
@@ -609,18 +618,26 @@ class RunnerDaemon:
             parts.extend(["--model", model_arg])
         return " ".join(quote_command_arg(part) for part in parts)
 
-    def effective_launch_command(self, config: RoleLaunchConfig, prompt_file: Path, cwd: Path) -> str:
+    def effective_launch_command(self, config: RoleLaunchConfig, prompt_file: Path, cwd: Path, reason: str = "") -> str:
         command = (config.launch_command or "").strip()
         if "{AUTO_CLAUDE_CYCLE}" in command:
-            return command.replace("{AUTO_CLAUDE_CYCLE}", self.build_default_claude_cycle_command(config, prompt_file, cwd))
+            return command.replace("{AUTO_CLAUDE_CYCLE}", self.build_default_claude_cycle_command(config, prompt_file, cwd, reason))
         if "{AUTO_OPENCODE_CYCLE}" in command:
-            return command.replace("{AUTO_OPENCODE_CYCLE}", self.build_generic_cycle_command("opencode", config, prompt_file, cwd))
+            return command.replace("{AUTO_OPENCODE_CYCLE}", self.build_generic_cycle_command("opencode", config, prompt_file, cwd, reason))
+        if "{AUTO_GEMINI_CYCLE}" in command:
+            return command.replace("{AUTO_GEMINI_CYCLE}", self.build_generic_cycle_command("gemini", config, prompt_file, cwd, reason))
+        if "{AUTO_CODEX_CYCLE}" in command:
+            return command.replace("{AUTO_CODEX_CYCLE}", self.build_generic_cycle_command("codex", config, prompt_file, cwd, reason))
         if "{AUTO_GOOSE_CYCLE}" in command:
-            return command.replace("{AUTO_GOOSE_CYCLE}", self.build_generic_cycle_command("goose", config, prompt_file, cwd))
+            return command.replace("{AUTO_GOOSE_CYCLE}", self.build_generic_cycle_command("goose", config, prompt_file, cwd, reason))
         if "{AUTO_OLLAMA_CYCLE}" in command:
-            return command.replace("{AUTO_OLLAMA_CYCLE}", self.build_generic_cycle_command("ollama", config, prompt_file, cwd))
+            return command.replace("{AUTO_OLLAMA_CYCLE}", self.build_generic_cycle_command("ollama", config, prompt_file, cwd, reason))
+        if "{AUTO_DEEPAGENTS_CYCLE}" in command:
+            return command.replace("{AUTO_DEEPAGENTS_CYCLE}", self.build_generic_cycle_command("deepagents", config, prompt_file, cwd, reason))
+        if "{AUTO_OPENCLAW_CYCLE}" in command:
+            return command.replace("{AUTO_OPENCLAW_CYCLE}", self.build_generic_cycle_command("openclaw", config, prompt_file, cwd, reason))
         if self.command_looks_placeholder(command) and self.prefers_claude_cycle(config):
-            return self.build_default_claude_cycle_command(config, prompt_file, cwd)
+            return self.build_default_claude_cycle_command(config, prompt_file, cwd, reason)
         return command
 
     def append_role_message(self, role: str, message: str) -> None:
@@ -660,7 +677,7 @@ class RunnerDaemon:
             return
         cwd = Path(config.working_directory).expanduser() if config.working_directory else self.harness_root
         prompt_file = self.write_prompt_file(config)
-        command = self.render_launch_command(config, prompt_file)
+        command = self.render_launch_command(config, prompt_file, reason)
         self.append_role_message(config.role, self.build_wake_message(config, reason))
         state = self.role_state(config.role)
         state["last_launch_at"] = iso_now()
@@ -706,7 +723,7 @@ class RunnerDaemon:
         normal_backoff_seconds = max(5, parse_int(runner_cfg.get("Launch Retry Backoff Seconds", "60"), 60))
         urgent_backoff_seconds = max(2, parse_int(runner_cfg.get("Urgent Wake Backoff Seconds", "8"), 8))
         urgent_reasons = {"telegram_message", "operator_message", "wake_request"}
-        backoff_seconds = urgent_backoff_seconds if reason in urgent_reasons else normal_backoff_seconds
+        backoff_seconds = urgent_backoff_seconds if reason_category(reason) in urgent_reasons else normal_backoff_seconds
         failure_threshold = max(1, parse_int(runner_cfg.get("Launch Failure Threshold", "3"), 3))
         cooldown_seconds = max(30, parse_int(runner_cfg.get("Launch Failure Cooldown Seconds", "300"), 300))
 
@@ -752,7 +769,7 @@ class RunnerDaemon:
         role_wake_requests = wake_requests.get(config.role, [])
         if role_wake_requests:
             reason = role_wake_requests[-1]
-            if config.execution_mode == "interval" and reason in {"telegram_message", "wake_request", "operator_message"}:
+            if config.execution_mode == "interval" and reason_category(reason) in {"telegram_message", "wake_request", "operator_message"}:
                 return "launch", reason
             return ("nudge", reason) if lease.active else ("launch", reason)
 

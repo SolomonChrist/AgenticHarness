@@ -12,8 +12,20 @@ The result should feel like a small personal operating company:
 - `Chief_of_Staff` coordinates the work
 - specialist roles join when needed
 - Runner keeps CLI-capable roles alive through timer and event wakeups
-- Telegram provides remote human chat
-- Visualizer shows the whole workzone
+- Visualizer provides the default local chat and command center
+- Telegram provides optional remote human chat
+
+## Two-Phase Product Experience
+
+### Phase 1: First Onboarding In The User's Chosen Harness
+
+The first setup starts wherever the operator chooses to begin. They may open Claude Code, OpenCode, Goose, Codex CLI, Gemini CLI, or another trusted harness in the Agentic Harness folder and ask it to read `AGENTIC_HARNESS.md`.
+
+That first harness claims `Chief_of_Staff`, learns the operator, creates memory, explains the system, configures services, and performs daemon handoff. It is the temporary setup cockpit, not the permanent user interface.
+
+### Phase 2: Use The System From Visualizer
+
+After onboarding and daemon handoff, Visualizer is the default local command center. It shows roles, daemons, projects, tasks, production health, and a unified Chief chat. Telegram is an optional remote/mobile add-on when credentials are configured.
 
 ## Product Principles
 
@@ -49,8 +61,8 @@ The markdown files are the shared state that every participant can read and upda
 These are daemons, not swarm roles:
 
 - `Runner`: scheduler, wake router, daemon owner for CLI-capable roles
-- `TelegramBot`: remote chat bridge between operator and `Chief_of_Staff`
-- `Visualizer`: live dashboard and 3D view of roles, daemons, tasks, projects, and recent events
+- `Visualizer`: required local dashboard and chat command center for roles, daemons, tasks, projects, and recent events
+- `TelegramBot`: optional remote chat bridge between operator and `Chief_of_Staff`
 
 They start through:
 
@@ -79,7 +91,7 @@ Run normal first-run onboarding: ask my name, create my human memory, set up Run
 
 4. `Chief_of_Staff` claims the role.
 5. `Chief_of_Staff` onboards the operator and creates human memory.
-6. `Chief_of_Staff` configures Telegram and Visualizer when accepted.
+6. `Chief_of_Staff` starts/explains Visualizer as the default Phase 2 command center and configures Telegram only when accepted.
 7. User proves the `Chief_of_Staff` role works manually.
 8. User daemonizes `Chief_of_Staff`.
 

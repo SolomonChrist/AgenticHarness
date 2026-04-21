@@ -1,4 +1,6 @@
 const stateUrl = "/api/state";
+let fastRefreshUntil = 0;
+let lastChatStatus = "";
 
 function statusClass(status) {
   if (status === "active") return "active";
@@ -121,19 +123,21 @@ function renderDaemons(state) {
   const host = document.getElementById("daemon-grid");
   if (!host) return;
   const daemons = state.daemons || {};
-  const cards = [
-    { key: "runner", title: "Runner", meta: `${daemons.runner?.mode || "unknown"} / enabled ${daemons.runner?.enabled || "NO"}` },
-    { key: "telegram", title: "Telegram", meta: daemons.telegram?.bot_name || "bridge" },
-    { key: "visualizer", title: "Visualizer", meta: "local server" },
-    { key: "wake_queue", title: "Wake Queue", meta: `pending ${daemons.wake_queue?.pending || 0}` },
-    { key: "reminder_queue", title: "Reminders", meta: `pending ${daemons.reminder_queue?.pending || 0}` },
-  ];
+  const serviceCards = ((state.production_health || {}).services || []).map(service => ({
+    key: service.key,
+    title: service.label,
+    status: service.ok ? "active" : "degraded",
+    meta: `${service.priority || "service"} / ${service.required ? "required" : "optional"}`,
+    detail: service.last_error || `updated ${service.updated_at || "-"}`
+  }));
+  const cards = serviceCards.concat([
+    { key: "wake_queue", title: "Wake Queue", status: ((daemons.wake_queue?.pending || 0) > 0 ? "degraded" : "active"), meta: `pending ${daemons.wake_queue?.pending || 0}`, detail: daemons.wake_queue?.last_request || "queue clear" },
+    { key: "reminder_queue", title: "Reminders", status: ((daemons.reminder_queue?.pending || 0) > 0 ? "degraded" : "active"), meta: `pending ${daemons.reminder_queue?.pending || 0}`, detail: daemons.reminder_queue?.next_text || "none pending" },
+  ]);
   host.innerHTML = "";
   cards.forEach(cardInfo => {
     const data = daemons[cardInfo.key] || {};
-    const status = cardInfo.key === "wake_queue"
-      ? ((data.pending || 0) > 0 ? "degraded" : "active")
-      : (data.status || "inactive");
+    const status = cardInfo.status || data.status || "inactive";
     const card = document.createElement("article");
     card.className = "card daemon-card";
     card.innerHTML = `
@@ -141,8 +145,8 @@ function renderDaemons(state) {
       <div class="agent-body">
         <div class="role-meta">${cardInfo.meta}</div>
         <h3>${cardInfo.title}</h3>
-        <div class="task">${data.last_error || data.last_request || data.next_text || "healthy"}</div>
-        <div class="lease">updated ${data.updated_at || "-"}</div>
+        <div class="task">${cardInfo.detail || data.last_error || data.last_request || data.next_text || "healthy"}</div>
+        <div class="lease">${cardInfo.key === "telegram" ? "optional unless configured" : "production check surface"}</div>
       </div>
     `;
     host.appendChild(card);
@@ -158,7 +162,13 @@ function renderWorkzone(state) {
     return acc;
   }, {});
   const readyCount = state.roles.filter(role => (role.automation_ready || "").toUpperCase() === "YES").length;
+  const production = state.production_health || {};
+  const prodSummary = production.summary || {};
   host.innerHTML = `
+    <div class="line">
+      <strong>Production health</strong><br>
+      <span class="micro">${production.ok ? "PASS" : "NEEDS ATTENTION"} / services needing attention ${prodSummary.service_failures || 0}</span>
+    </div>
     <div class="line">
       <strong>Current ecosystem</strong><br>
       <span class="micro">roles ${state.roles.length} / projects ${state.projects.length}</span>
@@ -192,13 +202,45 @@ function renderChat(state) {
   host.scrollTop = host.scrollHeight;
 }
 
+function renderChatStatus(state) {
+  const host = document.getElementById("chat-status");
+  if (!host) return;
+  const phase = state.production_phase || {};
+  const commands = state.corrective_commands || [];
+  const health = state.production_health || {};
+  const text = lastChatStatus || phase.message || "Visualizer is ready.";
+  host.className = `chat-status ${health.ok && phase.ready ? "ready" : commands.length ? "failed" : "waiting"}`;
+  host.textContent = commands.length ? `${text} Fix: ${commands[0]}` : text;
+}
+
+function addLocalChatBubble(text, from = "operator") {
+  const host = document.getElementById("chat-log");
+  if (!host) return;
+  const bubble = document.createElement("div");
+  bubble.className = `chat-bubble ${from}`;
+  bubble.textContent = text;
+  host.appendChild(bubble);
+  host.scrollTop = host.scrollHeight;
+}
+
 async function sendChatMessage(message) {
+  addLocalChatBubble(message, "operator");
+  lastChatStatus = "Sent. Runner wake queued; waiting for Chief_of_Staff...";
+  fastRefreshUntil = Date.now() + 45000;
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message })
   });
   if (!res.ok) throw new Error(`chat failed: ${res.status}`);
+  const payload = await res.json();
+  if (payload.delivery === "answered") {
+    lastChatStatus = "Answered by local control action.";
+  } else if ((payload.corrective_commands || []).length) {
+    lastChatStatus = payload.production_phase?.message || "Message queued, but the system needs attention.";
+  } else {
+    lastChatStatus = "Queued. Waiting for the daemonized Chief reply...";
+  }
   await refresh();
 }
 
@@ -235,6 +277,7 @@ async function refresh() {
     renderDaemons(state);
     renderWorkzone(state);
     renderChat(state);
+    renderChatStatus(state);
   } catch (err) {
     console.error(err);
   }
@@ -243,3 +286,6 @@ async function refresh() {
 setupChat();
 refresh();
 setInterval(refresh, 5000);
+setInterval(() => {
+  if (Date.now() < fastRefreshUntil) refresh();
+}, 1200);

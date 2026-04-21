@@ -35,6 +35,7 @@ if str(ROOT) not in sys.path:
 from coordination_io import append_line as append_line_safe, atomic_write_text, read_text
 from control_actions import maybe_handle_control_message
 from message_filters import clean_operator_reply
+from operator_messaging import append_operator_message, collect_telegram_feed
 
 load_dotenv(HERE / ".env.telegram", encoding="utf-8-sig")
 
@@ -303,11 +304,8 @@ def chief_daemon_fallback_text() -> str:
     )
 
 
-def write_user_message(message: str, source: str = "telegram") -> None:
-    ts = iso_now()
-    append_line(CHIEF_FILE, f"[{ts}] [{source}] [{HUMAN_ID}] {message}")
-    append_line(RUNNER_WAKE_FILE, f"[{ts}] Chief_of_Staff: telegram_message")
-    log_event(f"[{ts}] [TELEGRAM_BRIDGE] NOTIFY - Operator message routed to Chief_of_Staff")
+def write_user_message(message: str, source: str = "telegram") -> dict[str, str]:
+    return append_operator_message(HARNESS_ROOT, message, source=source, human_id=HUMAN_ID)
 
 
 def write_wake_message() -> None:
@@ -489,13 +487,8 @@ def message_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def collect_outbound_messages() -> list[str]:
-    outbound_messages = extract_outbound_messages(read_text(HUMAN_FILE))
-    # Live desktop harnesses often reply in the same Chief inbox they read.
-    # Forward only explicit Chief_of_Staff replies from that file, never raw
-    # operator messages or specialist role chatter.
-    outbound_messages.extend(extract_chief_replies(read_text(CHIEF_FILE)))
-    return outbound_messages
+def collect_outbound_messages() -> list[dict[str, str]]:
+    return collect_telegram_feed(HARNESS_ROOT, HUMAN_ID)
 
 
 def forward_new_outbound_messages() -> bool:
@@ -504,12 +497,15 @@ def forward_new_outbound_messages() -> bool:
         changed = False
         sent_any = False
         for entry in collect_outbound_messages():
-            digest = message_hash(entry)
+            text = entry.get("text", "").strip()
+            if not text:
+                continue
+            digest = message_hash(f"{entry.get('timestamp', '')}|{entry.get('channel', '')}|{text}")
             if digest in seen:
                 continue
             sent_to_anyone = False
             for user_id in ALLOWED_USER_IDS:
-                sent_to_anyone = send(user_id, entry) or sent_to_anyone
+                sent_to_anyone = send(user_id, text) or sent_to_anyone
             if sent_to_anyone:
                 seen.add(digest)
                 changed = True
@@ -527,7 +523,9 @@ def mark_existing_outbound_seen() -> None:
     with STATE_LOCK:
         seen = set(STATE.get("seen_human_message_hashes", []))
         for entry in collect_outbound_messages():
-            seen.add(message_hash(entry))
+            text = entry.get("text", "").strip()
+            if text:
+                seen.add(message_hash(f"{entry.get('timestamp', '')}|{entry.get('channel', '')}|{text}"))
         STATE["seen_human_message_hashes"] = list(seen)[-1000:]
         atomic_write_text(STATE_FILE, json.dumps(STATE, indent=2))
 
@@ -585,9 +583,7 @@ def poll_updates() -> None:
             elif not chief_daemon_ready():
                 send(chat.get("id"), chief_daemon_fallback_text())
             else:
-                replied = wait_for_chief_reply(chat.get("id"))
-                if not replied:
-                    send(chat.get("id"), "I'm still working on that. I'll send the result here when it is ready.")
+                wait_for_chief_reply(chat.get("id"))
             save_state(STATE)
 
 

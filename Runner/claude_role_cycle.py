@@ -23,6 +23,11 @@ if str(ROOT) not in sys.path:
 
 from coordination_io import append_line, read_text
 from message_filters import clean_operator_reply
+from operator_messaging import append_operator_reply
+
+
+def reason_category(reason: str) -> str:
+    return (reason or "").split(":", 1)[0].strip()
 
 
 def build_cycle_prompt(role: str, bootstrap_file: str, prompt_text: str) -> str:
@@ -44,18 +49,21 @@ def build_cycle_prompt(role: str, bootstrap_file: str, prompt_text: str) -> str:
             "Required behavior for this cycle:",
             f"1. Verify or repair your role state for {role} in the markdown control plane.",
             f"2. Check `_messages/{role}.md`, `LAYER_TASK_LIST.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and your current project/task context.",
-            "3. If the newest operator message is a simple chat, status, reminder, or factual request, answer it directly instead of creating a project or waiting for specialists.",
-            "4. For current-information, web, data, file, coding, or research requests, figure out the next concrete action yourself: use available CLI tools, create a small local helper, delegate to a daemon-capable role, or give a short fallback only when blocked.",
-            "5. Do not ask for Researcher/Engineer setup if a daemon-capable default is already known; configure/wake the needed role or proceed with the current role.",
-            "6. If replying to the operator, use `py send_human_reply.py \"your clean reply\"` or append to `_messages/human_<HumanID>.md`.",
-            "7. Update only the relevant markdown files, project artifacts, and event/status notes as needed.",
-            "8. If there is no actionable work, record a concise idle/standby status and exit cleanly.",
-            "9. Do not wait for more input at the end of this run.",
+            "3. If you are Chief_of_Staff, read `MEMORY/agents/Chief_of_Staff/ALWAYS.md` and the active human `ALWAYS.md` before any operator-facing reply.",
+            "4. If you are Chief_of_Staff, reply like the named executive assistant described in memory. Be warm, specific, and conversational. Do not sound like a daemon, checklist, status bot, or generic support script.",
+            "5. If the newest operator message is a simple chat, status, reminder, or factual request, answer it directly instead of creating a project or waiting for specialists.",
+            "6. For weather, current-information, web, data, file, coding, or research requests, figure out the next concrete action yourself: use available browser/search/CLI tools, create a small local helper, delegate to a daemon-capable role, or give a short fallback only when blocked.",
+            "7. Do not ask for Researcher/Engineer setup if a daemon-capable default is already known; configure/wake the needed role or proceed with the current role.",
+            "8. If replying to the operator, use `py send_human_reply.py --channel all \"your clean reply\"` or append a clean human-facing reply to `_messages/human_<HumanID>.md`.",
+            "9. Update only the relevant markdown files, project artifacts, and event/status notes as needed.",
+            "10. If there is no actionable work, record a concise idle/standby status and exit cleanly.",
+            "11. Do not wait for more input at the end of this run.",
             "",
             "Important constraints:",
             "- Prefer file reads/writes over shell commands unless a shell command is clearly necessary.",
             "- Keep changes local to the harness workspace.",
-            "- Keep Telegram replies natural and short. No bootstrap checklists unless asked.",
+            "- Keep operator chat replies natural and short. No bootstrap checklists unless asked.",
+            "- Never send daemon-cycle summaries, lease renewals, or internal maintenance notes to the operator chat unless the operator explicitly asks for diagnostics.",
         ]
     )
     return "\n".join(lines).strip()
@@ -81,8 +89,10 @@ def clean_cli_output(text: str) -> str:
     return clean_operator_reply("\n".join(lines).strip())
 
 
-def append_stdout_reply_if_needed(role: str, workdir: Path, before_outbox: str, stdout: str) -> None:
+def append_stdout_reply_if_needed(role: str, workdir: Path, before_outbox: str, stdout: str, reason: str) -> None:
     if role != "Chief_of_Staff":
+        return
+    if reason_category(reason) not in {"operator_message", "telegram_message", "wake_request", "message_change"}:
         return
     human_id = active_human_id(workdir)
     if not human_id:
@@ -92,7 +102,7 @@ def append_stdout_reply_if_needed(role: str, workdir: Path, before_outbox: str, 
         return
     clean = clean_cli_output(stdout)
     if clean:
-        append_line(outbox, clean)
+        append_operator_reply(workdir, clean, human_id=human_id, from_role="Chief_of_Staff", channel="all")
 
 
 def main() -> int:
@@ -102,6 +112,7 @@ def main() -> int:
     parser.add_argument("--prompt-file", required=True)
     parser.add_argument("--bootstrap-file", default="AGENTIC_HARNESS.md")
     parser.add_argument("--model", default="")
+    parser.add_argument("--reason", default="")
     args = parser.parse_args()
 
     workdir = Path(args.workdir).expanduser().resolve()
@@ -118,6 +129,12 @@ def main() -> int:
         cycle_prompt,
         "--permission-mode",
         "acceptEdits",
+        "--bare",
+        "--chrome",
+        "--max-turns",
+        "4",
+        "--allowedTools",
+        "Read,Edit,Bash",
         "--add-dir",
         str(workdir),
     ]
@@ -129,7 +146,7 @@ def main() -> int:
         print(completed.stdout, end="")
     if completed.stderr:
         print(completed.stderr, end="", file=sys.stderr)
-    append_stdout_reply_if_needed(args.role, workdir, before_outbox, completed.stdout)
+    append_stdout_reply_if_needed(args.role, workdir, before_outbox, completed.stdout, args.reason)
     return completed.returncode
 
 

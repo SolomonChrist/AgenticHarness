@@ -18,6 +18,9 @@ WAKE_QUEUE = ROOT / "Runner" / "_wake_requests.md"
 CHIEF_HEARTBEAT = ROOT / "_heartbeat" / "Chief_of_Staff.md"
 CHIEF_INBOX = ROOT / "_messages" / "Chief_of_Staff.md"
 TELEGRAM_DIR = ROOT / "TelegramBot"
+VISUALIZER_RUNTIME = ROOT / "Visualizer" / ".visualizer_runtime.json"
+RUNNER_RUNTIME = ROOT / "Runner" / ".runner_runtime.json"
+TELEGRAM_RUNTIME = TELEGRAM_DIR / "data" / "runtime.json"
 
 
 def read_text(path: Path) -> str:
@@ -36,6 +39,10 @@ def bool_scalar(text: str, key: str) -> bool:
     return scalar(text, key).upper() in {"YES", "TRUE", "ACTIVE", "ENABLED"}
 
 
+def record_ready(record: dict[str, str]) -> bool:
+    return record.get("Enabled", "").upper() == "YES" or record.get("Automation Ready", "").upper() == "YES"
+
+
 def role_block(role: str) -> str:
     text = read_text(ROLE_REGISTRY)
     pattern = re.compile(
@@ -44,6 +51,69 @@ def role_block(role: str) -> str:
     )
     match = pattern.search(text)
     return match.group(0) if match else ""
+
+
+def parse_markdown_records(path: Path) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    text = read_text(path)
+    if path == ROLE_REGISTRY and "## Active Registrations" in text:
+        text = text.split("## Active Registrations", 1)[1]
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("### ROLE"):
+            if current:
+                records.append(current)
+            current = {"_type": "role"}
+            continue
+        if line.startswith("### HUMAN RUNNER"):
+            if current:
+                records.append(current)
+            current = {"_type": "human"}
+            continue
+        if current is None or not line or line.startswith("- "):
+            continue
+        if ":" in line:
+            key, value = line.split(":", 1)
+            current[key.strip()] = value.strip()
+    if current:
+        records.append(current)
+    by_role: dict[str, dict[str, str]] = {}
+    final: list[dict[str, str]] = []
+    for record in records:
+        role = record.get("Role", "").strip()
+        if record.get("_type") == "role":
+            if not role:
+                continue
+            existing = by_role.get(role)
+            if existing is None or (record_ready(record) and not record_ready(existing)):
+                by_role[role] = record
+        else:
+            final.append(record)
+    final.extend(by_role.values())
+    return final
+
+
+def parse_heartbeat(role: str) -> dict[str, str]:
+    path = ROOT / "_heartbeat" / f"{role}.md"
+    data: dict[str, str] = {}
+    for raw in read_text(path).splitlines():
+        line = raw.strip()
+        if line.startswith("|") and line.endswith("|"):
+            parts = [part.strip() for part in line.strip("|").split("|")]
+            if len(parts) >= 2 and parts[0] not in {"Field", "---"}:
+                data[parts[0]] = parts[1]
+        elif ":" in line and not line.startswith("#"):
+            key, value = line.split(":", 1)
+            data[key.strip()] = value.strip()
+    return data
+
+
+def telegram_configured() -> bool:
+    env_text = read_text(TELEGRAM_DIR / ".env.telegram")
+    token = scalar(env_text, "TELEGRAM_BOT_TOKEN")
+    allowed = scalar(env_text, "TELEGRAM_ALLOWED_USER_IDS")
+    return bool(token and not token.startswith("YOUR_") and allowed)
 
 
 def telegram_human_file() -> Path | None:
@@ -64,6 +134,62 @@ def check(name: str, ok: bool, detail: str, failures: list[str]) -> None:
     print(f"[{marker}] {name}: {detail}")
     if not ok:
         failures.append(name)
+
+
+def service_line(name: str, priority: str, required: bool, status: dict, failures: list[str]) -> None:
+    alive = bool(status.get("alive"))
+    state = str(status.get("status", "unknown"))
+    ok = alive or (not required and not telegram_configured() and name == "Telegram bridge")
+    optional_note = "" if required else "optional"
+    detail = f"{state} / priority {priority} {optional_note}".strip()
+    check(name, ok, detail, failures)
+
+
+def role_health(record: dict[str, str]) -> dict[str, str | bool]:
+    role = record.get("Role", "").strip()
+    heartbeat = parse_heartbeat(role)
+    enabled = record.get("Enabled", "").upper()
+    ready = record.get("Automation Ready", "").upper()
+    mode = record.get("Execution Mode", "") or "unknown"
+    harness = heartbeat.get("Harness") or record.get("Harness Type") or record.get("Harness Key") or "unknown"
+    model = heartbeat.get("Model") or record.get("Model / Profile") or "default"
+    holder = heartbeat.get("Claimed By") or "unclaimed"
+    status = heartbeat.get("Status") or "unclaimed"
+    launch = record.get("Launch Command", "")
+    automation_ok = mode == "manual" or (enabled == "YES" and ready == "YES" and bool(launch))
+    return {
+        "role": role,
+        "status": status,
+        "holder": holder,
+        "harness": harness,
+        "model": model,
+        "mode": mode,
+        "enabled": enabled or "NO",
+        "automation_ready": ready or "NO",
+        "launch_command": launch,
+        "automation_ok": automation_ok,
+    }
+
+
+def print_role_health() -> list[str]:
+    failures: list[str] = []
+    print("\nRegistered Bots / Roles:")
+    records = [record for record in parse_markdown_records(ROLE_REGISTRY) if record.get("_type") == "role" and record.get("Role")]
+    if not records:
+        print("[FAIL] No registered role entries found.")
+        return ["Registered roles"]
+    for record in records:
+        health = role_health(record)
+        marker = "PASS" if health["automation_ok"] else "WARN"
+        if health["role"] == "Chief_of_Staff" and not health["automation_ok"]:
+            marker = "FAIL"
+            failures.append("Chief role automation")
+        print(
+            f"[{marker}] {health['role']}: status {health['status']} / holder {health['holder']} / "
+            f"harness {health['harness']} / model {health['model']} / mode {health['mode']} / "
+            f"enabled {health['enabled']} / automation {health['automation_ready']}"
+        )
+    return failures
 
 
 def corrective_command() -> str:
@@ -107,9 +233,12 @@ def print_corrective_commands(failures: list[str]) -> None:
             emit(command)
     if any(failure in daemon_failures for failure in failures):
         emit(corrective_command())
-    if any(failure in {"Telegram Chief inbox", "Telegram human outbox", "Wake queue available"} for failure in failures):
+    telegram_file_failures = {"Telegram Chief inbox", "Telegram human outbox"}
+    if any(failure in telegram_file_failures for failure in failures) and telegram_configured():
         emit("py service_manager.py stop telegram")
         emit("py service_manager.py start telegram")
+    if "Wake queue available" in failures:
+        emit("py service_manager.py start runner")
     if not printed:
         emit("py service_manager.py status all")
 
@@ -124,10 +253,13 @@ def main() -> int:
     launch_command = scalar(chief_block, "Launch Command")
     human_file = telegram_human_file()
 
-    check("Runner service", bool(runner_status.get("alive")), str(runner_status.get("status", "unknown")), failures)
+    print("Services:")
+    service_line("Runner service", "CRITICAL", True, runner_status, failures)
     check("Runner mode", scalar(runner_cfg, "Runner Mode").upper() == "ACTIVE", scalar(runner_cfg, "Runner Mode") or "missing", failures)
-    check("Telegram bridge", bool(telegram_status.get("alive")), str(telegram_status.get("status", "unknown")), failures)
-    check("Visualizer", bool(visualizer_status.get("alive")), str(visualizer_status.get("status", "unknown")), failures)
+    service_line("Visualizer", "CRITICAL", True, visualizer_status, failures)
+    service_line("Telegram bridge", "OPTIONAL_AFTER_CONFIG", telegram_configured(), telegram_status, failures)
+
+    print("\nChief Daemon Path:")
     check("Chief heartbeat", CHIEF_HEARTBEAT.exists(), str(CHIEF_HEARTBEAT), failures)
     check("Chief registry entry", bool(chief_block), "found" if chief_block else "missing", failures)
     check("Chief daemon enabled", bool_scalar(chief_block, "Enabled"), scalar(chief_block, "Enabled") or "missing", failures)
@@ -144,6 +276,7 @@ def main() -> int:
             wake_ok = False
     wake_detail = str(WAKE_QUEUE) if WAKE_QUEUE.exists() else f"{WAKE_QUEUE} (not created yet)"
     check("Wake queue available", wake_ok, wake_detail, failures)
+    failures.extend(print_role_health())
 
     if failures:
         print("\nPRODUCTION CHECK FAILED")

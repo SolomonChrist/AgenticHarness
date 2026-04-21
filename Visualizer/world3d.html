@@ -68,6 +68,29 @@
       font-size:.7rem;font-weight:500;color:var(--muted);line-height:1.8;
       background:var(--panel);padding:1rem;border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px)
     }
+    #chat-panel{
+      position:fixed;left:1.5rem;bottom:1.5rem;z-index:12;width:min(430px,calc(100vw - 3rem));
+      max-height:min(560px,calc(100vh - 7rem));background:var(--panel);border:1px solid rgba(37,99,235,.28);
+      border-radius:14px;padding:1rem;backdrop-filter:blur(12px);box-shadow:0 20px 40px rgba(15,23,42,.14)
+    }
+    #chat-panel .title{font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-bottom:.5rem}
+    #chat-status{
+      padding:.55rem .65rem;border-radius:10px;margin-bottom:.65rem;font-size:.72rem;line-height:1.35;
+      color:var(--muted);background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.16)
+    }
+    #chat-status.ready{color:#047857;background:rgba(16,185,129,.09);border-color:rgba(16,185,129,.22)}
+    #chat-status.waiting{color:#92400e;background:rgba(245,158,11,.11);border-color:rgba(245,158,11,.28)}
+    #chat-status.failed{color:#991b1b;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.25)}
+    #chat-log{
+      display:flex;flex-direction:column;gap:.5rem;max-height:260px;overflow:auto;padding:.7rem;border-radius:12px;
+      background:rgba(241,245,249,.7);border:1px solid rgba(37,99,235,.12)
+    }
+    .chat-bubble{max-width:86%;padding:.55rem .65rem;border-radius:12px;font-size:.78rem;line-height:1.35;white-space:pre-wrap}
+    .chat-bubble.operator{align-self:flex-end;color:white;background:linear-gradient(135deg,#2563eb,#0284c7)}
+    .chat-bubble.chief{align-self:flex-start;background:white;border:1px solid rgba(37,99,235,.16)}
+    #chat-form{display:grid;grid-template-columns:1fr auto;gap:.5rem;margin-top:.65rem}
+    #chat-input{min-width:0;padding:.7rem .75rem;border-radius:10px;border:1px solid rgba(37,99,235,.18);font:inherit}
+    #chat-form button{padding:.7rem .85rem;border-radius:10px;border:1px solid rgba(37,99,235,.28);background:#2563eb;color:white;font:inherit;cursor:pointer}
     #loading{
       position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
       gap:.8rem;background:var(--bg);z-index:30
@@ -133,6 +156,15 @@
     Right-click drag to look<br />
     Left-click office or bot to inspect
   </div>
+  <section id="chat-panel">
+    <div class="title">Chief Chat</div>
+    <div id="chat-status">Loading chat status...</div>
+    <div id="chat-log"></div>
+    <form id="chat-form">
+      <input id="chat-input" autocomplete="off" placeholder="Message Chief_of_Staff..." />
+      <button type="submit">Send</button>
+    </form>
+  </section>
 
   <script type="module">
     import * as THREE from "./vendor/three-r184.module.min.js";
@@ -151,6 +183,8 @@
     let lastY = 0;
     let yaw = 0;
     let pitch = -0.18;
+    let fastRefreshUntil = 0;
+    let lastChatStatus = "";
 
     const STATUS = { working:0x0284c7, idle:0x64748b, stale:0xd97706, unclaimed:0x94a3b8, unknown:0x475569 };
 
@@ -236,6 +270,79 @@
       document.getElementById("wake-meta").textContent = wake.last_request
         ? normalizeText(wake.last_request)
         : "queue clear";
+    }
+
+    function renderChatStatus(s) {
+      const host = document.getElementById("chat-status");
+      const phase = s.production_phase || {};
+      const commands = s.corrective_commands || [];
+      const health = s.production_health || {};
+      const text = lastChatStatus || phase.message || "Visualizer is ready.";
+      host.className = health.ok && phase.ready ? "ready" : commands.length ? "failed" : "waiting";
+      host.textContent = commands.length ? `${text} Fix: ${commands[0]}` : text;
+    }
+
+    function renderChat(s) {
+      const host = document.getElementById("chat-log");
+      const items = s.operator_chat || [];
+      host.innerHTML = "";
+      items.slice(-18).forEach(item => {
+        const bubble = document.createElement("div");
+        bubble.className = `chat-bubble ${item.from === "operator" ? "operator" : "chief"}`;
+        bubble.textContent = item.text || "";
+        host.appendChild(bubble);
+      });
+      host.scrollTop = host.scrollHeight;
+      renderChatStatus(s);
+    }
+
+    function addLocalChatBubble(text) {
+      const host = document.getElementById("chat-log");
+      const bubble = document.createElement("div");
+      bubble.className = "chat-bubble operator";
+      bubble.textContent = text;
+      host.appendChild(bubble);
+      host.scrollTop = host.scrollHeight;
+    }
+
+    async function sendChatMessage(message) {
+      addLocalChatBubble(message);
+      lastChatStatus = "Sent. Runner wake queued; waiting for Chief_of_Staff...";
+      fastRefreshUntil = Date.now() + 45000;
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message })
+      });
+      if (!res.ok) throw new Error(`chat failed: ${res.status}`);
+      const payload = await res.json();
+      if (payload.delivery === "answered") {
+        lastChatStatus = "Answered by local control action.";
+      } else if ((payload.corrective_commands || []).length) {
+        lastChatStatus = payload.production_phase?.message || "Message queued, but the system needs attention.";
+      } else {
+        lastChatStatus = "Queued. Waiting for the daemonized Chief reply...";
+      }
+      await loadState();
+    }
+
+    function bindChat() {
+      const form = document.getElementById("chat-form");
+      const input = document.getElementById("chat-input");
+      form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const message = input.value.trim();
+        if (!message) return;
+        input.value = "";
+        try {
+          await sendChatMessage(message);
+        } catch (err) {
+          console.error(err);
+          lastChatStatus = "Could not send. Check Visualizer server.";
+          document.getElementById("chat-status").className = "failed";
+          document.getElementById("chat-status").textContent = lastChatStatus;
+        }
+      });
     }
 
     function initThree() {
@@ -546,6 +653,7 @@
         state = await res.json();
         updateTopbar(state);
         updateHealthStrip(state);
+        renderChat(state);
         buildWorld(state);
       } catch (err) {
         console.error(err);
@@ -612,8 +720,14 @@
     }
 
     function bindInput() {
-      window.addEventListener("keydown", e => { keys[e.code] = true; });
-      window.addEventListener("keyup", e => { keys[e.code] = false; });
+      window.addEventListener("keydown", e => {
+        if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+        keys[e.code] = true;
+      });
+      window.addEventListener("keyup", e => {
+        if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+        keys[e.code] = false;
+      });
       window.addEventListener("resize", onResize);
 
       canvas.addEventListener("contextmenu", e => e.preventDefault());
@@ -649,8 +763,12 @@
     async function boot() {
       initThree();
       bindInput();
+      bindChat();
       await loadState();
       setInterval(loadState, 5000);
+      setInterval(() => {
+        if (Date.now() < fastRefreshUntil) loadState();
+      }, 1200);
     }
 
     boot();

@@ -13,9 +13,13 @@ Use this when a harness cannot reliably read `AGENTIC_HARNESS.md` or `AGENTIC_HA
 - Use Claude for `Chief_of_Staff` setup only unless the operator explicitly approves a Claude worker role.
 - Prefer local/cheaper CLI harnesses for `Researcher`, `Engineer`, QA, and other specialists.
 - Keep replies short and actionable.
+- If you are `Chief_of_Staff`, your operator-facing replies must honor `MEMORY/agents/Chief_of_Staff/ALWAYS.md` and the active human memory. Sound like the named assistant the operator created, not a daemon or status script.
+- If you are `Chief_of_Staff`, handle simple web/current-info, weather, status, reminder, and one-step research requests directly when your provider has browser/search/tool access. Do not stall for Researcher/Engineer setup unless the request truly needs a specialist.
+- Never send daemon-cycle summaries, lease renewals, or internal maintenance notes to operator chat unless the operator explicitly asks for diagnostics.
 - Do not add `Runner`, `TelegramBot`, or `Visualizer` as swarm roles. They are infrastructure services, not role-holding agents.
 - To start infrastructure on Windows, run `py service_manager.py start all` or tell the operator to double-click `start_all_services.bat`.
 - Starting services is not enough for production chat. Before the operator closes the first Chief window, run `py configure_role_daemon.py --role Chief_of_Staff --provider <provider> --model <model> --start-runner`, then verify with `py production_check.py`.
+- Built-in daemon provider keys are `claude`, `opencode`, `gemini`, `codex`, `goose`, `ollama`, `deepagents`, and `openclaw`.
 
 ## Universal Task Contract
 

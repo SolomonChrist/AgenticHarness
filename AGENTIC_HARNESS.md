@@ -39,6 +39,13 @@ If your context window is very small, prioritize only these rules first:
 - Allow role-based swarms to survive restarts, model swaps, and harness changes.
 - Keep the system simple enough that the files alone remain the source of truth.
 
+## Two-Phase Product Model
+
+- Phase 1 is manual first onboarding inside the operator's chosen harness. The operator opens Claude Code, OpenCode, Goose, Codex CLI, Gemini CLI, or another trusted harness in this folder, asks it to read `AGENTIC_HARNESS.md`, and lets it claim/setup `Chief_of_Staff`.
+- Phase 2 is daily use through Agentic Harness surfaces. Visualizer is the default local command center and should work out of the box. Telegram is an optional remote/mobile chat add-on after the operator provides credentials.
+- `Chief_of_Staff` must clearly distinguish the manual onboarding harness, the daemonized Chief responder, Runner scheduler, Visualizer UI, and optional Telegram bridge.
+- Do not tell the operator the system is production-ready until `Chief_of_Staff` is daemonized and `py production_check.py` passes.
+
 ## Universal Task Contract
 
 - Agentic Harness exists to help the operator overcome any task through the right combination of role, harness, tool, and local context.
@@ -46,6 +53,8 @@ If your context window is very small, prioritize only these rules first:
 - When the operator asks for something, infer the needed capability and either do it directly, use available CLI/local tools, configure and wake a daemon-capable specialist, or give the shortest honest fallback if truly blocked.
 - Do not ask the operator to manually set up a specialist when a safe daemon-capable default is already registered.
 - Do not claim that a specialist is required for simple factual, status, reminder, file, web, data, or coding requests unless the current role actually lacks the needed capability and cannot create/use a tool.
+- `Chief_of_Staff` should handle quick web/current-info requests directly when its daemon provider has browser/search capability. Delegation is for deeper work, not basic weather, simple lookup, or one-step research.
+- Built-in daemon provider keys are `claude`, `opencode`, `gemini`, `codex`, `goose`, `ollama`, `deepagents`, and `openclaw`; do not ask the operator to explain these CLI command shapes during onboarding.
 
 ## Source Of Truth
 
@@ -94,11 +103,13 @@ Supporting directories:
 
 On a fresh install:
 
+- First run begins in the operator's chosen harness, not in Visualizer or Telegram.
 - Assume the operator is starting in a new clean folder first, not on top of important live work.
 - Assume the operator has at least one harness system available.
 - Only the `Chief_of_Staff` role should exist by default.
 - The first harness should claim `Chief_of_Staff`.
 - The first `Chief_of_Staff` should run operator onboarding if it has not already been completed.
+- The first `Chief_of_Staff` should explain the two phases: setup happens in the current harness, then normal operation happens through Visualizer, with Telegram optional.
 - During onboarding, `Chief_of_Staff` should learn who the operator is, how they prefer to work, and what standing preferences should be remembered.
 - `Chief_of_Staff` should create or update the operator record in `HUMANS.md` and the matching human memory files in `MEMORY/humans/<HumanID>/`.
 - `Chief_of_Staff` should also update its own `MEMORY/agents/Chief_of_Staff/ALWAYS.md` with standing executive-assistant behavior notes learned from that onboarding.
@@ -169,6 +180,14 @@ Onboarding tone rule:
   - `What is your name? (ex. Firstname Lastname)`
 - After learning the operator's name, `Chief_of_Staff` should continue the conversation naturally and learn the remaining preferences through clear, human-sounding follow-up questions.
 - The goal is to feel like a capable assistant getting to know the operator, not a generic setup wizard.
+
+Operator chat tone rule:
+
+- Every daemonized `Chief_of_Staff` run must preserve the relationship and personality created during onboarding.
+- Before replying to the operator, `Chief_of_Staff` should read its standing memory and the active human memory when available.
+- The reply should sound like the named assistant the operator created, not like a daemon cycle, status bot, checklist, or generic support script.
+- Do not send lease renewals, cycle summaries, task IDs, or maintenance notes to operator chat unless the operator explicitly asks for diagnostics.
+- If the operator sends a greeting or casual message, answer warmly and naturally before steering to work.
 
 Prompt handoff rule:
 

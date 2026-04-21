@@ -11,6 +11,8 @@ import re
 
 
 INTERNAL_START_PATTERNS = [
+    r"^\s*not logged in\s*[·\.\-:]",
+    r"^\s*please run\s*/login\b",
     r"^\s*\*?\*?daemon cycle\b",
     r"^\s*\*?\*?cycle summary\b",
     r"^\s*\*?\*?cycle complete\b",
@@ -49,6 +51,29 @@ def repair_mojibake(text: str) -> str:
     except UnicodeError:
         return text
     return repaired if repaired.count("ï¿½") <= text.count("ï¿½") else text
+
+
+def repair_mojibake(text: str) -> str:
+    replacements = {
+        "â€™": "'",
+        "â€œ": '"',
+        "â€": '"',
+        "â€“": "-",
+        "â€”": "-",
+        "Â·": "·",
+        "â˜•": "",
+        "Ã©": "é",
+        "Ä“": "ē",
+    }
+    repaired = text
+    for bad, good in replacements.items():
+        repaired = repaired.replace(bad, good)
+    if any(marker in repaired for marker in ("ÃƒÂ¢", "ÃƒÂ°Ã…Â¸", "ÃƒÆ’")):
+        try:
+            repaired = repaired.encode("cp1252").decode("utf-8")
+        except UnicodeError:
+            pass
+    return repaired if repaired.count("Ã¯Â¿Â½") <= text.count("Ã¯Â¿Â½") else text
 
 
 def strip_internal_tail(text: str) -> str:
@@ -94,6 +119,7 @@ def clean_operator_reply(text: str) -> str:
             continue
         lines.append(line)
     cleaned = repair_mojibake("\n".join(lines).strip())
+    cleaned = re.sub(r"^\s*Reply to operator:\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = strip_internal_tail(cleaned)
     if is_internal_only(cleaned):
         return ""

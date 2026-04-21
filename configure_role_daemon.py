@@ -27,8 +27,12 @@ HARNESS_CATALOG = ROOT / "Runner" / "HARNESS_CATALOG.md"
 PROVIDER_COMMANDS = {
     "claude": ("Claude Code", "{AUTO_CLAUDE_CYCLE}"),
     "opencode": ("OpenCode", "{AUTO_OPENCODE_CYCLE}"),
+    "gemini": ("Gemini CLI", "{AUTO_GEMINI_CYCLE}"),
+    "codex": ("Codex CLI", "{AUTO_CODEX_CYCLE}"),
     "goose": ("Goose", "{AUTO_GOOSE_CYCLE}"),
     "ollama": ("Ollama", "{AUTO_OLLAMA_CYCLE}"),
+    "deepagents": ("DeepAgents CLI", "{AUTO_DEEPAGENTS_CYCLE}"),
+    "openclaw": ("OpenClaw CLI", "{AUTO_OPENCLAW_CYCLE}"),
 }
 
 
@@ -64,12 +68,24 @@ def provider_details(provider: str, name: str, command_template: str) -> tuple[s
 def role_block(role: str, provider: str, model: str, interval: int, bootstrap: str, name: str, command_template: str) -> str:
     harness_type, launch_command, provider_key = provider_details(provider, name, command_template)
     harness_key = f"{provider_key}-{model}".strip("-") if model else provider_key
-    prompt = (
-        f"This is an existing Agentic Harness system. Run a low-spend {role} daemon cycle. "
-        "Check only the minimal files needed for the newest message or task. "
-        "Answer simple operator messages directly. Do not create specialist setup work unless explicitly requested. "
-        "Reply to the operator when needed, then exit."
-    )
+    if role == "Chief_of_Staff":
+        prompt = (
+            "This is an existing Agentic Harness system. You are the operator's daemonized Chief_of_Staff, "
+            "not a generic scheduler. Read your standing memory and the active human memory before replying. "
+            "Answer the newest operator message in the operator's preferred voice and relationship style. "
+            "Be warm, specific, and human; never mention daemon cycles, leases, or internal task IDs unless asked. "
+            "For simple chat, reply naturally. For requests, take the next useful action or explain the real blocker. "
+            "For weather, web/current-info, basic research, and quick factual tasks, handle it yourself with available "
+            "browser/search/CLI tools before delegating; only escalate when the task is deeper than one Chief cycle. "
+            "Use `py send_human_reply.py --channel all \"your clean reply\"` for operator-facing replies, then exit."
+        )
+    else:
+        prompt = (
+            f"This is an existing Agentic Harness system. Run a low-spend {role} daemon cycle. "
+            "Check only the minimal files needed for the newest message or task. "
+            "Answer simple operator messages directly. Do not create specialist setup work unless explicitly requested. "
+            "Reply to the operator when needed, then exit."
+        )
     wake_message = "Check operator messages, check status, reply if needed, and continue orchestration."
     if role != "Chief_of_Staff":
         wake_message = f"Check messages for {role}, check assigned tasks, continue work, then report status."
