@@ -11,6 +11,7 @@ from ChiefChat.chief_chat_service import (
     evidence_fallback_reply,
     extract_weather_location,
     looks_like_progress_reply,
+    plan_web_search_query,
     run_once,
     weather_code_label,
 )
@@ -64,6 +65,16 @@ def main() -> int:
         raise AssertionError("expected weather location extraction for Mississauga")
     if weather_code_label(2) != "partly cloudy":
         raise AssertionError("expected WMO weather code mapping")
+    query_cases = {
+        "Ok can you research events coming up in Toronto?": "upcoming events Toronto this week",
+        "Can you tell me what coffee shops are near me? I'm in etobicoke right now": "best coffee shops Etobicoke reviews",
+        "What's the cheapest gas price near me right now? I'm in Mississauga": "cheapest gas prices Mississauga GasBuddy",
+        "Can you research the github repo for ABC github and then send me a summary of what it does?": "ABC GitHub repository",
+    }
+    for request, expected in query_cases.items():
+        actual = plan_web_search_query(request)
+        if actual != expected:
+            raise AssertionError(f"expected planned query {expected!r}, got {actual!r}")
     note = "\n".join(
         [
             "Web research completed.",

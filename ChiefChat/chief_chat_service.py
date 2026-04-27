@@ -582,6 +582,117 @@ def extract_direct_urls(text: str) -> list[str]:
     return urls
 
 
+def clean_search_fragment(text: str) -> str:
+    value = re.sub(r"https?://\S+", "", text)
+    value = re.sub(
+        r"\b(ok|okay|hey|hi|hello|please|pls|can you|could you|would you|will you|"
+        r"tell me|send me|give me|show me|find me|find|look up|google|search|browse|"
+        r"research|online|on the web|right now|now|today|latest|current)\b",
+        " ",
+        value,
+        flags=re.IGNORECASE,
+    )
+    value = re.sub(r"\b(and then|then|based on|what it does|for me|to get|i'm|im|i am)\b", " ", value, flags=re.IGNORECASE)
+    value = re.sub(r"[^A-Za-z0-9/&'. -]+", " ", value)
+    value = re.sub(r"\s+", " ", value).strip(" -.,")
+    return value
+
+
+def title_location(text: str) -> str:
+    small_words = {"of", "and", "the", "in", "at", "by", "for"}
+    words = []
+    for word in clean_search_fragment(text).split():
+        lowered = word.lower()
+        words.append(lowered if lowered in small_words else word[:1].upper() + word[1:])
+    return " ".join(words)
+
+
+def extract_location_hint(text: str) -> str:
+    patterns = [
+        r"\b(?:i'?m|i am|we'?re|we are)\s+in\s+([A-Za-z0-9 .'-]+?)(?:\s+right now|\s+now|[.?!,]|$)",
+        r"\bnear\s+([A-Za-z0-9 .'-]+?)(?:\s+right now|\s+now|[.?!,]|$)",
+        r"\b(?:in|around|near|at)\s+([A-Za-z0-9 .'-]+?)(?:\s+right now|\s+now|[.?!,]|$)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            location = title_location(match.group(1))
+            if location and location.lower() not in {"me", "near me", "this restaurant"}:
+                return location
+    return ""
+
+
+def extract_github_subject(text: str) -> str:
+    patterns = [
+        r"github\s+(?:repo|repository)\s+(?:for|called|named)?\s*([A-Za-z0-9_.:/-]+)",
+        r"(?:repo|repository)\s+(?:for|called|named)?\s*([A-Za-z0-9_.:/-]+)\s+github",
+        r"github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            subject = match.group(1).strip(" .")
+            if subject:
+                return subject
+    cleaned = clean_search_fragment(text)
+    cleaned = re.sub(r"\b(github|repo|repository|summary)\b", " ", cleaned, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def extract_restaurant_subject(text: str) -> str:
+    quoted = re.search(r"['\"]([^'\"]+)['\"]", text)
+    if quoted:
+        return clean_search_fragment(quoted.group(1))
+    patterns = [
+        r"\b(?:restaurant|place|going to|dinner at|lunch at|eating at)\s+([A-Za-z0-9&'. -]+?)(?:\s+(?:can you|what|which|best|based|reviews)|[.?!,]|$)",
+        r"\bat\s+([A-Za-z0-9&'. -]+?)\s+(?:restaurant|for dinner|for lunch|tonight)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            subject = clean_search_fragment(match.group(1))
+            if subject and subject.lower() not in {"this", "this restaurant", "the restaurant"}:
+                return subject
+    return ""
+
+
+def plan_web_search_query(text: str) -> str:
+    original = text.strip()
+    lowered = original.lower()
+    direct_urls = extract_direct_urls(original)
+    if direct_urls:
+        return direct_urls[0]
+
+    location = extract_location_hint(original)
+
+    if re.search(r"\b(events?|concerts?|things to do|happening|coming up)\b", lowered):
+        target = location or title_location(re.sub(r".*?\b(?:in|around|near)\b\s+", "", original, flags=re.IGNORECASE))
+        target = target or clean_search_fragment(original)
+        return f"upcoming events {target} this week".strip()
+
+    if re.search(r"\b(coffee|cafe|cafes|coffee shops?)\b", lowered):
+        target = location or clean_search_fragment(original)
+        return f"best coffee shops {target} reviews".strip()
+
+    if re.search(r"\b(gas|fuel|gasoline)\b", lowered) and re.search(r"\b(cheap|cheapest|price|prices)\b", lowered):
+        target = location or clean_search_fragment(original)
+        return f"cheapest gas prices {target} GasBuddy".strip()
+
+    if "github" in lowered or re.search(r"\b(repo|repository)\b", lowered):
+        subject = extract_github_subject(original)
+        return f"{subject} GitHub repository".strip()
+
+    if re.search(r"\b(restaurant|reviews?|best dish|best dishes|menu|dish)\b", lowered):
+        subject = extract_restaurant_subject(original)
+        target = subject or location or clean_search_fragment(original)
+        return f"best dishes {target} restaurant reviews".strip()
+
+    cleaned = clean_search_fragment(original)
+    if location and "near me" in lowered:
+        cleaned = f"{cleaned} {location}".strip()
+    return cleaned or original
+
+
 def extract_search_results(page: Any, max_results: int) -> list[dict[str, str]]:
     results: list[dict[str, str]] = []
     try:
@@ -734,7 +845,7 @@ def looks_like_progress_reply(reply: str, web_context: str) -> bool:
     return has_progress and (len(reply) < 260 or not has_answer_signal)
 
 
-def try_browser_research(root: Path, config: dict[str, str], query: str) -> str:
+def try_browser_research(root: Path, config: dict[str, str], query: str, original_request: str = "") -> str:
     if not parse_bool(config.get("Browser Enabled", "YES"), True):
         return "Browser automation is disabled in ChiefChat config."
     try:
@@ -770,7 +881,10 @@ def try_browser_research(root: Path, config: dict[str, str], query: str) -> str:
                 url = result.get("url", "")
                 if url.startswith("http"):
                     pages.append(read_page_evidence(context, url, query, timeout_ms))
-            return format_web_research_note(query, results, pages)
+            note = format_web_research_note(query, results, pages)
+            if original_request and original_request.strip() != query.strip():
+                return f"Original operator request: {original_request.strip()}\nPlanned search query: {query.strip()}\n{note}"
+            return note
         finally:
             context.close()
 
@@ -866,7 +980,9 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
             extra = f"Web task created: {web_task_id}\nFresh web evidence:\n{web_note}"
     elif is_web_request(body):
         web_task_id = append_web_task(root, message, "ChiefChat created this task before attempting local browser research.")
-        web_note = try_browser_research(root, config, body)
+        search_query = plan_web_search_query(body)
+        append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat planned search for {web_task_id}: {search_query}")
+        web_note = try_browser_research(root, config, search_query, body)
         append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat web evidence for {web_task_id}: {web_note}")
         extra = f"Web task created: {web_task_id}\nFresh web evidence:\n{web_note}"
 
