@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Iterable
 
 from coordination_io import append_line, read_text
+from chat_ledger import append_chat_record, chat_conversation, chat_path, telegram_feed
 from message_filters import clean_operator_reply
 
 
@@ -60,6 +61,17 @@ def append_operator_message(
         messages_dir / f"{role}.md",
         f"[{timestamp}] [operator:{source}] [{resolved_human_id}] [msg:{msg_id}] {clean}",
     )
+    append_chat_record(
+        root,
+        direction="operator_to_chief",
+        speaker=resolved_human_id,
+        human_id=resolved_human_id,
+        channel=source,
+        body=clean,
+        status="new",
+        message_id=msg_id,
+        timestamp=timestamp,
+    )
     append_line(root / "Runner" / "_wake_requests.md", f"[{timestamp}] {role}: operator_message:{msg_id}:{source}")
     append_line(
         root / "LAYER_LAST_ITEMS_DONE.md",
@@ -89,6 +101,19 @@ def append_operator_reply(
     append_line(
         root / "_messages" / f"human_{resolved_human_id}.md",
         f"[{timestamp}] [{from_role}] {' '.join(tags)} {clean}",
+    )
+    direction = "system_to_operator" if from_role.lower() == "system" else "chief_to_operator"
+    append_chat_record(
+        root,
+        direction=direction,
+        speaker=from_role,
+        human_id=resolved_human_id,
+        channel=channel,
+        body=clean,
+        reply_to=reply_to,
+        status="new",
+        message_id=msg_id,
+        timestamp=timestamp,
     )
     return {"id": msg_id, "timestamp": timestamp, "channel": channel, "human_id": resolved_human_id}
 
@@ -235,6 +260,9 @@ def collect_telegram_feed(root: Path, human_id: str) -> list[dict[str, str]]:
     user's own Telegram input back at them.
     """
 
+    if chat_path(root).exists():
+        return telegram_feed(root, human_id)
+
     inbox = read_text(root / "_messages" / f"{DEFAULT_CHIEF_ROLE}.md")
     items: list[dict[str, str]] = []
     for item in parse_operator_messages(inbox, human_id):
@@ -250,6 +278,9 @@ def collect_telegram_feed(root: Path, human_id: str) -> list[dict[str, str]]:
 
 
 def collect_conversation(root: Path, human_id: str, *, limit: int = 40) -> list[dict[str, str]]:
+    if chat_path(root).exists():
+        return chat_conversation(root, human_id, limit=limit)
+
     inbox = read_text(root / "_messages" / f"{DEFAULT_CHIEF_ROLE}.md")
     items = parse_operator_messages(inbox, human_id)
     items.extend(parse_reply_messages(read_text(root / "_messages" / f"human_{human_id}.md")))

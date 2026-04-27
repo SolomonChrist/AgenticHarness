@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 VIS_ROOT = Path(__file__).resolve().parent
 RUNNER_ROOT = ROOT / "Runner"
 TELEGRAM_ROOT = ROOT / "TelegramBot"
+CHIEF_CHAT_ROOT = ROOT / "ChiefChat"
 VIS_RUNTIME_FILE = VIS_ROOT / ".visualizer_runtime.json"
 
 if str(ROOT) not in sys.path:
@@ -38,6 +39,8 @@ from operator_messaging import (
     append_operator_reply,
     collect_conversation,
 )
+from role_preflight import evaluate_role_preflight, parse_key_values as parse_preflight_key_values
+from service_manager import service_status, start_service, stop_service
 
 
 def read_text(path: Path) -> str:
@@ -122,7 +125,7 @@ def parse_markdown_records(path: Path) -> List[Dict[str, object]]:
         if record.get("_type") != "role":
             final.append(record)
             continue
-        role = str(record.get("Role", "")).strip()
+        role = markdown_scalar(record.get("Role", ""))
         if role:
             existing = by_role.get(role)
             current_ready = str(record.get("Enabled", "")).upper() == "YES" or str(record.get("Automation Ready", "")).upper() == "YES"
@@ -188,7 +191,7 @@ def collect_roles() -> List[str]:
 
     for record in parse_markdown_records(RUNNER_ROOT / "ROLE_LAUNCH_REGISTRY.md"):
         if record.get("_type") == "role":
-            add(str(record.get("Role", "")))
+            add(markdown_scalar(record.get("Role", "")))
 
     for role in parse_registry_roles_from_layer_config():
         add(role)
@@ -206,7 +209,7 @@ def collect_role_registry() -> Dict[str, Dict[str, object]]:
     for record in parse_markdown_records(RUNNER_ROOT / "ROLE_LAUNCH_REGISTRY.md"):
         if record.get("_type") != "role":
             continue
-        role = str(record.get("Role", "")).strip()
+        role = markdown_scalar(record.get("Role", ""))
         if not role:
             continue
         registry[role] = {
@@ -216,7 +219,9 @@ def collect_role_registry() -> Dict[str, Dict[str, object]]:
             "harness_key": markdown_scalar(record.get("Harness Key", "")),
             "harness_type": markdown_scalar(record.get("Harness Type", "")),
             "launch_command": markdown_scalar(record.get("Launch Command", "")),
+            "working_directory": markdown_scalar(record.get("Working Directory", "")),
             "model_profile": markdown_scalar(record.get("Model / Profile", "")),
+            "bootstrap_file": markdown_scalar(record.get("Bootstrap File", "")),
             "wake_message": markdown_scalar(record.get("Wake Message", "")),
             "last_confirmed": markdown_scalar(record.get("Last Confirmed", "")),
             "notes": markdown_scalar(record.get("Notes", "")),
@@ -266,6 +271,7 @@ def reminder_queue_state() -> Dict[str, object]:
 
 def collect_daemon_statuses() -> Dict[str, Dict[str, object]]:
     daemons = {
+        "chief-chat": load_json(CHIEF_CHAT_ROOT / "data" / "runtime.json"),
         "runner": load_json(RUNNER_ROOT / ".runner_runtime.json"),
         "telegram": load_json(TELEGRAM_ROOT / "data" / "runtime.json"),
         "visualizer": load_json(VIS_RUNTIME_FILE),
@@ -289,6 +295,7 @@ def telegram_configured() -> bool:
 
 def service_health(daemons: Dict[str, Dict[str, object]]) -> List[Dict[str, object]]:
     specs = [
+        ("chief-chat", "ChiefChat", "critical", True),
         ("runner", "Runner", "critical", True),
         ("visualizer", "Visualizer", "critical", True),
         ("telegram", "Telegram", "optional_after_config", telegram_configured()),
@@ -359,6 +366,8 @@ def corrective_commands(health: Dict[str, object]) -> List[str]:
     services = {str(row.get("key", "")): row for row in health.get("services", []) if isinstance(row, dict)}
     if not services.get("runner", {}).get("ok"):
         commands.append("py service_manager.py start runner")
+    if not services.get("chief-chat", {}).get("ok"):
+        commands.append("py service_manager.py start chief-chat")
     if not services.get("visualizer", {}).get("ok"):
         commands.append("py service_manager.py start visualizer")
     chief = next((row for row in health.get("roles", []) if row.get("role") == "Chief_of_Staff"), None)
@@ -431,10 +440,13 @@ def collect_operator_chat(limit: int = 30) -> List[Dict[str, str]]:
 def collect_lease_state() -> List[Dict[str, object]]:
     now = datetime.now().astimezone()
     registry = collect_role_registry()
+    runner_state = load_json(RUNNER_ROOT / ".runner_state.json")
+    runner_cfg = parse_preflight_key_values(RUNNER_ROOT / "RUNNER_CONFIG.md")
     leases: List[Dict[str, object]] = []
     for role in collect_roles():
         path = ROOT / "_heartbeat" / f"{role}.md"
         reg = registry.get(role, {})
+        preflight = evaluate_role_preflight(ROOT, role, reg, runner_cfg=runner_cfg, state=runner_state)
         row = {
             "role": role,
             "exists": path.exists(),
@@ -455,9 +467,15 @@ def collect_lease_state() -> List[Dict[str, object]]:
             "harness_name": reg.get("harness_type", "") or reg.get("harness_key", ""),
             "provider_name": reg.get("harness_type", ""),
             "model_name": reg.get("model_profile", ""),
+            "preflight": preflight,
+            "pending_work": preflight.get("pending_work", []),
+            "schedule_enabled": bool(preflight.get("schedule_enabled")),
+            "command_preview": preflight.get("command_preview", ""),
+            "skip_reason": preflight.get("reason", ""),
+            "cooldown": preflight.get("cooldown", {}),
         }
         if path.exists():
-            data = parse_markdown_table(path)
+            data = parse_preflight_key_values(path)
             expiry = parse_iso(data.get("Lease Expires At", ""))
             active = (data.get("Status", "") or "").upper() == "ACTIVE"
             stale = bool(expiry and expiry < now)
@@ -493,6 +511,47 @@ def collect_lease_state() -> List[Dict[str, object]]:
             )
         leases.append(row)
     return leases
+
+
+def replace_key_line(text: str, key: str, value: str) -> str:
+    pattern = re.compile(rf"^({re.escape(key)}:\s*).*$", re.MULTILINE)
+    if pattern.search(text):
+        return pattern.sub(rf"\g<1>{value}", text, count=1)
+    return text.rstrip() + f"\n{key}: {value}\n"
+
+
+def set_role_enabled(role: str, enabled: bool) -> None:
+    path = RUNNER_ROOT / "ROLE_LAUNCH_REGISTRY.md"
+    text = read_text(path)
+    pattern = re.compile(
+        rf"### ROLE\s*\nRole:\s*{re.escape(role)}\s*\n.*?(?=\n### |\Z)",
+        re.DOTALL,
+    )
+    match = pattern.search(text)
+    if not match:
+        raise KeyError(f"Role not found in launch registry: {role}")
+    block = replace_key_line(match.group(0), "Enabled", "YES" if enabled else "NO")
+    atomic_write_text(path, text[: match.start()] + block + text[match.end() :])
+
+
+def service_control(service: str, action: str) -> Dict[str, object]:
+    valid_services = {"runner", "telegram", "visualizer", "all"}
+    if service not in valid_services:
+        raise ValueError("Unknown service.")
+    if action not in {"start", "stop", "status"}:
+        raise ValueError("Unknown service action.")
+    names = ["runner", "telegram", "visualizer"] if service == "all" else [service]
+    result: Dict[str, object] = {}
+    for name in names:
+        if action == "start":
+            code = start_service(name)
+            result[name] = {"exit_code": code, "status": service_status(name)}
+        elif action == "stop":
+            code = stop_service(name)
+            result[name] = {"exit_code": code, "status": service_status(name)}
+        else:
+            result[name] = {"exit_code": 0, "status": service_status(name)}
+    return result
 
 
 def collect_task_summary() -> Dict[str, int]:
@@ -631,6 +690,45 @@ class VisualizerHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/role-toggle":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or "0")
+                body = self.rfile.read(min(length, 65536))
+                payload = json.loads(body.decode("utf-8"))
+                role = str(payload.get("role", "")).strip()
+                enabled = bool(payload.get("enabled"))
+                if not role:
+                    raise ValueError("role is required")
+                set_role_enabled(role, enabled)
+                state = build_state()
+                response = json.dumps({"ok": True, "role": role, "enabled": enabled, "state": state}).encode("utf-8")
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+            except KeyError as exc:
+                self.send_error(HTTPStatus.NOT_FOUND, str(exc))
+            except Exception as exc:
+                self.send_error(HTTPStatus.BAD_REQUEST, str(exc))
+            return
+        if parsed.path == "/api/service-control":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or "0")
+                body = self.rfile.read(min(length, 65536))
+                payload = json.loads(body.decode("utf-8"))
+                service = str(payload.get("service", "")).strip().lower()
+                action = str(payload.get("action", "")).strip().lower()
+                result = service_control(service, action)
+                response = json.dumps({"ok": True, "result": result}).encode("utf-8")
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+            except Exception as exc:
+                self.send_error(HTTPStatus.BAD_REQUEST, str(exc))
+            return
         if parsed.path != "/api/chat":
             self.send_error(HTTPStatus.NOT_FOUND)
             return

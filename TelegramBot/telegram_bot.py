@@ -13,6 +13,7 @@ import json
 import os
 import re
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -50,9 +51,13 @@ HUMAN_ID = os.getenv("HUMAN_ID", "").strip()
 BOT_NAME = os.getenv("BOT_NAME", "Harness Bridge").strip() or "Harness Bridge"
 OWNER_NAME = os.getenv("OWNER_NAME", "Operator").strip() or "Operator"
 POLL_INTERVAL = max(1, int(os.getenv("POLL_INTERVAL_SECONDS", "2")))
-REPLY_WAIT_SECONDS = max(0, int(os.getenv("TELEGRAM_REPLY_WAIT_SECONDS", "90")))
+REPLY_WAIT_SECONDS = max(0, int(os.getenv("TELEGRAM_REPLY_WAIT_SECONDS", "20")))
 ACK_AFTER_SECONDS = max(0, int(os.getenv("TELEGRAM_ACK_AFTER_SECONDS", "0")))
 TYPING_INTERVAL_SECONDS = max(2, int(os.getenv("TELEGRAM_TYPING_INTERVAL_SECONDS", "4")))
+USE_ENV_PROXY = os.getenv("TELEGRAM_USE_ENV_PROXY", "NO").strip().upper() in {"YES", "TRUE", "1", "ON"}
+TRIGGER_RUNNER_ON_MESSAGE = os.getenv("TELEGRAM_TRIGGER_RUNNER_ON_MESSAGE", "YES").strip().upper() in {"YES", "TRUE", "1", "ON"}
+TRIGGER_RUNNER_MIN_SECONDS = max(0, int(os.getenv("TELEGRAM_TRIGGER_RUNNER_MIN_SECONDS", "20")))
+WAIT_FOR_REPLY_ON_MESSAGE = os.getenv("TELEGRAM_WAIT_FOR_REPLY_ON_MESSAGE", "YES").strip().upper() in {"YES", "TRUE", "1", "ON"}
 
 if not BOT_TOKEN:
     print("TELEGRAM_BOT_TOKEN not set.")
@@ -80,6 +85,7 @@ REMINDERS_FILE = HARNESS_ROOT / "Runner" / "_reminders.json"
 RUNNER_CONFIG_FILE = HARNESS_ROOT / "Runner" / "RUNNER_CONFIG.md"
 ROLE_REGISTRY_FILE = HARNESS_ROOT / "Runner" / "ROLE_LAUNCH_REGISTRY.md"
 RUNNER_RUNTIME_FILE = HARNESS_ROOT / "Runner" / ".runner_runtime.json"
+CHIEF_CHAT_RUNTIME_FILE = HARNESS_ROOT / "ChiefChat" / "data" / "runtime.json"
 
 
 def ensure_dirs() -> None:
@@ -106,7 +112,7 @@ def save_state(state: dict) -> None:
 
 
 def update_runtime(status: str, *, last_error: str = "") -> None:
-    chief_ready = chief_daemon_ready()
+    chief_ready = chief_chat_ready()
     ensure_dirs()
     payload = {
         "component": "telegram",
@@ -121,7 +127,7 @@ def update_runtime(status: str, *, last_error: str = "") -> None:
         "chief_file_exists": CHIEF_FILE.exists(),
         "human_file_exists": HUMAN_FILE.exists(),
         "chief_responder_ready": chief_ready,
-        "chief_responder_status": "daemon_ready" if chief_ready else "bridge_only_needs_chief_daemon",
+        "chief_responder_status": "chief_chat_ready" if chief_ready else "bridge_only_needs_chief_chat",
         "runner_daemon_alive": runner_daemon_alive(),
     }
     atomic_write_text(RUNTIME_FILE, json.dumps(payload, indent=2))
@@ -129,22 +135,34 @@ def update_runtime(status: str, *, last_error: str = "") -> None:
 
 STATE = load_state()
 LAST_TELEGRAM_ERROR = ""
+LAST_RUNNER_TRIGGER_AT = 0.0
 STATE_LOCK = threading.Lock()
+RUNNER_TRIGGER_LOCK = threading.Lock()
+TELEGRAM_SESSION = requests.Session()
+TELEGRAM_SESSION.trust_env = USE_ENV_PROXY
+
+
+def sanitize_error(text: object) -> str:
+    clean = str(text or "")
+    if BOT_TOKEN:
+        clean = clean.replace(BOT_TOKEN, "<telegram-token>")
+    clean = re.sub(r"/bot[^/\s]+", "/bot<telegram-token>", clean)
+    return clean
 
 
 def tg(method: str, **kwargs) -> dict:
     global LAST_TELEGRAM_ERROR
     try:
-        response = requests.post(f"{API_BASE}/{method}", json=kwargs, timeout=20)
+        response = TELEGRAM_SESSION.post(f"{API_BASE}/{method}", json=kwargs, timeout=20)
         payload = response.json()
         if not payload.get("ok"):
-            LAST_TELEGRAM_ERROR = f"{method}: {payload.get('description', payload)}"
+            LAST_TELEGRAM_ERROR = sanitize_error(f"{method}: {payload.get('description', payload)}")
             update_runtime("degraded", last_error=LAST_TELEGRAM_ERROR)
         return payload
     except Exception as exc:
-        LAST_TELEGRAM_ERROR = f"{method}: {exc}"
+        LAST_TELEGRAM_ERROR = sanitize_error(f"{method}: {exc}")
         update_runtime("degraded", last_error=LAST_TELEGRAM_ERROR)
-        return {"ok": False, "description": str(exc)}
+        return {"ok": False, "description": LAST_TELEGRAM_ERROR}
 
 
 def send(chat_id: int, text: str) -> bool:
@@ -284,13 +302,27 @@ def chief_daemon_ready() -> bool:
     )
 
 
+def chief_chat_ready() -> bool:
+    try:
+        runtime = json.loads(read_text(CHIEF_CHAT_RUNTIME_FILE) or "{}")
+    except Exception:
+        return False
+    if str(runtime.get("status", "")).lower() != "active":
+        return False
+    try:
+        pid = int(runtime.get("pid", 0) or 0)
+    except Exception:
+        pid = 0
+    return process_alive(pid)
+
+
 def chief_daemon_fallback_text() -> str:
-    if not runner_daemon_alive():
+    if not chief_chat_ready():
         return (
-            "I got your message, but the Runner daemon is not active right now, "
-            "so the background Chief responder is not being launched.\n\n"
+            "I got your message, but the fast ChiefChat service is not active right now, "
+            "so I cannot produce the live Chief reply yet.\n\n"
             "On the computer, run:\n"
-            "py service_manager.py start runner\n\n"
+            "py service_manager.py start chief-chat\n\n"
             "Then verify with:\n"
             "py production_check.py"
         )
@@ -308,6 +340,68 @@ def write_user_message(message: str, source: str = "telegram") -> dict[str, str]
     return append_operator_message(HARNESS_ROOT, message, source=source, human_id=HUMAN_ID)
 
 
+def trigger_chief_runner(reason: str = "telegram_message") -> bool:
+    global LAST_RUNNER_TRIGGER_AT
+    if not TRIGGER_RUNNER_ON_MESSAGE or not chief_daemon_ready():
+        return False
+
+
+def trigger_chief_chat(reason: str = "telegram_message") -> bool:
+    if chief_chat_ready():
+        log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] TRIGGER - ChiefChat already active for {reason or 'telegram_message'}")
+        return True
+    script = HARNESS_ROOT / "ChiefChat" / "chief_chat_service.py"
+    if not script.exists():
+        log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] WARN - Cannot trigger ChiefChat; missing {script}")
+        return False
+    command = [sys.executable, str(script), "--once", "--root", str(HARNESS_ROOT)]
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    try:
+        subprocess.Popen(
+            command,
+            cwd=str(HARNESS_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creationflags,
+        )
+        log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] TRIGGER - Started one-shot ChiefChat for {reason or 'telegram_message'}")
+        return True
+    except Exception as exc:
+        log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] ERROR - Could not trigger ChiefChat: {sanitize_error(exc)}")
+        return False
+    script = HARNESS_ROOT / "Runner" / "scheduled_role_runner.py"
+    if not script.exists():
+        log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] WARN - Cannot trigger Chief; missing {script}")
+        return False
+    now = time.time()
+    with RUNNER_TRIGGER_LOCK:
+        if TRIGGER_RUNNER_MIN_SECONDS and now - LAST_RUNNER_TRIGGER_AT < TRIGGER_RUNNER_MIN_SECONDS:
+            return False
+        LAST_RUNNER_TRIGGER_AT = now
+    command = [
+        sys.executable,
+        str(script),
+        "--role",
+        "Chief_of_Staff",
+        "--reason",
+        reason or "telegram_message",
+    ]
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    try:
+        subprocess.Popen(
+            command,
+            cwd=str(HARNESS_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creationflags,
+        )
+        log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] TRIGGER - Started one-shot Chief_of_Staff runner for {reason or 'telegram_message'}")
+        return True
+    except Exception as exc:
+        log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] ERROR - Could not trigger Chief runner: {sanitize_error(exc)}")
+        return False
+
+
 def write_wake_message() -> None:
     ts = iso_now()
     append_line(
@@ -315,6 +409,7 @@ def write_wake_message() -> None:
         f"[{ts}] [telegram] [{HUMAN_ID}] Wake request received. Please review messages and continue orchestration.",
     )
     append_line(RUNNER_WAKE_FILE, f"[{ts}] Chief_of_Staff: wake_request")
+    trigger_chief_chat("wake_request")
     log_event(f"[{ts}] [TELEGRAM_BRIDGE] NOTIFY - Wake request sent to Chief_of_Staff")
 
 
@@ -382,7 +477,7 @@ def format_relative_due(due_at: datetime) -> str:
 def help_text() -> str:
     return (
         f"Hello {OWNER_NAME}. I'm {BOT_NAME}.\n\n"
-        "I only bridge messages to the active MasterBot.\n\n"
+        "I bridge messages to the fast Chief_of_Staff chat service.\n\n"
         "Commands:\n"
         "/start\n"
         "/help\n"
@@ -405,7 +500,8 @@ def handle_command(text: str) -> str | None:
     if reminder_reply:
         write_user_message(text)
         return reminder_reply
-    write_user_message(text)
+    message = write_user_message(text)
+    trigger_chief_chat(f"operator_message:{message.get('id', '')}:telegram")
     return None
 
 
@@ -577,12 +673,13 @@ def poll_updates() -> None:
             if not is_allowed(user.get("id")):
                 send(chat.get("id"), "Unauthorized.")
                 continue
+            send_typing(chat.get("id"))
             reply = handle_command(text)
             if reply:
                 send(chat.get("id"), reply)
-            elif not chief_daemon_ready():
+            elif not chief_chat_ready():
                 send(chat.get("id"), chief_daemon_fallback_text())
-            else:
+            elif WAIT_FOR_REPLY_ON_MESSAGE:
                 wait_for_chief_reply(chat.get("id"))
             save_state(STATE)
 
@@ -604,7 +701,7 @@ def main() -> None:
     print(f"Starting {BOT_NAME} for {HARNESS_ROOT}")
     me = tg("getMe")
     if not me.get("ok"):
-        error = me.get("description", LAST_TELEGRAM_ERROR or "getMe failed")
+        error = sanitize_error(me.get("description", LAST_TELEGRAM_ERROR or "getMe failed"))
         print(f"Telegram bot validation failed: {error}")
         log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] ERROR - Telegram bot validation failed: {error}")
         update_runtime("error", last_error=f"getMe failed: {error}")

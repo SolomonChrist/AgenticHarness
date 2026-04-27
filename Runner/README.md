@@ -11,7 +11,8 @@ The Runner is one daemon only.
 Its job is to keep the swarm alive by:
 
 - reading the core markdown system
-- waking harnesses on interval
+- running cheap role preflight checks on interval
+- launching harnesses only when a role is enabled, lease-free, and has meaningful work
 - supervising persistent harnesses
 - leaving manual/human-run roles alone unless explicitly contacted
 - monitoring stale leases
@@ -26,7 +27,10 @@ The markdown files remain the source of truth.
 ## Operating Model
 
 - first run: manually prove each specialist role once on the chosen harness
-- later runs: let Runner own only the CLI-capable roles that were successfully proven
+- later runs: let Runner or any local scheduler run `scheduled_role_runner.py` for CLI-capable roles
+- all normal checks happen before inference; no work, active lease, disabled schedule, or cooldown means no provider call
+- `Chief_of_Staff` can wake for operator intake, Chief-owned tasks, quota remediation tasks, explicit wakes, and Daily All Hands
+- non-Chief roles are task-gated: assigned actionable tasks, direct role messages, explicit wakes, manual task-file edits, or Daily All Hands
 - manual-call systems remain valid swarm participants, but they should stay registered as manual until a real CLI cycle path exists
 
 ## Execution Modes
@@ -52,6 +56,33 @@ The Runner:
 - expects the harness to read the files, do work, renew its lease, and exit or idle
 - should only own a specialist role after that role has been manually proven once on the chosen harness for this install
 
+The preferred interval implementation is:
+
+```powershell
+py Runner\scheduled_role_runner.py --role <ROLE>
+```
+
+That one-shot command is suitable for Windows Task Scheduler, cron, or the built-in Runner daemon.
+
+## Daily All Hands
+
+`Daily All Hands` is enabled by default once every 24 hours:
+
+```text
+Daily All Hands Enabled: YES
+Daily All Hands Interval Hours: 24
+Daily All Hands Quota Retry: YES
+```
+
+It gives every automation-ready role one bounded check/recovery pass per interval. This is especially important after quota or login failures: if provider access recovers later, the bot can continue without making the operator manually poke each role.
+
+If a provider reports quota, rate-limit, login, or credit failure, Runner:
+
+- writes provider cooldown metadata into `.runner_state.json`
+- creates or updates a `Chief_of_Staff` task in `LAYER_TASK_LIST.md`
+- includes the failed role/provider/model, log path, recovery command shape, and resume rule
+- retries through Daily All Hands when configured
+
 ### manual
 
 The role is human-run or manually launched.
@@ -72,6 +103,8 @@ Expected files in this folder:
 - `ROLE_LAUNCH_REGISTRY.md`
 - `harness_role_cycle.py`
 - `claude_role_cycle.py`
+- `scheduled_role_runner.py`
+- `daily_all_hands.py`
 - `runner_daemon.py`
 - `start_runner.bat`
 - `start_runner.sh`

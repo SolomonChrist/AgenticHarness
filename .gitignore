@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Local secrets and machine-specific configuration
+.env
+.env.*
+!.env.*.template
+TelegramBot/.env.telegram
+n8n_harness/mirror_config.local.json
+
+# Runtime state
+debug.log
+*.log
+Runner/.runner_state.json
+Runner/.runner_runtime.json
+Runner/_wake_requests.md
+Runner/_reminders.json
+Runner/_generated_prompts/
+ChiefChat/data/
+ChiefChat/chief_chat.log
+TelegramBot/data/
+TelegramBot/telegram.log
+Visualizer/.visualizer_runtime.json
+Visualizer/visualizer.log
+
+# Live workspace state
+_heartbeat/
+_messages/
+Projects/
+_backups/
+
+# Coordination locks and temp files
+.locks/
+*.tmp
+*.lock
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

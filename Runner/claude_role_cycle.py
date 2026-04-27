@@ -12,6 +12,7 @@ The Runner uses this helper for cron-style role wakeups:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -47,17 +48,20 @@ def build_cycle_prompt(role: str, bootstrap_file: str, prompt_text: str) -> str:
             "This is a low-spend daemon cycle. Prefer direct action over planning.",
             "",
             "Required behavior for this cycle:",
-            f"1. Verify or repair your role state for {role} in the markdown control plane.",
-            f"2. Check `_messages/{role}.md`, `LAYER_TASK_LIST.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and your current project/task context.",
-            "3. If you are Chief_of_Staff, read `MEMORY/agents/Chief_of_Staff/ALWAYS.md` and the active human `ALWAYS.md` before any operator-facing reply.",
-            "4. If you are Chief_of_Staff, reply like the named executive assistant described in memory. Be warm, specific, and conversational. Do not sound like a daemon, checklist, status bot, or generic support script.",
-            "5. If the newest operator message is a simple chat, status, reminder, or factual request, answer it directly instead of creating a project or waiting for specialists.",
-            "6. For weather, current-information, web, data, file, coding, or research requests, figure out the next concrete action yourself: use available browser/search/CLI tools, create a small local helper, delegate to a daemon-capable role, or give a short fallback only when blocked.",
-            "7. Do not ask for Researcher/Engineer setup if a daemon-capable default is already known; configure/wake the needed role or proceed with the current role.",
-            "8. If replying to the operator, use `py send_human_reply.py --channel all \"your clean reply\"` or append a clean human-facing reply to `_messages/human_<HumanID>.md`.",
-            "9. Update only the relevant markdown files, project artifacts, and event/status notes as needed.",
-            "10. If there is no actionable work, record a concise idle/standby status and exit cleanly.",
-            "11. Do not wait for more input at the end of this run.",
+            f"1. Before doing role work, re-check `_heartbeat/{role}.md`. If a different unexpired holder owns {role}, stand down and exit.",
+            f"2. If the lease is free or stale, claim {role} by writing acquisition time, expiry time, holder, harness, provider, model, session id, current task, and ACTIVE status.",
+            "3. While active, renew heartbeat/lease on meaningful writes. At the end, write final state, release/standby status when appropriate, and a concise event note.",
+            f"4. Check `_messages/{role}.md`, `LAYER_TASK_LIST.md`, `Projects/*/TASKS.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and your current project/task context.",
+            "5. If you are Chief_of_Staff, treat `_messages/Chief_of_Staff.md` as the operator inbox, including Telegram and Visualizer messages. Do not treat `_messages/human_<HumanID>.md` as the inbox; that file is the human-facing outbox/history.",
+            "6. If you are Chief_of_Staff, read `MEMORY/agents/Chief_of_Staff/ALWAYS.md` and the active human `ALWAYS.md` before any operator-facing reply.",
+            "7. If you are Chief_of_Staff, reply like the named executive assistant described in memory. Be warm, specific, and conversational. Do not sound like a daemon, checklist, status bot, or generic support script.",
+            "8. If the newest operator message is a simple chat, status, reminder, or factual request, answer it directly instead of creating a project or waiting for specialists.",
+            "9. For weather, current-information, web, data, file, coding, or research requests, figure out the next concrete action yourself: use available browser/search/CLI tools, create a small local helper, delegate to a daemon-capable role, or give a short fallback only when blocked.",
+            "10. Do not ask for Researcher/Engineer setup if a daemon-capable default is already known; configure/wake the needed role or proceed with the current role.",
+            "11. If replying to the operator, use `py send_human_reply.py --channel all \"your clean reply\"` or append a clean human-facing reply to `_messages/human_<HumanID>.md`.",
+            "12. Update only the relevant markdown files, project artifacts, and event/status notes as needed.",
+            "13. If there is no actionable work after the second lease/task check, record a concise idle/standby status and exit cleanly.",
+            "14. Do not wait for more input at the end of this run.",
             "",
             "Important constraints:",
             "- Prefer file reads/writes over shell commands unless a shell command is clearly necessary.",
@@ -129,10 +133,9 @@ def main() -> int:
         cycle_prompt,
         "--permission-mode",
         "acceptEdits",
-        "--bare",
         "--chrome",
         "--max-turns",
-        "4",
+        "50",
         "--allowedTools",
         "Read,Edit,Bash",
         "--add-dir",
@@ -141,11 +144,12 @@ def main() -> int:
     if args.model:
         command.extend(["--model", args.model])
 
-    completed = subprocess.run(command, cwd=str(workdir), capture_output=True, text=True, encoding="utf-8", errors="replace")
+    env = os.environ.copy()
+    completed = subprocess.run(command, cwd=str(workdir), capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
     if completed.stdout:
-        print(completed.stdout, end="")
+        sys.stdout.buffer.write(completed.stdout.encode("utf-8", errors="replace"))
     if completed.stderr:
-        print(completed.stderr, end="", file=sys.stderr)
+        sys.stderr.buffer.write(completed.stderr.encode("utf-8", errors="replace"))
     append_stdout_reply_if_needed(args.role, workdir, before_outbox, completed.stdout, args.reason)
     return completed.returncode
 

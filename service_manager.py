@@ -26,6 +26,11 @@ if os.name == "nt":
     CREATE_FLAGS = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
 
 SERVICES = {
+    "chief-chat": {
+        "script": ROOT / "ChiefChat" / "chief_chat_service.py",
+        "runtime": ROOT / "ChiefChat" / "data" / "runtime.json",
+        "log": ROOT / "ChiefChat" / "chief_chat.log",
+    },
     "runner": {
         "script": ROOT / "Runner" / "runner_daemon.py",
         "runtime": ROOT / "Runner" / ".runner_runtime.json",
@@ -54,7 +59,7 @@ def read_text(path: Path) -> str:
 def scalar(text: str, key: str) -> str:
     import re
 
-    match = re.search(rf"^{re.escape(key)}:[ \t]*(.*)$", text, flags=re.MULTILINE)
+    match = re.search(rf"^{re.escape(key)}[ \t]*[:=][ \t]*(.*)$", text, flags=re.MULTILINE)
     return match.group(1).strip() if match else ""
 
 
@@ -187,13 +192,18 @@ def print_status(names: list[str]) -> int:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 3 or argv[1] not in {"start", "stop", "status"}:
-        print("Usage: py service_manager.py <start|stop|status> <runner|telegram|visualizer|all>")
+        print("Usage: py service_manager.py <start|stop|status> <chief-chat|runner|telegram|visualizer|core|all>")
         return 1
 
     action = argv[1]
     target = argv[2].lower()
-    names = list(SERVICES) if target == "all" else [target]
-    if action == "start" and target == "all" and not telegram_configured():
+    if target == "core":
+        names = ["chief-chat", "runner"]
+        if telegram_configured():
+            names.append("telegram")
+    else:
+        names = list(SERVICES) if target == "all" else [target]
+    if action == "start" and target in {"all", "core"} and "telegram" in names and not telegram_configured():
         names = [name for name in names if name != "telegram"]
         print("telegram: skipped (not configured; optional add-on)")
     if any(name not in SERVICES for name in names):

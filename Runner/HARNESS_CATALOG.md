@@ -26,6 +26,7 @@ Purpose:
   - a built-in Runner adapter for that harness family
 - Claude Code, OpenCode, Gemini CLI, Codex CLI, Goose, Ollama, DeepAgents CLI, and OpenClaw CLI ship as presets.
 - Any prompt-based CLI can be registered as a custom provider when the user supplies a command template containing `{PROMPT}` or `{PROMPT_FILE}`.
+- Claude Code is the easiest bootstrap and deep-work harness. n8n or another deterministic workflow/controller layer is a strong fit for the cheap always-on Chief front door that mainly reads and writes markdown and routes work.
 
 ## Built-In Daemon Presets
 
@@ -33,11 +34,11 @@ These presets are known to Agentic Harness out of the box. Use `py configure_rol
 
 | Provider Key | Display Name | Non-Interactive Shape | Web / Current Info Notes |
 | --- | --- | --- | --- |
-| claude | Claude Code | `claude -p "{PROMPT}" --model "{MODEL}" --permission-mode acceptEdits --chrome` | Online LLM. Chrome/browser integration is enabled for daemon cycles when available. |
-| opencode | OpenCode | `opencode run "{PROMPT}" --model "{MODEL}" --dir "{WORKDIR}"` | Provider-dependent. Can attach to `opencode serve` later for lower cold-start time. |
-| gemini | Gemini CLI | `gemini -p "{PROMPT}" --model "{MODEL}"` | Online LLM when authenticated. Good default for quick web-aware answers when configured. |
-| codex | Codex CLI | `codex exec --cd "{WORKDIR}" --full-auto --search --model "{MODEL}" "{PROMPT}"` | Online LLM with live web search enabled by default for daemon cycles. |
-| goose | Goose | `goose run --no-session -t "{PROMPT}" --model "{MODEL}" --quiet` | Provider-dependent. Supports tool-using agent runs and max-turn bounds. |
+| claude | Claude Code | `claude -p "{PROMPT}" --model "{MODEL}" --dangerously-skip-permissions` | Project settings live in `.claude/settings.json`. Best as the bootstrap / deep-work harness; not the cheapest always-on chat front door. |
+| opencode | OpenCode | `opencode run "{PROMPT}" --model "{MODEL}" --dir "{WORKDIR}"` | Project config lives in `opencode.json`; permission rules can be made explicit there, but OpenCode already allows all operations by default unless tightened. |
+| gemini | Gemini CLI | `gemini -p "{PROMPT}" --model "{MODEL}" --approval-mode yolo --skip-trust` | Workspace settings live in `.gemini/settings.json`. `yolo` is a launch flag, so the runner must pass it directly. |
+| codex | Codex CLI | `codex exec --cd "{WORKDIR}" --yolo --search --model "{MODEL}" "{PROMPT}"` | User config lives in `~/.codex/config.toml`. `--yolo` bypasses approvals and sandboxing for hardened local runs. |
+| goose | Goose | `goose run --no-session -t "{PROMPT}" --model "{MODEL}" --quiet --with-builtin developer` | User config lives in `~/.config/goose/config.yaml` on macOS/Linux or `%APPDATA%\\Block\\goose\\config\\config.yaml` on Windows; the runner should set `GOOSE_PROVIDER`, `GOOSE_MODEL`, and `GOOSE_MODE: auto`. |
 | ollama | Ollama | `ollama run "{MODEL}" "{PROMPT}"` | Local-only unless paired with external tools. Use for private/offline work, not current web facts. |
 | deepagents | DeepAgents CLI | `deepagents "{PROMPT}" --model "{MODEL}"` | Provider-dependent; documented as supporting headless/non-interactive use and web search when configured. |
 | openclaw | OpenClaw CLI | `openclaw agent --local --to agentic-harness -m "{PROMPT}"` | Provider/tooling-dependent. Useful where OpenClaw agents and gateway features are already configured. |
@@ -241,6 +242,29 @@ Prompt / Bootstrap Notes:
 Last Confirmed:
 Learned From:
 Notes: If OpenClaw already provides its own persistent daemon behavior, record the startup/bootstrap step and treat Runner as a coordinator rather than the primary scheduler for that role.
+
+### HARNESS
+Harness Key: n8n
+Display Name: n8n
+Family: n8n
+Available On This System: YES
+Default Launch Command:
+Default Working Directory:
+Default Role Types:
+- Operations
+- Automation
+Model / Profile Notes: Automation and workflow orchestration
+Capabilities:
+- Online LLM: NO
+- Web/Search Capable: NO
+- Browser/Tool Capable: YES, through n8n workflows
+- Local Only: NO
+- Manual Only: YES (for initial setup and workflow design)
+Fallback Instructions: Direct Solomon to n8n UI for workflow configuration.
+Prompt / Bootstrap Notes: Workflows configured through UI or imported definitions. Strong candidate for the cheap Chief control plane.
+Last Confirmed:
+Learned From:
+Notes: Manual operation mode. Best fit for a fast, deterministic, file-first Chief front door that reads and writes markdown and routes work without expensive model turns.
 
 ### HARNESS
 Harness Key: deepagents

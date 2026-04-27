@@ -2,10 +2,20 @@ const stateUrl = "/api/state";
 let fastRefreshUntil = 0;
 let lastChatStatus = "";
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function statusClass(status) {
   if (status === "active") return "active";
   if (status === "stale") return "stale";
   if (status === "working") return "working";
+  if (status === "run") return "working";
+  if (status === "pause") return "stale";
   return "unclaimed";
 }
 
@@ -58,19 +68,29 @@ function roleCardHtml(row, index) {
   const mode = row.automation_mode || "unregistered";
   const harness = row.actual_harness || row.registered_harness_type || "Unknown harness";
   const ready = (row.automation_ready || "NO").toUpperCase();
+  const preflight = row.preflight || {};
   const displayState = roleDisplayState(row);
+  const scheduleEnabled = !!row.schedule_enabled;
+  const pendingCount = row.pending_work?.length || 0;
+  const command = row.command_preview || "";
   const x = 18 + (index % 3) * 30;
   const y = 28 + ((index * 17) % 46);
   return `
-    <div class="status ${statusClass(displayState)}">${displayState.toUpperCase()}</div>
+    <div class="status ${statusClass(preflight.decision || displayState)}">${escapeHtml(preflight.status || displayState).toUpperCase()}</div>
     <div class="agent-body">
-      <div class="role-meta">${row.claimed_by || "No current holder"}</div>
-      <h3>${row.role}</h3>
-      <div class="task">${row.task || "idle / no current task"}</div>
-      <div class="meta-row"><span>Harness</span><b>${harness}</b></div>
-      <div class="meta-row"><span>Mode</span><b>${mode}</b></div>
-      <div class="meta-row"><span>Automation Ready</span><b>${ready}</b></div>
-      <div class="lease">${formatLease(row)}</div>
+      <div class="role-meta">${escapeHtml(row.claimed_by || "No current holder")}</div>
+      <h3>${escapeHtml(row.role)}</h3>
+      <div class="task">${escapeHtml(row.task || preflight.summary || "idle / no current task")}</div>
+      <div class="meta-row"><span>Harness</span><b>${escapeHtml(harness)}</b></div>
+      <div class="meta-row"><span>Mode</span><b>${escapeHtml(mode)}</b></div>
+      <div class="meta-row"><span>Schedule</span><b>${scheduleEnabled ? "ON" : "OFF"}</b></div>
+      <div class="meta-row"><span>Pending</span><b>${pendingCount}</b></div>
+      <div class="meta-row"><span>Automation Ready</span><b>${escapeHtml(ready)}</b></div>
+      <div class="lease">${escapeHtml(formatLease(row))}</div>
+      <div class="command-preview">${escapeHtml(command)}</div>
+      <button class="mini-btn" type="button" data-role-toggle="${escapeHtml(row.role)}" data-enabled="${scheduleEnabled ? "true" : "false"}">
+        ${scheduleEnabled ? "Disable" : "Enable"}
+      </button>
       <div class="scene">
         <div class="dot ${statusClass(displayState)}" style="left:${x}%; top:${y}%"></div>
       </div>
@@ -86,6 +106,10 @@ function renderWorld(state) {
     const card = document.createElement("article");
     card.className = "card agent";
     card.innerHTML = roleCardHtml(row, index);
+    const toggle = card.querySelector("[data-role-toggle]");
+    if (toggle) {
+      toggle.addEventListener("click", () => toggleRole(row.role, !(row.schedule_enabled)));
+    }
     host.appendChild(card);
   });
 }
@@ -147,8 +171,17 @@ function renderDaemons(state) {
         <h3>${cardInfo.title}</h3>
         <div class="task">${cardInfo.detail || data.last_error || data.last_request || data.next_text || "healthy"}</div>
         <div class="lease">${cardInfo.key === "telegram" ? "optional unless configured" : "production check surface"}</div>
+        ${["runner", "telegram", "visualizer"].includes(cardInfo.key) ? `
+          <div class="button-row">
+            <button class="mini-btn" type="button" data-service="${cardInfo.key}" data-action="start">Start</button>
+            <button class="mini-btn ghost" type="button" data-service="${cardInfo.key}" data-action="stop">Stop</button>
+          </div>
+        ` : ""}
       </div>
     `;
+    card.querySelectorAll("[data-service]").forEach(button => {
+      button.addEventListener("click", () => serviceControl(button.dataset.service, button.dataset.action));
+    });
     host.appendChild(card);
   });
 }
@@ -223,17 +256,45 @@ function addLocalChatBubble(text, from = "operator") {
   host.scrollTop = host.scrollHeight;
 }
 
+async function postJson(url, payload) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error(`${url} failed: ${res.status}`);
+  return res.json();
+}
+
+async function toggleRole(role, enabled) {
+  lastChatStatus = `${enabled ? "Enabling" : "Disabling"} ${role}...`;
+  try {
+    await postJson("/api/role-toggle", { role, enabled });
+    lastChatStatus = `${role} schedule ${enabled ? "enabled" : "disabled"}.`;
+    await refresh();
+  } catch (err) {
+    console.error(err);
+    lastChatStatus = `Could not update ${role}.`;
+  }
+}
+
+async function serviceControl(service, action) {
+  lastChatStatus = `${action} ${service} requested...`;
+  try {
+    await postJson("/api/service-control", { service, action });
+    lastChatStatus = `${service} ${action} request finished.`;
+    await refresh();
+  } catch (err) {
+    console.error(err);
+    lastChatStatus = `Could not ${action} ${service}.`;
+  }
+}
+
 async function sendChatMessage(message) {
   addLocalChatBubble(message, "operator");
   lastChatStatus = "Sent. Runner wake queued; waiting for Chief_of_Staff...";
   fastRefreshUntil = Date.now() + 45000;
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message })
-  });
-  if (!res.ok) throw new Error(`chat failed: ${res.status}`);
-  const payload = await res.json();
+  const payload = await postJson("/api/chat", { message });
   if (payload.delivery === "answered") {
     lastChatStatus = "Answered by local control action.";
   } else if ((payload.corrective_commands || []).length) {

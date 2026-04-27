@@ -3,11 +3,97 @@
 ## Start, Stop, And Status
 
 ```powershell
+py ChiefChat\setup_chief_chat.py
+py service_manager.py start core
 py service_manager.py start all
 py service_manager.py stop all
 py service_manager.py status all
 py swarm_status.py
 ```
+
+`core` starts ChiefChat, Runner, and Telegram when Telegram is configured. ChiefChat is the fast Telegram/Visualizer/console conversation layer; Runner is for scheduled role work and heavier harness launches.
+
+## Fast Chief Chat
+
+```powershell
+py ChiefChat\setup_chief_chat.py
+py service_manager.py start chief-chat
+py service_manager.py status chief-chat
+py ChiefChat\chief_chat_service.py --once
+py ChiefChat\chief_chat_service.py --status
+```
+
+Normal Telegram chat should go through ChiefChat and `_messages\CHAT.md`, not through Claude Code. Configure the cheap model path in `ChiefChat\CHIEF_CHAT_CONFIG.md` with `openai-compatible`, `ollama`, `opencode`, or `fake` for local validation.
+
+## CLI-First Scheduled Role Checks
+
+Use these from Runner, Windows Task Scheduler, cron, or any local scheduler. They perform cheap file/lease/task checks before any provider call.
+
+```powershell
+py Runner\scheduled_role_runner.py --role Chief_of_Staff
+py Runner\scheduled_role_runner.py --role Engineer --dry-run
+py Runner\daily_all_hands.py
+py Runner\daily_all_hands.py --dry-run
+```
+
+Core job board without Visualizer:
+
+```powershell
+py role_jobs.py status
+py role_jobs.py dashboard
+py role_jobs.py dashboard --watch 2
+py role_jobs.py enable Chief_of_Staff
+py role_jobs.py disable Engineer
+```
+
+Backup and restore:
+
+```powershell
+py backup_restore.py backup --mode bots-only
+py backup_restore.py backup --mode bots-projects
+py backup_restore.py backup --mode full-system-git-history
+py backup_restore.py restore --source C:\path\to\backup.zip --target C:\restore\AgenticHarness
+py backup_restore.py restore --source C:\path\to\backup.bundle --target C:\restore\AgenticHarness
+```
+
+Suggested Windows Task Scheduler action:
+
+```powershell
+Program: py
+Arguments: Runner\scheduled_role_runner.py --role Chief_of_Staff
+Start in: C:\path\to\AgenticHarness
+```
+
+The run is skipped without inference when the role is disabled, already leased, not automation-ready, blocked by cooldown, or has no actionable work. Manually adding a task with `Owner Role: <ROLE>` and `Status: TODO` or `Status: IN_PROGRESS` to `LAYER_TASK_LIST.md` or `Projects\<Project>\TASKS.md` is enough for the next scheduled check to find it.
+
+`Daily All Hands` is enabled by default every 24 hours through `Runner/RUNNER_CONFIG.md`:
+
+```text
+Daily All Hands Enabled: YES
+Daily All Hands Interval Hours: 24
+Daily All Hands Quota Retry: YES
+```
+
+If a provider reports quota, rate-limit, or login failure, Runner pauses automatic launches for that provider path and creates/updates a `Chief_of_Staff` task to help the operator configure a replacement harness or wait for quota recovery.
+
+## n8n Folder Mirror
+
+Use this when n8n needs to work from a Google Drive synced copy of the same
+Agentic Harness files:
+
+```powershell
+py n8n_harness\setup_folder_mirror.py
+py n8n_harness\folder_mirror.py --config n8n_harness\mirror_config.local.json
+```
+
+Direct start without saved setup:
+
+```powershell
+py n8n_harness\folder_mirror.py --left "C:\path\to\AgenticHarness" --right "G:\My Drive\AgenticHarness_MainSystem"
+```
+
+Deletion propagation is off by default. Add `--delete` only after the initial
+mirror has been checked.
 
 Windows helpers:
 

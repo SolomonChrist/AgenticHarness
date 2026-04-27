@@ -133,6 +133,41 @@ body {
 .agent .task { font-size: 13px; color: var(--text); }
 .agent .lease { font-size: 11px; color: var(--muted); }
 
+.command-preview {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(32,48,64,.85);
+  background: rgba(7,12,18,.72);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-btn {
+  align-self: flex-start;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(226,161,63,.35);
+  color: #061018;
+  background: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.mini-btn.ghost {
+  color: var(--text);
+  background: rgba(16,25,37,.9);
+  border-color: rgba(32,48,64,.95);
+}
+
 .scene {
   height: 200px;
   border-radius: 14px;

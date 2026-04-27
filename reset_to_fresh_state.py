@@ -688,10 +688,10 @@ The Runner should read this file together with:
 
 ## Global Settings
 
-Runner Enabled: NO
-Runner Mode: DRY_RUN
+Runner Enabled: YES
+Runner Mode: ACTIVE
 Default Interval Minutes: 5
-Chief_of_Staff Interval Minutes: 2
+Chief_of_Staff Interval Minutes: 1
 Stale Lease Check Minutes: 1
 Fast Wake Poll Seconds: 1
 Wake On File Change: YES
@@ -701,10 +701,19 @@ Wake On Stale Lease: YES
 Allow Persistent Roles: YES
 Allow Interval Roles: YES
 Allow Manual Roles: YES
-Launch Retry Backoff Seconds: 45
-Urgent Wake Backoff Seconds: 8
+Launch Retry Backoff Seconds: 8
+Urgent Wake Backoff Seconds: 3
 Launch Failure Threshold: 3
 Launch Failure Cooldown Seconds: 300
+Provider Failure Cooldown Seconds: 21600
+Stale Lease Storm Threshold: 5
+Stale Lease Storm Window Seconds: 600
+Stale Lease Storm Cooldown Seconds: 1800
+Daily Check-In Enabled: YES
+Daily Check-In Hour: 9
+Daily All Hands Enabled: YES
+Daily All Hands Interval Hours: 24
+Daily All Hands Quota Retry: YES
 
 ## Notes
 
@@ -717,6 +726,7 @@ Launch Failure Cooldown Seconds: 300
 - The Runner should not become the source of truth.
 - Manual roles are valid and should not be auto-launched.
 - Launch throttling should suppress repeated failed starts before they become credit drain or file-lock churn.
+- `Daily All Hands` gives every automation-ready role one bounded recovery/check pass per interval. It helps quota-paused roles resume after provider access returns and keeps the operator from babysitting retries.
 - `Chief_of_Staff` should maintain `Runner/HARNESS_CATALOG.md` and `Runner/ROLE_LAUNCH_REGISTRY.md` as the remembered launcher knowledge for this install.
 - Recommended first run: set `Runner Enabled: YES` and keep `Runner Mode: DRY_RUN` only long enough to inspect the role decisions before using live launches.
 """,
@@ -729,6 +739,8 @@ RUNTIME_FILES = [
     "Runner/.runner_runtime.json",
     "Runner/_wake_requests.md",
     "Runner/_reminders.json",
+    "ChiefChat/data/runtime.json",
+    "ChiefChat/chief_chat.log",
     "Visualizer/.visualizer_runtime.json",
     "TelegramBot/data/state.json",
     "TelegramBot/data/runtime.json",

@@ -149,6 +149,43 @@ py configure_role_daemon.py --role Chief_of_Staff --provider custom --name my-cl
 
 This records the role in `Runner/ROLE_LAUNCH_REGISTRY.md`, turns Runner `ACTIVE`, and lets Telegram or timer wake requests launch short fresh-context `Chief_of_Staff` CLI cycles.
 
+## CLI-First Scheduled Runs
+
+After daemon handoff, recurring role work should be started by cheap scheduled CLI checks, not by always-on inference.
+
+One role check:
+
+```powershell
+py Runner\scheduled_role_runner.py --role Chief_of_Staff
+py Runner\scheduled_role_runner.py --role Engineer --dry-run
+```
+
+Daily all-hands check:
+
+```powershell
+py Runner\daily_all_hands.py
+py Runner\daily_all_hands.py --dry-run
+```
+
+Core job board without Visualizer:
+
+```powershell
+py role_jobs.py status
+py role_jobs.py enable Chief_of_Staff
+py role_jobs.py disable Engineer
+```
+
+The preflight checks local files first:
+
+- role enabled and automation-ready
+- lease absent or expired
+- assigned actionable task, explicit wake request, direct role message, operator intake for `Chief_of_Staff`, or daily all-hands due
+- provider and stale-lease cooldown state
+
+Manual file edits are supported. If you add a `TODO` or `IN_PROGRESS` task to `LAYER_TASK_LIST.md` or `Projects/<Project>/TASKS.md` with `Owner Role: <ROLE>`, the next scheduled check can wake that role without another setup step.
+
+If a provider quota/login failure is detected, Runner pauses that provider path and creates a `Chief_of_Staff` task asking the operator to configure a replacement harness or wait for quota recovery. `Daily All Hands` is enabled by default every 24 hours so recovered quota can be retried automatically.
+
 Verify the handoff before closing your original harness window:
 
 ```powershell

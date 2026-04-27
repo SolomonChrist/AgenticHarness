@@ -48,7 +48,9 @@ def set_runner_active() -> None:
     text = replace_key(text, "Runner Enabled", "YES")
     text = replace_key(text, "Runner Mode", "ACTIVE")
     text = replace_key(text, "Fast Wake Poll Seconds", "1")
-    text = replace_key(text, "Urgent Wake Backoff Seconds", "8")
+    text = replace_key(text, "Chief_of_Staff Interval Minutes", "1")
+    text = replace_key(text, "Launch Retry Backoff Seconds", "8")
+    text = replace_key(text, "Urgent Wake Backoff Seconds", "3")
     atomic_write_text(RUNNER_CONFIG, text)
 
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -28,6 +29,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from coordination_io import append_line as append_line_safe, atomic_write_text
+from operator_messaging import append_operator_reply
+from role_preflight import evaluate_role_preflight
 
 
 RUNNING = True
@@ -53,6 +56,13 @@ def parse_bool(value: str, default: bool = False) -> bool:
 def parse_int(value: str, default: int) -> int:
     try:
         return int(str(value).strip())
+    except Exception:
+        return default
+
+
+def parse_float(value: str, default: float) -> float:
+    try:
+        return float(str(value).strip())
     except Exception:
         return default
 
@@ -118,12 +128,50 @@ def cli_model_arg(provider: str, model_profile: str) -> str:
     return text
 
 
+def infer_goose_provider(model_profile: str) -> str:
+    text = (model_profile or "").strip().lower()
+    if not text:
+        return "anthropic"
+    if text.startswith("claude") or "anthropic" in text:
+        return "anthropic"
+    if text.startswith(("gpt", "o1", "o3", "o4", "o5")) or "openai" in text:
+        return "openai"
+    if text.startswith("gemini") or "google" in text:
+        return "google"
+    if "ollama" in text:
+        return "ollama"
+    return "anthropic"
+
+
 def log_event(event_file: Path, message: str) -> None:
     append_line(event_file, f"[{iso_now()}] [RUNNER] {message}")
 
 
 def reason_category(reason: str) -> str:
     return (reason or "").split(":", 1)[0].strip()
+
+
+def is_cheap_chief_config(config: "RoleLaunchConfig") -> bool:
+    if config.role != "Chief_of_Staff":
+        return False
+    text = " ".join([config.harness_key, config.harness_type, config.launch_command]).lower()
+    return "cheap-chief" in text or "chiefchat" in text or "cheap_chief_router" in text
+
+
+PROVIDER_FAILURE_PATTERNS = [
+    "not logged in",
+    "please run /login",
+    "you've hit your limit",
+    "you have hit your limit",
+    "rate limit",
+    "quota",
+    "too many requests",
+    "usage limit",
+    "insufficient credits",
+    "eperm",
+    "operation not permitted",
+    "uv_spawn",
+]
 
 
 def process_alive(pid: int) -> bool:
@@ -162,7 +210,7 @@ def read_key_value_file(path: Path) -> Dict[str, str]:
         return data
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
-        if not line or line.startswith("#") or line.startswith("- "):
+        if not line or line.startswith("#"):
             continue
         if line.startswith("|") and line.endswith("|"):
             parts = [part.strip() for part in line.strip("|").split("|")]
@@ -172,6 +220,8 @@ def read_key_value_file(path: Path) -> Dict[str, str]:
                 if key and key.lower() != "field" and key != "---":
                     data[key] = value
             continue
+        if line.startswith("- "):
+            line = line[2:].strip()
         if ":" not in line:
             continue
         key, value = line.split(":", 1)
@@ -273,7 +323,7 @@ class RoleLaunchConfig:
     bootstrap_file: str
     startup_prompt: str
     wake_message: str
-    check_interval_minutes: int
+    check_interval_minutes: float
     wake_triggers: List[str] = field(default_factory=list)
     max_concurrent_sessions: int = 1
     registration_source: str = ""
@@ -385,7 +435,7 @@ class RunnerDaemon:
         for record in records:
             if record.get("_type") != "role":
                 continue
-            role = str(record.get("Role", "")).strip()
+            role = markdown_scalar(record.get("Role", ""))
             if not role:
                 continue
             wake_triggers = record.get("Wake Triggers", [])
@@ -404,7 +454,7 @@ class RunnerDaemon:
                 bootstrap_file=markdown_scalar(record.get("Bootstrap File", "")),
                 startup_prompt=markdown_scalar(record.get("Startup Prompt", "")),
                 wake_message=markdown_scalar(record.get("Wake Message", "")),
-                check_interval_minutes=parse_int(markdown_scalar(record.get("Check Interval Minutes", "5")), 5),
+                check_interval_minutes=parse_float(markdown_scalar(record.get("Check Interval Minutes", "5")), 5.0),
                 wake_triggers=[trigger.strip() for trigger in wake_triggers if trigger.strip()],
                 max_concurrent_sessions=parse_int(markdown_scalar(record.get("Max Concurrent Sessions", "1")), 1),
                 registration_source=markdown_scalar(record.get("Registration Source", "")),
@@ -487,7 +537,17 @@ class RunnerDaemon:
         if not lease.active:
             return
         state = self.role_state(role)
-        for key in ["failure_count", "cooldown_until", "last_failed_attempt_at", "last_throttle_log", "last_launch_suppressed_until"]:
+        for key in [
+            "failure_count",
+            "cooldown_until",
+            "provider_cooldown_until",
+            "stale_lease_cooldown_until",
+            "last_failed_attempt_at",
+            "last_throttle_log",
+            "last_launch_suppressed_until",
+            "last_provider_failure_alert",
+            "stale_lease_launches",
+        ]:
             state.pop(key, None)
 
     def role_state(self, role: str) -> Dict[str, object]:
@@ -502,7 +562,7 @@ class RunnerDaemon:
         state["last_unregistered_notice_at"] = iso_now()
         log_event(self.event_file, f"RUNNER_NOTICE - Role {role} exists but is not registered in Runner/ROLE_LAUNCH_REGISTRY.md.")
 
-    def interval_due(self, role: str, minutes: int) -> bool:
+    def interval_due(self, role: str, minutes: float) -> bool:
         state = self.role_state(role)
         last_launch = parse_iso(str(state.get("last_launch_at", "")))
         last_nudge = parse_iso(str(state.get("last_nudge_at", "")))
@@ -533,6 +593,129 @@ class RunnerDaemon:
         prompt_text = self.build_prompt_text(config)
         prompt_file.write_text(prompt_text + ("\n" if prompt_text else ""), encoding="utf-8")
         return prompt_file
+
+    def ensure_claude_permissions_file(self, cwd: Path) -> None:
+        settings_dir = cwd / ".claude"
+        settings_file = settings_dir / "settings.json"
+        if settings_file.exists():
+            return
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "permissions": {
+                "allow": [
+                    "Write(**/*)",
+                    "Edit(**/*)",
+                    "Read(**/*)",
+                ]
+            }
+        }
+        atomic_write_text(settings_file, json.dumps(payload, indent=2) + "\n")
+
+    def ensure_opencode_config_file(self, cwd: Path) -> None:
+        config_file = cwd / "opencode.json"
+        if config_file.exists():
+            return
+        payload = {
+            "$schema": "https://opencode.ai/config.json",
+            "permission": {
+                "*": "allow",
+                "external_directory": {
+                    f"{cwd.as_posix()}/**": "allow",
+                },
+            },
+        }
+        atomic_write_text(config_file, json.dumps(payload, indent=2) + "\n")
+
+    def ensure_gemini_config_file(self, cwd: Path) -> None:
+        settings_dir = cwd / ".gemini"
+        settings_file = settings_dir / "settings.json"
+        if settings_file.exists():
+            return
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "general": {
+                "defaultApprovalMode": "auto_edit",
+            },
+            "tools": {
+                "sandboxAllowedPaths": [str(cwd)],
+            },
+        }
+        atomic_write_text(settings_file, json.dumps(payload, indent=2) + "\n")
+
+    def ensure_codex_config_file(self, cwd: Path) -> None:
+        config_dir = Path.home() / ".codex"
+        config_file = config_dir / "config.toml"
+        if config_file.exists():
+            return
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_text = "\n".join(
+            [
+                'approval_policy = "never"',
+                'sandbox_mode = "danger-full-access"',
+                'web_search = "live"',
+                "",
+            ]
+        )
+        atomic_write_text(config_file, config_text)
+
+    def ensure_goose_config_file(self, config: RoleLaunchConfig, cwd: Path) -> None:
+        if os.name == "nt":
+            appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+            goose_config_dir = Path(appdata) / "Block" / "goose" / "config"
+        else:
+            goose_config_dir = Path.home() / ".config" / "goose"
+        goose_config_dir.mkdir(parents=True, exist_ok=True)
+        config_file = goose_config_dir / "config.yaml"
+        if not config_file.exists():
+            provider = infer_goose_provider(config.model_profile)
+            model = config.model_profile.strip() or "claude-4.5-sonnet"
+            config_text = "\n".join(
+                [
+                    f'GOOSE_PROVIDER: "{provider}"',
+                    f'GOOSE_MODEL: "{model}"',
+                    'GOOSE_MODE: "auto"',
+                    "GOOSE_CLI_MIN_PRIORITY: 0.0",
+                    "GOOSE_TOOLSHIM: true",
+                    "GOOSE_CLI_SHOW_COST: false",
+                    "extensions:",
+                    "  developer:",
+                    "    bundled: true",
+                    "    enabled: true",
+                    "    name: developer",
+                    "    timeout: 300",
+                    "    type: builtin",
+                    "",
+                ]
+            )
+            atomic_write_text(config_file, config_text)
+        goose_ignore = cwd / ".gooseignore"
+        if not goose_ignore.exists():
+            ignore_text = "\n".join(
+                [
+                    "**/.env",
+                    "**/.env.*",
+                    "**/secrets.*",
+                    "**/credentials.*",
+                    "!*.env.example",
+                    "",
+                ]
+            )
+            atomic_write_text(goose_ignore, ignore_text)
+
+    def ensure_provider_bootstrap_files(self, config: RoleLaunchConfig, cwd: Path) -> None:
+        family = " ".join(
+            part for part in [config.harness_key, config.harness_type, config.model_profile] if part
+        ).lower()
+        if "claude" in family:
+            self.ensure_claude_permissions_file(cwd)
+        elif "opencode" in family:
+            self.ensure_opencode_config_file(cwd)
+        elif "gemini" in family:
+            self.ensure_gemini_config_file(cwd)
+        elif "codex" in family:
+            self.ensure_codex_config_file(cwd)
+        elif "goose" in family:
+            self.ensure_goose_config_file(config, cwd)
 
     def render_launch_command(self, config: RoleLaunchConfig, prompt_file: Path, reason: str = "") -> str:
         cwd = Path(config.working_directory).expanduser() if config.working_directory else self.harness_root
@@ -573,23 +756,15 @@ class RunnerDaemon:
         return "claude" in harness
 
     def build_default_claude_cycle_command(self, config: RoleLaunchConfig, prompt_file: Path, cwd: Path, reason: str = "") -> str:
-        script = self.runner_root / "claude_role_cycle.py"
-        python_cmd = "py" if os.name == "nt" else "python3"
+        prompt_text = prompt_file.read_text(encoding="utf-8") if prompt_file.exists() else self.build_prompt_text(config)
+        prompt_text = " ".join(prompt_text.split())
         model_arg = cli_model_arg("claude", config.model_profile)
         parts = [
-            python_cmd,
-            str(script),
-            "--role",
-            config.role,
-            "--workdir",
-            str(cwd),
-            "--prompt-file",
-            str(prompt_file),
-            "--reason",
-            reason,
+            "claude",
+            "-p",
+            prompt_text,
+            "--dangerously-skip-permissions",
         ]
-        if config.bootstrap_file:
-            parts.extend(["--bootstrap-file", config.bootstrap_file])
         if model_arg:
             parts.extend(["--model", model_arg])
         return " ".join(quote_command_arg(part) for part in parts)
@@ -662,6 +837,168 @@ class RunnerDaemon:
             return "Resume your role, check status, and continue the current workstream."
         return "Check status and continue current work."
 
+    def active_human_id(self) -> str:
+        humans = self.harness_root / "HUMANS.md"
+        for raw in read_key_value_file(humans).items():
+            key, value = raw
+            if key == "ID" and value:
+                return value
+        return ""
+
+    def manual_claim_prompt(self, role: str) -> str:
+        return (
+            "Read AGENTIC_HARNESS.md first. "
+            "This is an existing Agentic Harness system. "
+            f"Claim the {role} role if it is available or stale."
+        )
+
+    def alert_operator(self, message: str) -> None:
+        human_id = self.active_human_id()
+        if not human_id:
+            log_event(self.event_file, f"OPERATOR_ALERT_SKIPPED - {message}")
+            return
+        try:
+            append_operator_reply(self.harness_root, message, human_id=human_id, from_role="Runner", channel="all")
+        except Exception as exc:
+            log_event(self.event_file, f"OPERATOR_ALERT_FAILED - {exc}: {message}")
+
+    def tail_text(self, path: Path, max_chars: int = 12000) -> str:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return ""
+        return text[-max_chars:]
+
+    def detect_provider_failure(self, text: str) -> str:
+        lowered = text.lower()
+        for pattern in PROVIDER_FAILURE_PATTERNS:
+            if pattern in lowered:
+                return pattern
+        return ""
+
+    def apply_provider_failure_cooldown(self, config: RoleLaunchConfig, runner_cfg: Dict[str, str], pattern: str, log_path: Path) -> None:
+        state = self.role_state(config.role)
+        now = now_local()
+        cooldown_seconds = max(300, parse_int(runner_cfg.get("Provider Failure Cooldown Seconds", "21600"), 21600))
+        until = now + timedelta(seconds=cooldown_seconds)
+        state["provider_cooldown_until"] = until.isoformat(timespec="seconds")
+        state["last_launch_error"] = f"provider failure: {pattern}"
+        try:
+            state["last_inspected_log_size"] = log_path.stat().st_size
+        except OSError:
+            pass
+        self.upsert_provider_remediation_task(config, pattern, until, log_path)
+        marker = f"{pattern}:{until.isoformat(timespec='seconds')}"
+        if state.get("last_provider_failure_alert") == marker:
+            return
+        state["last_provider_failure_alert"] = marker
+        prompt = self.manual_claim_prompt(config.role)
+        log_event(
+            self.event_file,
+            f"RUNNER_PROVIDER_PAUSE - Paused {config.role} via {config.harness_type or config.harness_key or 'unknown'} until {until.isoformat(timespec='seconds')}. Pattern: {pattern}. Log: {log_path.name}.",
+        )
+        self.alert_operator(
+            "I paused automatic launches for "
+            f"{config.role} because the provider reported `{pattern}`. "
+            "Start the role in another harness with this prompt when you want to recover:\n\n"
+            f"```text\n{prompt}\n```"
+        )
+
+    def upsert_provider_remediation_task(self, config: RoleLaunchConfig, pattern: str, until: datetime, log_path: Path) -> None:
+        safe_role = re.sub(r"[^A-Za-z0-9]+", "-", config.role).strip("-").upper() or "ROLE"
+        task_id = f"TASK-HARNESS-{safe_role}"
+        provider = config.harness_type or config.harness_key or "unknown provider"
+        model = config.model_profile or "default"
+        command = (
+            f"py configure_role_daemon.py --role {config.role} --provider custom "
+            '--name <new-harness-name> --command-template "<command using {{PROMPT_FILE}} or {{PROMPT}}>" --model <model> --start-runner'
+        )
+        block = f"""## TASK
+ID: {task_id}
+Title: Configure replacement harness for {config.role}
+Project: harness-operations
+Owner Role: Chief_of_Staff
+Status: TODO
+Priority: HIGH
+Created By: Runner
+Created At: {iso_now()}
+Failure Role: {config.role}
+Failed Provider: {provider}
+Failed Model: {model}
+Failure Pattern: {pattern}
+Provider Cooldown Until: {until.isoformat(timespec="seconds")}
+Last Launch Log: {log_path}
+Suggested Recovery Command: {command}
+Resume Rule: If quota or login access returns, Daily All Hands may retry this role automatically. Otherwise ask the operator to configure a new harness for this bot.
+Done When:
+- Operator confirms a replacement harness or provider quota has recovered
+- `Runner/ROLE_LAUNCH_REGISTRY.md` has the working command for {config.role}
+- A dry-run preflight shows the role can launch when work exists
+""".rstrip()
+        text = self.task_file.read_text(encoding="utf-8", errors="ignore") if self.task_file.exists() else "# LAYER TASK LIST\n"
+        pattern_re = re.compile(rf"## TASK\s*\nID:\s*{re.escape(task_id)}\s*\n.*?(?=\n## TASK|\Z)", re.DOTALL)
+        if pattern_re.search(text):
+            text = pattern_re.sub(lambda _match: block, text, count=1)
+        else:
+            text = text.rstrip() + "\n\n" + block + "\n"
+        atomic_write_text(self.task_file, text)
+
+    def inspect_previous_launch(self, config: RoleLaunchConfig, runner_cfg: Dict[str, str]) -> bool:
+        state = self.role_state(config.role)
+        log_value = str(state.get("last_launch_log", "")).strip()
+        if not log_value:
+            return True
+        log_path = Path(log_value)
+        try:
+            log_size = log_path.stat().st_size
+        except OSError:
+            log_size = 0
+        inspected_size = int(state.get("last_inspected_log_size", 0) or 0)
+        if log_size and inspected_size >= log_size:
+            return True
+        pattern = self.detect_provider_failure(self.tail_text(log_path))
+        state["last_inspected_log_size"] = log_size
+        if not pattern:
+            return True
+        self.apply_provider_failure_cooldown(config, runner_cfg, pattern, log_path)
+        return False
+
+    def allow_stale_lease_launch(self, config: RoleLaunchConfig, runner_cfg: Dict[str, str], reason: str) -> bool:
+        if reason_category(reason) != "stale_lease":
+            return True
+        state = self.role_state(config.role)
+        now = now_local()
+        cooldown_until = parse_iso(str(state.get("stale_lease_cooldown_until", "")))
+        if cooldown_until and cooldown_until > now:
+            marker = cooldown_until.isoformat(timespec="seconds")
+            if state.get("last_stale_lease_throttle_log") != marker:
+                log_event(self.event_file, f"RUNNER_SUPPRESS - Suppressed stale-lease launch storm for {config.role} until {marker}.")
+                state["last_stale_lease_throttle_log"] = marker
+            return False
+
+        window_seconds = max(60, parse_int(runner_cfg.get("Stale Lease Storm Window Seconds", "600"), 600))
+        threshold = max(2, parse_int(runner_cfg.get("Stale Lease Storm Threshold", "5"), 5))
+        cooldown_seconds = max(300, parse_int(runner_cfg.get("Stale Lease Storm Cooldown Seconds", "1800"), 1800))
+        launches = []
+        for raw in state.get("stale_lease_launches", []):
+            parsed = parse_iso(str(raw))
+            if parsed and parsed >= now - timedelta(seconds=window_seconds):
+                launches.append(parsed)
+        launches.append(now)
+        state["stale_lease_launches"] = [item.isoformat(timespec="seconds") for item in launches][-threshold:]
+        if len(launches) >= threshold:
+            until = now + timedelta(seconds=cooldown_seconds)
+            state["stale_lease_cooldown_until"] = until.isoformat(timespec="seconds")
+            prompt = self.manual_claim_prompt(config.role)
+            log_event(self.event_file, f"RUNNER_STALE_LEASE_PAUSE - Paused {config.role} stale-lease recovery until {until.isoformat(timespec='seconds')} after {len(launches)} launches in {window_seconds}s.")
+            self.alert_operator(
+                f"I paused stale-lease recovery for {config.role} because it relaunched repeatedly without stabilizing. "
+                "Use another harness with this prompt if you want to recover it manually:\n\n"
+                f"```text\n{prompt}\n```"
+            )
+            return False
+        return True
+
     def nudge_role(self, config: RoleLaunchConfig, reason: str) -> None:
         self.append_role_message(config.role, self.build_wake_message(config, reason))
         state = self.role_state(config.role)
@@ -676,6 +1013,7 @@ class RunnerDaemon:
             log_event(self.event_file, f"RUNNER_SKIP - Role {config.role} has no launch command configured.")
             return
         cwd = Path(config.working_directory).expanduser() if config.working_directory else self.harness_root
+        self.ensure_provider_bootstrap_files(config, cwd)
         prompt_file = self.write_prompt_file(config)
         command = self.render_launch_command(config, prompt_file, reason)
         self.append_role_message(config.role, self.build_wake_message(config, reason))
@@ -717,7 +1055,15 @@ class RunnerDaemon:
             f"RUNNER_WAKE - Launched {config.role} in {config.execution_mode} mode via {config.harness_type or 'unknown harness'}. Reason: {reason}. Prompt file: {prompt_file.name}. Log: {role_log.name}.",
         )
 
-    def allow_launch(self, config: RoleLaunchConfig, lease: LeaseStatus, runner_cfg: Dict[str, str], reason: str = "") -> bool:
+    def allow_launch(
+        self,
+        config: RoleLaunchConfig,
+        lease: LeaseStatus,
+        runner_cfg: Dict[str, str],
+        reason: str = "",
+        *,
+        allow_provider_retry: bool = False,
+    ) -> bool:
         state = self.role_state(config.role)
         now = now_local()
         normal_backoff_seconds = max(5, parse_int(runner_cfg.get("Launch Retry Backoff Seconds", "60"), 60))
@@ -736,6 +1082,23 @@ class RunnerDaemon:
                     f"RUNNER_SUPPRESS - Suppressed launch for {config.role} until {marker}. Reason: cooldown after repeated failed launches.",
                 )
                 state["last_throttle_log"] = marker
+            return False
+
+        provider_cooldown_until = parse_iso(str(state.get("provider_cooldown_until", "")))
+        if provider_cooldown_until and provider_cooldown_until > now and not allow_provider_retry and not is_cheap_chief_config(config):
+            marker = provider_cooldown_until.isoformat(timespec="seconds")
+            if state.get("last_provider_throttle_log") != marker:
+                log_event(
+                    self.event_file,
+                    f"RUNNER_SUPPRESS - Suppressed launch for {config.role} until {marker}. Reason: provider/login/quota failure.",
+                )
+                state["last_provider_throttle_log"] = marker
+            return False
+
+        if not allow_provider_retry and not self.inspect_previous_launch(config, runner_cfg):
+            return False
+
+        if not self.allow_stale_lease_launch(config, runner_cfg, reason):
             return False
 
         last_launch = parse_iso(str(state.get("last_launch_attempt_at", "")))
@@ -758,6 +1121,112 @@ class RunnerDaemon:
 
         return True
 
+    def daily_check_in_due(self, runner_cfg: Dict[str, str]) -> bool:
+        if not parse_bool(runner_cfg.get("Daily Check-In Enabled", "YES"), True):
+            return False
+        hour = max(0, min(23, parse_int(runner_cfg.get("Daily Check-In Hour", "9"), 9)))
+        now = now_local()
+        if now.hour < hour:
+            return False
+        state = self.state.setdefault("daily_check_in", {})
+        return state.get("last_date") != now.date().isoformat()
+
+    def send_daily_check_in(self, runner_cfg: Dict[str, str]) -> None:
+        if not self.daily_check_in_due(runner_cfg):
+            return
+        human_id = self.active_human_id()
+        if not human_id:
+            return
+        pending = self.count_pending_wake_requests()
+        message = (
+            "Daily check-in: I am online and watching the harness. "
+            f"There are {pending} pending wake requests. "
+            "Send me the highest-priority thing you want moved today, or ask for status and I will summarize the active projects."
+        )
+        append_operator_reply(self.harness_root, message, human_id=human_id, from_role="Chief_of_Staff", channel="all")
+        self.state["daily_check_in"] = {"last_date": now_local().date().isoformat(), "sent_at": iso_now()}
+        log_event(self.event_file, "DAILY_CHECK_IN - Sent operator daily check-in.")
+
+    def log_preflight_outcome(self, role: str, preflight: Dict[str, object]) -> None:
+        state = self.role_state(role)
+        status = str(preflight.get("status", "UNKNOWN"))
+        reason = str(preflight.get("reason", ""))
+        pending = int(preflight.get("pending_count", 0) or 0)
+        marker = f"{status}:{reason}:{pending}"
+        if state.get("last_preflight_marker") == marker:
+            return
+        state["last_preflight_marker"] = marker
+        log_event(
+            self.event_file,
+            f"{status} - {role}: {preflight.get('summary', '')} Reason: {reason}. Pending work: {pending}.",
+        )
+
+    def mark_daily_all_hands_attempt(self, role: str) -> None:
+        state = self.role_state(role)
+        state["last_daily_all_hands_at"] = iso_now()
+
+    def run_role_once(
+        self,
+        role: str,
+        *,
+        runner_cfg: Optional[Dict[str, str]] = None,
+        wake_requests: Optional[List[str]] = None,
+        dry_run: bool = False,
+        force_reason: str = "",
+    ) -> Dict[str, object]:
+        runner_cfg = runner_cfg or self.load_runner_config()
+        registry = self.load_role_registry()
+        config = registry.get(role)
+        if not config:
+            self.log_unregistered_role_once(role)
+            return {
+                "role": role,
+                "decision": "skip",
+                "action": "",
+                "status": "SKIPPED_UNREGISTERED",
+                "reason": "role_not_registered",
+                "summary": "Role exists but is not registered in Runner/ROLE_LAUNCH_REGISTRY.md.",
+            }
+        lease = self.read_lease(role)
+        self.clear_launch_throttle_if_healthy(role, lease)
+        preflight = evaluate_role_preflight(
+            self.harness_root,
+            role,
+            config,
+            runner_cfg=runner_cfg,
+            state=self.state,
+            wake_requests=wake_requests,
+            force_reason=force_reason,
+        )
+
+        if dry_run:
+            print(json.dumps(preflight, indent=2))
+            return preflight
+
+        self.role_state(role)["last_preflight"] = preflight
+        self.log_preflight_outcome(role, preflight)
+
+        if preflight.get("action") != "launch":
+            return preflight
+
+        reason = str(preflight.get("reason", "pending_work"))
+        allow_provider_retry = reason.startswith("daily_all_hands_quota_retry")
+        if self.allow_launch(config, lease, runner_cfg, reason, allow_provider_retry=allow_provider_retry):
+            self.launch_role(config, reason)
+            if reason.startswith("daily_all_hands"):
+                self.mark_daily_all_hands_attempt(role)
+        else:
+            preflight = {
+                **preflight,
+                "decision": "skip",
+                "action": "",
+                "status": "SKIPPED_LAUNCH_GUARD",
+                "summary": "Runner launch guard suppressed this run after preflight allowed it.",
+            }
+            self.role_state(role)["last_preflight"] = preflight
+            self.log_preflight_outcome(role, preflight)
+        return preflight
+
     def role_action(self, config: RoleLaunchConfig, lease: LeaseStatus, runner_cfg: Dict[str, str], task_changed: bool, wake_requests: Dict[str, List[str]]) -> tuple[str, str]:
         if not config.enabled:
             return "", ""
@@ -776,9 +1245,9 @@ class RunnerDaemon:
         wake_on_stale = parse_bool(runner_cfg.get("Wake On Stale Lease", "YES"), True)
         wake_on_task = parse_bool(runner_cfg.get("Wake On Task Change", "YES"), True)
         wake_on_message = parse_bool(runner_cfg.get("Wake On Message Change", "YES"), True)
-        interval = config.check_interval_minutes or parse_int(
+        interval = config.check_interval_minutes or parse_float(
             runner_cfg.get("Chief_of_Staff Interval Minutes", "2") if config.role == "Chief_of_Staff" else runner_cfg.get("Default Interval Minutes", "5"),
-            5,
+            5.0,
         )
         message_changed = self.message_changed(config.role) if wake_on_message else False
 
@@ -835,28 +1304,24 @@ class RunnerDaemon:
         enabled = parse_bool(runner_cfg.get("Runner Enabled", "NO"), False)
         self.update_runtime_status("active", runner_cfg=runner_cfg)
         self.process_due_reminders()
-        task_changed = self.task_changed()
+        self.send_daily_check_in(runner_cfg)
         wake_requests = self.consume_wake_requests()
 
-        role_names = role_names_from_roles_file(self.roles_path)
         registry = self.load_role_registry()
+        role_names = role_names_from_roles_file(self.roles_path)
+        for role in registry:
+            if role not in role_names:
+                role_names.append(role)
 
         for role in role_names:
             config = registry.get(role)
             if not config:
                 self.log_unregistered_role_once(role)
                 continue
-            lease = self.read_lease(role)
-            self.clear_launch_throttle_if_healthy(role, lease)
             if not enabled or mode == "DRY_RUN":
-                self.dry_run(config, lease)
+                self.run_role_once(role, runner_cfg=runner_cfg, wake_requests=wake_requests.get(role, []), dry_run=True)
                 continue
-            action, reason = self.role_action(config, lease, runner_cfg, task_changed, wake_requests)
-            if action == "launch":
-                if self.allow_launch(config, lease, runner_cfg, reason):
-                    self.launch_role(config, reason)
-            elif action == "nudge":
-                self.nudge_role(config, reason)
+            self.run_role_once(role, runner_cfg=runner_cfg, wake_requests=wake_requests.get(role, []))
 
         self.save_state()
 

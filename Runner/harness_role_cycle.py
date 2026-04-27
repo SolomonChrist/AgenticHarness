@@ -44,17 +44,19 @@ def build_cycle_prompt(role: str, bootstrap_file: str, prompt_text: str) -> str:
             "This is a low-spend daemon cycle. Prefer direct action over planning.",
             "",
             "Required behavior for this cycle:",
-            f"1. Verify or repair your role state for {role} in the markdown control plane.",
-            f"2. Check `_messages/{role}.md`, `LAYER_TASK_LIST.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and your current project/task context.",
-            "3. If you are Chief_of_Staff, read `MEMORY/agents/Chief_of_Staff/ALWAYS.md` and the active human `ALWAYS.md` before any operator-facing reply.",
-            "4. If you are Chief_of_Staff, reply like the named executive assistant described in memory. Be warm, specific, and conversational. Do not sound like a daemon, checklist, status bot, or generic support script.",
-            "5. If the newest operator message is a simple chat, status, reminder, or factual request, answer it directly instead of creating a project or waiting for specialists.",
-            "6. For weather, current-information, web, data, file, coding, or research requests, figure out the next concrete action yourself: use available browser/search/CLI tools, create a small local helper, delegate to a daemon-capable role, or give a short fallback only when blocked.",
-            "7. Do not ask for Researcher/Engineer setup if a daemon-capable default is already known; configure/wake the needed role or proceed with the current role.",
-            "8. If replying to the operator, use `py send_human_reply.py --channel all \"your clean reply\"` or append a clean human-facing reply to `_messages/human_<HumanID>.md`.",
-            "9. Update only the relevant markdown files, project artifacts, and event/status notes as needed.",
-            "10. If there is no actionable work, record a concise idle/standby status and exit cleanly.",
-            "11. Do not wait for more input at the end of this run.",
+            f"1. Before doing role work, re-check `_heartbeat/{role}.md`. If a different unexpired holder owns {role}, stand down and exit.",
+            f"2. If the lease is free or stale, claim {role} by writing acquisition time, expiry time, holder, harness, provider, model, session id, current task, and ACTIVE status.",
+            "3. While active, renew heartbeat/lease on meaningful writes. At the end, write final state, release/standby status when appropriate, and a concise event note.",
+            f"4. Check `_messages/{role}.md`, `LAYER_TASK_LIST.md`, `Projects/*/TASKS.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and your current project/task context.",
+            "5. If you are Chief_of_Staff, read `MEMORY/agents/Chief_of_Staff/ALWAYS.md` and the active human `ALWAYS.md` before any operator-facing reply.",
+            "6. If you are Chief_of_Staff, reply like the named executive assistant described in memory. Be warm, specific, and conversational. Do not sound like a daemon, checklist, status bot, or generic support script.",
+            "7. If the newest operator message is a simple chat, status, reminder, or factual request, answer it directly instead of creating a project or waiting for specialists.",
+            "8. For weather, current-information, web, data, file, coding, or research requests, figure out the next concrete action yourself: use available browser/search/CLI tools, create a small local helper, delegate to a daemon-capable role, or give a short fallback only when blocked.",
+            "9. Do not ask for Researcher/Engineer setup if a daemon-capable default is already known; configure/wake the needed role or proceed with the current role.",
+            "10. If replying to the operator, use `py send_human_reply.py --channel all \"your clean reply\"` or append a clean human-facing reply to `_messages/human_<HumanID>.md`.",
+            "11. Update only the relevant markdown files, project artifacts, and event/status notes as needed.",
+            "12. If there is no actionable work after the second lease/task check, record a concise idle/standby status and exit cleanly.",
+            "13. Do not wait for more input at the end of this run.",
             "",
             "Important constraints:",
             "- Keep operator chat replies natural and short. No bootstrap checklists unless asked.",
@@ -84,6 +86,21 @@ def clean_cli_output(text: str) -> str:
     return clean_operator_reply("\n".join(lines).strip())
 
 
+def infer_goose_provider(model: str) -> str:
+    text = (model or "").strip().lower()
+    if not text:
+        return "anthropic"
+    if text.startswith("claude") or "anthropic" in text:
+        return "anthropic"
+    if text.startswith(("gpt", "o1", "o3", "o4", "o5")) or "openai" in text:
+        return "openai"
+    if text.startswith("gemini") or "google" in text:
+        return "google"
+    if "ollama" in text:
+        return "ollama"
+    return "anthropic"
+
+
 def append_stdout_reply_if_needed(role: str, workdir: Path, before_outbox: str, stdout: str, reason: str) -> None:
     if role != "Chief_of_Staff":
         return
@@ -107,16 +124,7 @@ def command_for_provider(provider: str, prompt: str, workdir: Path, model: str) 
             "claude",
             "-p",
             prompt,
-            "--permission-mode",
-            "acceptEdits",
-            "--bare",
-            "--chrome",
-            "--max-turns",
-            "4",
-            "--allowedTools",
-            "Read,Edit,Bash",
-            "--add-dir",
-            str(workdir),
+            "--dangerously-skip-permissions",
         ]
         if model:
             command.extend(["--model", model])
@@ -139,6 +147,9 @@ def command_for_provider(provider: str, prompt: str, workdir: Path, model: str) 
     if normalized == "gemini":
         command = [
             "gemini",
+            "--skip-trust",
+            "--approval-mode",
+            "yolo",
         ]
         if model:
             command.extend(["--model", model])
@@ -151,7 +162,7 @@ def command_for_provider(provider: str, prompt: str, workdir: Path, model: str) 
             "exec",
             "--cd",
             str(workdir),
-            "--full-auto",
+            "--yolo",
             "--search",
             "--skip-git-repo-check",
             "--color",
@@ -172,6 +183,10 @@ def command_for_provider(provider: str, prompt: str, workdir: Path, model: str) 
             "--quiet",
             "--max-turns",
             "4",
+            "--with-builtin",
+            "developer",
+            "--provider",
+            infer_goose_provider(model),
         ]
         if model:
             command.extend(["--model", model])

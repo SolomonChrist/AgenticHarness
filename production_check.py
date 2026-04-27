@@ -18,9 +18,11 @@ WAKE_QUEUE = ROOT / "Runner" / "_wake_requests.md"
 CHIEF_HEARTBEAT = ROOT / "_heartbeat" / "Chief_of_Staff.md"
 CHIEF_INBOX = ROOT / "_messages" / "Chief_of_Staff.md"
 TELEGRAM_DIR = ROOT / "TelegramBot"
+CHIEF_CHAT_DIR = ROOT / "ChiefChat"
 VISUALIZER_RUNTIME = ROOT / "Visualizer" / ".visualizer_runtime.json"
 RUNNER_RUNTIME = ROOT / "Runner" / ".runner_runtime.json"
 TELEGRAM_RUNTIME = TELEGRAM_DIR / "data" / "runtime.json"
+CHAT_LEDGER = ROOT / "_messages" / "CHAT.md"
 
 
 def read_text(path: Path) -> str:
@@ -31,7 +33,7 @@ def read_text(path: Path) -> str:
 
 
 def scalar(text: str, key: str) -> str:
-    match = re.search(rf"^{re.escape(key)}:[ \t]*(.*)$", text, flags=re.MULTILINE)
+    match = re.search(rf"^{re.escape(key)}[ \t]*[:=][ \t]*(.*)$", text, flags=re.MULTILINE)
     return match.group(1).strip() if match else ""
 
 
@@ -136,13 +138,16 @@ def check(name: str, ok: bool, detail: str, failures: list[str]) -> None:
         failures.append(name)
 
 
-def service_line(name: str, priority: str, required: bool, status: dict, failures: list[str]) -> None:
+def service_line(name: str, priority: str, required: bool, status: dict, failures: list[str], *, blocking: bool = True) -> None:
     alive = bool(status.get("alive"))
     state = str(status.get("status", "unknown"))
     ok = alive or (not required and not telegram_configured() and name == "Telegram bridge")
     optional_note = "" if required else "optional"
     detail = f"{state} / priority {priority} {optional_note}".strip()
-    check(name, ok, detail, failures)
+    marker = "PASS" if ok else "WARN" if not blocking else "FAIL"
+    print(f"[{marker}] {name}: {detail}")
+    if not ok and blocking:
+        failures.append(name)
 
 
 def role_health(record: dict[str, str]) -> dict[str, str | bool]:
@@ -216,6 +221,7 @@ def print_corrective_commands(failures: list[str]) -> None:
             printed.add(command)
 
     service_map = {
+        "ChiefChat service": "py service_manager.py start chief-chat",
         "Runner service": "py service_manager.py start runner",
         "Telegram bridge": "py service_manager.py start telegram",
         "Visualizer": "py service_manager.py start visualizer",
@@ -246,6 +252,7 @@ def print_corrective_commands(failures: list[str]) -> None:
 def main() -> int:
     failures: list[str] = []
     runner_status = service_status("runner")
+    chief_chat_status = service_status("chief-chat")
     telegram_status = service_status("telegram")
     visualizer_status = service_status("visualizer")
     runner_cfg = read_text(RUNNER_CONFIG)
@@ -254,12 +261,20 @@ def main() -> int:
     human_file = telegram_human_file()
 
     print("Services:")
+    service_line("ChiefChat service", "CRITICAL", True, chief_chat_status, failures)
     service_line("Runner service", "CRITICAL", True, runner_status, failures)
     check("Runner mode", scalar(runner_cfg, "Runner Mode").upper() == "ACTIVE", scalar(runner_cfg, "Runner Mode") or "missing", failures)
-    service_line("Visualizer", "CRITICAL", True, visualizer_status, failures)
+    service_line("Visualizer", "NICE_TO_HAVE", False, visualizer_status, failures, blocking=False)
     service_line("Telegram bridge", "OPTIONAL_AFTER_CONFIG", telegram_configured(), telegram_status, failures)
+    if telegram_configured():
+        print(
+            f"[INFO] Telegram bridge handoff: chief_ready={telegram_status.get('chief_responder_ready')} "
+            f"status={telegram_status.get('chief_responder_status')} runner_alive={telegram_status.get('runner_daemon_alive')}"
+        )
 
     print("\nChief Daemon Path:")
+    check("Unified chat ledger path", CHAT_LEDGER.parent.exists(), str(CHAT_LEDGER), failures)
+    check("ChiefChat config", (CHIEF_CHAT_DIR / "CHIEF_CHAT_CONFIG.md").exists(), str(CHIEF_CHAT_DIR / "CHIEF_CHAT_CONFIG.md"), failures)
     check("Chief heartbeat", CHIEF_HEARTBEAT.exists(), str(CHIEF_HEARTBEAT), failures)
     check("Chief registry entry", bool(chief_block), "found" if chief_block else "missing", failures)
     check("Chief daemon enabled", bool_scalar(chief_block, "Enabled"), scalar(chief_block, "Enabled") or "missing", failures)
@@ -285,7 +300,7 @@ def main() -> int:
         return 1
 
     print("\nPRODUCTION CHECK PASSED")
-    print("Chief_of_Staff is daemonized. It is safe to close the original desktop harness window.")
+    print("ChiefChat, Runner, and the role daemon path are ready.")
     return 0
 
 

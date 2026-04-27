@@ -173,6 +173,10 @@ Recommended role bring-up policy:
 - manual-call systems are valid, but secondary
 - each specialist role should be launched manually once on the chosen harness first
 - only after that proof should Runner own that role on cron/interval wakeups
+- Claude Code is the easiest bootstrap and deep-work harness. The always-on Chief front door should stay cheap and file-first, for example with n8n or a custom CLI that only reads and writes markdown and routes work.
+- after setup, recurring role work should run through `py Runner\scheduled_role_runner.py --role <ROLE>` or the built-in Runner daemon using the same preflight checks
+- the preflight reads leases, tasks, role messages, operator intake, wake requests, provider cooldowns, and Daily All Hands state before any model call
+- adding a `TODO` or `IN_PROGRESS` task with `Owner Role: <ROLE>` to `LAYER_TASK_LIST.md` or `Projects/<Project>/TASKS.md` is enough for the next scheduled check to find manually added work
 - if a harness does not have a reliable CLI cycle path yet, register it as manual and document the human steps
 - `Runner/`, `TelegramBot/`, and `Visualizer/` are infrastructure services, not swarm roles
 
@@ -192,11 +196,37 @@ py configure_role_daemon.py --role Chief_of_Staff --provider custom --name my-cl
 
 Use the same pattern for `Researcher`, `Engineer`, `QA`, `Documentation`, or any other CLI-capable role after that role has completed one successful manual claim.
 
+One-shot scheduled checks:
+
+```powershell
+py Runner\scheduled_role_runner.py --role Chief_of_Staff
+py Runner\scheduled_role_runner.py --role Engineer --dry-run
+py Runner\daily_all_hands.py
+py role_jobs.py status
+py role_jobs.py dashboard
+py role_jobs.py dashboard --watch 2
+py service_manager.py status all
+```
+
+`Daily All Hands` is enabled by default every 24 hours. It lets quota-paused or idle roles re-check their situation and report/recover without making the operator manually wake every bot. When Runner detects provider login, quota, rate-limit, or credit failure, it pauses that provider path and creates a Chief-owned task asking for replacement harness setup or quota recovery.
+
+`role_jobs.py dashboard` is the CLI dashboard code. It is the fast color view for roles, leases, harnesses, work, and on/off state. Use `py role_jobs.py dashboard --watch 2` when you want a live refresh loop.
+
 Recommended infrastructure launcher on Windows:
 
 ```powershell
 start_all_services.bat
 ```
+
+Fast Chief chat setup:
+
+```powershell
+py ChiefChat\setup_chief_chat.py
+py service_manager.py start core
+py service_manager.py status all
+```
+
+`ChiefChat` is the always-on, low-cost conversation layer for Telegram, Visualizer, console chat, and future transports. It reads and writes `_messages/CHAT.md`, uses `MEMORY/agents/Chief_of_Staff/SOUL.md` for voice, and calls the configured cheap model path in `ChiefChat/CHIEF_CHAT_CONFIG.md`. Claude Code/OpenCode remain the recommended first-run and deep-work harnesses; ordinary Telegram chat should not spend Claude Code quota.
 
 This keeps the system lightweight and avoids preloading unnecessary structure.
 
@@ -204,13 +234,13 @@ This keeps the system lightweight and avoids preloading unnecessary structure.
 
 Telegram is meant to feel like a normal chat with the active `Chief_of_Staff`.
 
-When a message arrives from Telegram, the bridge writes it into `_messages/Chief_of_Staff.md` and wakes Runner. If `Chief_of_Staff` is registered as an automation-ready CLI role, Runner should launch one short fresh-context command cycle, let it answer, write the reply to `_messages/human_<HumanID>.md`, and exit until the next message or timer.
+When a message arrives from Telegram, the bridge writes it into `_messages/CHAT.md` and the legacy `_messages/Chief_of_Staff.md` compatibility inbox, then triggers `ChiefChat`. ChiefChat writes the reply to the canonical chat ledger and the legacy `_messages/human_<HumanID>.md` outbox so older harnesses and transports still work.
 
 Telegram should only send clean operator-facing replies and major milestones. It should not forward timestamps, internal role logs, event stream lines, or raw swarm chatter.
 
-Production chat defaults are intentionally responsive: `POLL_INTERVAL_SECONDS=2`, `TELEGRAM_ACK_AFTER_SECONDS=0`, `TELEGRAM_TYPING_INTERVAL_SECONDS=4`, and `TELEGRAM_REPLY_WAIT_SECONDS=90`. That means Telegram should show a typing indicator while Chief works, then forward the final Chief reply when the daemon cycle writes the human outbox or returns a clean stdout answer.
+Production chat defaults are intentionally responsive: `POLL_INTERVAL_SECONDS=2`, `TELEGRAM_ACK_AFTER_SECONDS=0`, `TELEGRAM_TYPING_INTERVAL_SECONDS=4`, `TELEGRAM_REPLY_WAIT_SECONDS=20`, and `TELEGRAM_WAIT_FOR_REPLY_ON_MESSAGE=YES`. That means Telegram should show a typing indicator immediately while ChiefChat works, then forward the final Chief reply when it writes the ledger/outbox.
 
-If Telegram is active but `Chief_of_Staff` has not been daemonized, Telegram should say so clearly and provide the daemon handoff command instead of pretending the background responder is ready.
+If Telegram is active but `ChiefChat` is not running, Telegram should say so clearly and provide `py service_manager.py start chief-chat` instead of pretending the background responder is ready.
 
 If Telegram is active but Runner itself is not alive, Telegram should say so clearly and provide `py service_manager.py start runner`. A bridge-only acknowledgement is not considered a working Chief chat.
 
