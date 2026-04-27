@@ -257,8 +257,9 @@ py wake_role.py --role Chief_of_Staff --reason telegram_message
 
 `Chief_of_Staff` is expected to answer normal operator questions, including questions that require web or Google-style research.
 
-- If the active harness has online/web/browser/search tools, it should use them immediately for current information.
-- If the active harness is local-only or offline, it should give a best-effort answer and concise verification steps, or route the task to a web-capable role.
+- ChiefChat uses a source-first path for ordinary web/current-info questions: create a durable `TASK-WEB-*` task, gather readable source evidence with Playwright when enabled, then answer from that evidence.
+- Weather requests use a direct Open-Meteo lookup so the operator receives actual current conditions instead of a progress-only "checking now" reply.
+- If browser extraction or the cheap model fails, ChiefChat should still send the best extracted evidence and leave the task open for a web-capable role.
 - Harness records should note whether a provider is online, web/search-capable, browser/tool-capable, local-only, or manual-only.
 - Data organization and life-operations projects are expected first-use cases; `Chief_of_Staff` may recommend roles like `Researcher`, `Data Organizer`, `Documentation`, `Operations`, or `Engineer`.
 

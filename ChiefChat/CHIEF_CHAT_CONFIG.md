@@ -17,6 +17,8 @@ Max Messages Per Pass: 3
 Browser Enabled: YES
 Browser Inactivity Timeout Seconds: 30
 Browser Max Run Seconds: 120
+Browser Search Results: 5
+Browser Pages To Read: 3
 Browser Headless: NO
 
 ## Service

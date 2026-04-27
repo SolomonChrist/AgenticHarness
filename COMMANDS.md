@@ -168,7 +168,7 @@ Built-in provider keys:
 - `deepagents`
 - `openclaw`
 
-For current-information work, prefer a web-capable Chief provider such as Claude with Chrome integration, Codex with live search, Gemini, or another configured online provider. Ollama is intentionally local/offline by default.
+For ordinary current-information work, ChiefChat should create a `TASK-WEB-*` record, gather source evidence with Playwright when enabled, and answer from that evidence through the cheap model. Weather uses the direct Open-Meteo fast path. Use a web-capable role or heavier harness when the source extraction is incomplete or the task needs deeper research.
 
 ## Register A Custom CLI Provider
 

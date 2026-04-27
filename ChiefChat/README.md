@@ -25,6 +25,14 @@ Supported chat providers:
 - `opencode`
 - `fake` for local validation only
 
+Web/current-info requests use a source-first path. ChiefChat creates a durable
+`TASK-WEB-*` task, gathers clean web evidence with Playwright, then asks the
+cheap model to answer only from that evidence. Weather requests use a direct
+Open-Meteo lookup so a message like `check the weather in Toronto` returns the
+actual current conditions instead of a "checking now" placeholder. If the cheap
+model fails or only sends a progress update, ChiefChat replies with the extracted
+source evidence and leaves the task open for deeper follow-up.
+
 Claude Code and other heavy harnesses should still be used for bootstrap,
 coding, research, and deep work. ChiefChat is the always-on conversation and
 orchestration path.

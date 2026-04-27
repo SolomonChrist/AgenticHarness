@@ -116,6 +116,8 @@ def load_config(root: Path) -> dict[str, str]:
         "Browser Enabled": "YES",
         "Browser Inactivity Timeout Seconds": "30",
         "Browser Max Run Seconds": "120",
+        "Browser Search Results": "5",
+        "Browser Pages To Read": "3",
         "Browser Headless": "NO",
         "Poll Seconds": "0.5",
         "Status Reply On Model Failure": "YES",
@@ -126,12 +128,9 @@ def load_config(root: Path) -> dict[str, str]:
 
 def soul_context(root: Path) -> str:
     parts = [
-        ("Chief soul", root / "MEMORY" / "agents" / CHIEF_ROLE / "SOUL.md", 4000),
-        ("Chief always memory", root / "MEMORY" / "agents" / CHIEF_ROLE / "ALWAYS.md", 5000),
-        ("Human registry", root / "HUMANS.md", 3000),
-        ("Role registry", root / "Runner" / "ROLE_LAUNCH_REGISTRY.md", 5000),
-        ("Recent events", root / "LAYER_LAST_ITEMS_DONE.md", 5000),
-        ("Task list", root / "LAYER_TASK_LIST.md", 6000),
+        ("Chief soul", root / "MEMORY" / "agents" / CHIEF_ROLE / "SOUL.md", 2200),
+        ("Chief always memory", root / "MEMORY" / "agents" / CHIEF_ROLE / "ALWAYS.md", 2200),
+        ("Human registry", root / "HUMANS.md", 1200),
     ]
     chunks: list[str] = []
     for label, path, limit in parts:
@@ -141,28 +140,77 @@ def soul_context(root: Path) -> str:
     return "\n\n".join(chunks)
 
 
-def recent_chat_context(root: Path, max_chars: int = 9000) -> str:
+def recent_chat_context(root: Path, max_chars: int = 3500) -> str:
     return tail(root / "_messages" / "CHAT.md", max_chars)
+
+
+def compact_system_summary(root: Path) -> str:
+    role_text = read_text(root / "Runner" / "ROLE_LAUNCH_REGISTRY.md")
+    roles: list[str] = []
+    for block in re.findall(r"### ROLE\s*\n.*?(?=\n### |\Z)", role_text, flags=re.DOTALL):
+        role = re.search(r"^Role:\s*(.*)$", block, flags=re.MULTILINE)
+        harness = re.search(r"^Harness Type:\s*(.*)$", block, flags=re.MULTILINE)
+        enabled = re.search(r"^Enabled:\s*(.*)$", block, flags=re.MULTILINE)
+        ready = re.search(r"^Automation Ready:\s*(.*)$", block, flags=re.MULTILINE)
+        if role:
+            roles.append(
+                f"- {role.group(1).strip()}: {harness.group(1).strip() if harness else 'unknown'}, "
+                f"enabled={enabled.group(1).strip() if enabled else 'NO'}, ready={ready.group(1).strip() if ready else 'NO'}"
+            )
+    task_count = len(re.findall(r"^Status:\s*(TODO|IN_PROGRESS|ACTIVE|READY|OPEN)\s*$", read_text(root / "LAYER_TASK_LIST.md"), flags=re.MULTILINE | re.IGNORECASE))
+    lines = ["## Compact system state", f"Actionable tasks: {task_count}"]
+    if roles:
+        lines.append("Roles:")
+        lines.extend(roles[:8])
+    return "\n".join(lines)
+
+
+def browser_answer_prompt(root: Path, message: dict[str, str], extra_context: str) -> str:
+    body = message.get("body", "").strip()
+    return f"""You are Chief_of_Staff. Reply to the operator in a warm, concise Telegram style.
+
+Use ONLY the fresh web evidence below plus the operator message. Do not discuss old provider cooldowns, quota, Runner state, or unrelated tasks.
+Give the actual answer now. Do not say you are checking, searching, looking, or about to do the work.
+If the web evidence is incomplete, say what you could verify, cite the source shown in the evidence, and note that a follow-up task remains open.
+
+## Operator message
+{body}
+
+## Fresh web evidence
+{extra_context}
+
+Give the best useful answer now."""
 
 
 def build_prompt(root: Path, message: dict[str, str], extra_context: str = "") -> str:
     body = message.get("body", "").strip()
     context = soul_context(root)
     chat = recent_chat_context(root)
+    system = compact_system_summary(root)
+    if extra_context:
+        result_instruction = (
+            "The local action context below is fresh and more important than old task/status history. "
+            "Answer the operator's request using it. Do not pivot to old provider quota or harness-remediation topics unless the operator asked about them."
+        )
+    else:
+        result_instruction = "Answer the operator's newest message directly."
     return f"""You are Chief_of_Staff, the user's fast human-feeling operator interface.
 
 Use the Chief soul/personality and memory below. Be warm, direct, specific, and operational.
 You are the orchestration layer. For deep coding, research, or long web work, create or route tasks instead of pretending the chat model did it.
 Do not mention internal file paths, daemon cycles, or provider errors unless the user asks or it is needed to unblock them.
 Keep the reply concise enough for Telegram.
+{result_instruction}
 
 {context}
 
+{system}
+
+## Fresh local action context
+{extra_context or "None"}
+
 ## Recent unified chat
 {chat}
-
-## Extra local action context
-{extra_context}
 
 ## New operator message
 {body}
@@ -170,11 +218,21 @@ Keep the reply concise enough for Telegram.
 Reply as Chief_of_Staff."""
 
 
+def open_url(request: urllib.request.Request | str, timeout: int) -> bytes:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(request, timeout=timeout) as response:
+        return response.read()
+
+
 def http_json(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any]:
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8", errors="replace"))
+    return json.loads(open_url(request, timeout).decode("utf-8", errors="replace"))
+
+
+def http_get_json(url: str, timeout: int) -> dict[str, Any]:
+    request = urllib.request.Request(url, headers={"User-Agent": "AgenticHarness-ChiefChat/1.0"})
+    return json.loads(open_url(request, timeout).decode("utf-8", errors="replace"))
 
 
 def openai_compatible_reply(config: dict[str, str], prompt: str) -> str:
@@ -256,10 +314,465 @@ WEB_PATTERNS = [
     r"\b(weather|price|stock|website|page|url|research)\b",
 ]
 
+WEATHER_PATTERNS = [
+    r"\b(weather|forecast|temperature|temp|rain|snow|wind|humidity|humid)\b",
+]
+
+STOPWORDS = {
+    "a",
+    "about",
+    "and",
+    "are",
+    "can",
+    "check",
+    "current",
+    "do",
+    "find",
+    "for",
+    "from",
+    "get",
+    "give",
+    "google",
+    "i",
+    "in",
+    "is",
+    "it",
+    "latest",
+    "look",
+    "me",
+    "news",
+    "now",
+    "of",
+    "on",
+    "online",
+    "please",
+    "research",
+    "search",
+    "show",
+    "the",
+    "today",
+    "up",
+    "weather",
+    "web",
+    "what",
+    "whats",
+    "what's",
+    "with",
+}
+
+NOISE_PHRASES = (
+    "accept all",
+    "accept cookies",
+    "advertisement",
+    "all rights reserved",
+    "browser",
+    "cookie policy",
+    "cookies",
+    "download our app",
+    "enable javascript",
+    "log in",
+    "menu",
+    "newsletter",
+    "privacy policy",
+    "sign in",
+    "sign up",
+    "skip to content",
+    "subscribe",
+    "terms of use",
+)
+
 
 def is_web_request(text: str) -> bool:
     lowered = text.lower()
     return any(re.search(pattern, lowered) for pattern in WEB_PATTERNS)
+
+
+def is_weather_request(text: str) -> bool:
+    lowered = text.lower()
+    return any(re.search(pattern, lowered) for pattern in WEATHER_PATTERNS)
+
+
+def clean_location(value: str) -> str:
+    text = re.sub(r"https?://\S+", "", value)
+    text = re.sub(r"[?!.,;]+$", "", text.strip())
+    text = re.sub(r"\b(right now|today|currently|please|pls|thanks|thank you)\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(" -:,\t\r\n")
+
+
+def extract_weather_location(text: str) -> str:
+    cleaned = clean_location(text)
+    patterns = [
+        r"(?:weather|forecast|temperature|temp|rain|snow|wind|humidity).*?(?:in|for|at)\s+(.+)$",
+        r"(?:in|for|at)\s+(.+?)\s+(?:weather|forecast|temperature|temp|rain|snow|wind|humidity)",
+        r"(?:weather|forecast|temperature|temp)\s+(.+)$",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, cleaned, flags=re.IGNORECASE)
+        if match:
+            return clean_location(match.group(1))
+    words = [word for word in re.split(r"\s+", cleaned) if word.lower().strip("'") not in STOPWORDS]
+    return clean_location(" ".join(words))
+
+
+def weather_code_label(code: int) -> str:
+    labels = {
+        0: "clear sky",
+        1: "mainly clear",
+        2: "partly cloudy",
+        3: "overcast",
+        45: "fog",
+        48: "depositing rime fog",
+        51: "light drizzle",
+        53: "moderate drizzle",
+        55: "dense drizzle",
+        56: "light freezing drizzle",
+        57: "dense freezing drizzle",
+        61: "slight rain",
+        63: "moderate rain",
+        65: "heavy rain",
+        66: "light freezing rain",
+        67: "heavy freezing rain",
+        71: "slight snow",
+        73: "moderate snow",
+        75: "heavy snow",
+        77: "snow grains",
+        80: "slight rain showers",
+        81: "moderate rain showers",
+        82: "violent rain showers",
+        85: "slight snow showers",
+        86: "heavy snow showers",
+        95: "thunderstorm",
+        96: "thunderstorm with slight hail",
+        99: "thunderstorm with heavy hail",
+    }
+    return labels.get(code, f"weather code {code}")
+
+
+def fetch_weather_summary(location: str, timeout: int = 10) -> str:
+    if not location:
+        return "What city or location should I check the weather for?"
+    geocode_url = (
+        "https://geocoding-api.open-meteo.com/v1/search?"
+        + urllib.parse.urlencode({"name": location, "count": 1, "language": "en", "format": "json"})
+    )
+    geocode = http_get_json(geocode_url, timeout)
+    results = geocode.get("results") or []
+    if not results:
+        return f"I could not find a weather location for `{location}`. Send me the city and region, and I will check again."
+    place = results[0]
+    latitude = place.get("latitude")
+    longitude = place.get("longitude")
+    name_bits = [str(place.get("name") or location)]
+    for key in ("admin1", "country"):
+        if place.get(key):
+            name_bits.append(str(place[key]))
+    forecast_url = (
+        "https://api.open-meteo.com/v1/forecast?"
+        + urllib.parse.urlencode(
+            {
+                "latitude": latitude,
+                "longitude": longitude,
+                "current": ",".join(
+                    [
+                        "temperature_2m",
+                        "apparent_temperature",
+                        "relative_humidity_2m",
+                        "precipitation",
+                        "weather_code",
+                        "cloud_cover",
+                        "wind_speed_10m",
+                        "wind_direction_10m",
+                    ]
+                ),
+                "timezone": "auto",
+            }
+        )
+    )
+    forecast = http_get_json(forecast_url, timeout)
+    current = forecast.get("current") or {}
+    units = forecast.get("current_units") or {}
+    code = int(current.get("weather_code") or 0)
+    temp = current.get("temperature_2m")
+    feels = current.get("apparent_temperature")
+    humidity = current.get("relative_humidity_2m")
+    wind = current.get("wind_speed_10m")
+    precipitation = current.get("precipitation")
+    cloud_cover = current.get("cloud_cover")
+    temp_unit = units.get("temperature_2m", "")
+    wind_unit = units.get("wind_speed_10m", "")
+    precipitation_unit = units.get("precipitation", "")
+    updated = current.get("time") or "current local time"
+    return (
+        f"Weather for {', '.join(name_bits)}: {temp}{temp_unit}, feels like {feels}{temp_unit}, "
+        f"{weather_code_label(code)}, humidity {humidity}%, wind {wind} {wind_unit}, "
+        f"precipitation {precipitation} {precipitation_unit}, cloud cover {cloud_cover}%. "
+        f"Updated {updated} local time. Source: Open-Meteo."
+    )
+
+
+def meaningful_terms(text: str) -> list[str]:
+    terms: list[str] = []
+    for raw in re.findall(r"[A-Za-z0-9][A-Za-z0-9'-]{2,}", text.lower()):
+        word = raw.strip("'")
+        if word not in STOPWORDS and word not in terms:
+            terms.append(word)
+    return terms[:12]
+
+
+def clean_visible_lines(text: str) -> list[str]:
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for raw in text.splitlines():
+        line = re.sub(r"\s+", " ", raw).strip()
+        if not line or line in seen:
+            continue
+        lowered = line.lower()
+        if any(noise in lowered for noise in NOISE_PHRASES) and len(line) < 160:
+            continue
+        if len(line) < 18 and not re.search(r"\d", line):
+            continue
+        seen.add(line)
+        cleaned.append(line)
+    return cleaned
+
+
+def evidence_lines(text: str, query: str, limit: int = 8) -> list[str]:
+    lines = clean_visible_lines(text)
+    terms = meaningful_terms(query)
+    scored: list[tuple[int, int, str]] = []
+    for index, line in enumerate(lines):
+        lowered = line.lower()
+        score = sum(3 for term in terms if term in lowered)
+        if re.search(r"\d", line):
+            score += 1
+        if 60 <= len(line) <= 240:
+            score += 1
+        scored.append((score, -index, line))
+    selected = [line for score, _index, line in sorted(scored, reverse=True) if score > 0][:limit]
+    if len(selected) < min(3, limit):
+        for line in lines:
+            if line not in selected:
+                selected.append(line)
+            if len(selected) >= limit:
+                break
+    return selected[:limit]
+
+
+def normalize_duckduckgo_url(href: str) -> str:
+    if not href:
+        return ""
+    if href.startswith("//"):
+        href = "https:" + href
+    if href.startswith("/"):
+        href = "https://duckduckgo.com" + href
+    parsed = urllib.parse.urlparse(href)
+    params = urllib.parse.parse_qs(parsed.query)
+    if "uddg" in params and params["uddg"]:
+        return urllib.parse.unquote(params["uddg"][0])
+    return href
+
+
+def extract_direct_urls(text: str) -> list[str]:
+    urls = []
+    for match in re.findall(r"https?://[^\s>)\]]+", text):
+        url = match.rstrip(".,;!?'\"")
+        if url not in urls:
+            urls.append(url)
+    return urls
+
+
+def extract_search_results(page: Any, max_results: int) -> list[dict[str, str]]:
+    results: list[dict[str, str]] = []
+    try:
+        rows = page.locator(".result")
+        count = min(rows.count(), max_results)
+        for index in range(count):
+            row = rows.nth(index)
+            title_node = row.locator("a.result__a").first
+            if title_node.count() == 0:
+                continue
+            title = title_node.inner_text(timeout=1500).strip()
+            href = normalize_duckduckgo_url(title_node.get_attribute("href") or "")
+            snippet = ""
+            snippet_node = row.locator(".result__snippet").first
+            if snippet_node.count() > 0:
+                snippet = snippet_node.inner_text(timeout=1500).strip()
+            if href and title:
+                results.append({"title": title, "url": href, "snippet": snippet})
+    except Exception:
+        results = []
+    if results:
+        return results[:max_results]
+
+    try:
+        anchors = page.locator("a[href]")
+        count = min(anchors.count(), 80)
+        seen: set[str] = set()
+        for index in range(count):
+            anchor = anchors.nth(index)
+            title = anchor.inner_text(timeout=1000).strip()
+            href = normalize_duckduckgo_url(anchor.get_attribute("href") or "")
+            if not title or not href.startswith("http") or "duckduckgo.com" in href or href in seen:
+                continue
+            seen.add(href)
+            results.append({"title": title, "url": href, "snippet": ""})
+            if len(results) >= max_results:
+                break
+    except Exception:
+        pass
+    return results[:max_results]
+
+
+def read_page_evidence(context: Any, url: str, query: str, timeout_ms: int) -> dict[str, Any]:
+    page = context.new_page()
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        page.wait_for_timeout(1000)
+        title = page.title()
+        description = ""
+        try:
+            description = str(
+                page.locator("meta[name='description']").first.get_attribute("content") or ""
+            ).strip()
+        except Exception:
+            description = ""
+        body_text = page.locator("body").inner_text(timeout=min(timeout_ms, 7000))
+        lines = evidence_lines(body_text, query)
+        return {"url": url, "title": title, "description": description, "evidence": lines, "error": ""}
+    except Exception as exc:
+        return {"url": url, "title": "", "description": "", "evidence": [], "error": str(exc)}
+    finally:
+        page.close()
+
+
+def format_web_research_note(query: str, results: list[dict[str, str]], pages: list[dict[str, Any]]) -> str:
+    lines = ["Web research completed.", f"Query: {query}"]
+    if results:
+        lines.append("Search results:")
+        for index, result in enumerate(results, start=1):
+            lines.append(f"{index}. {result.get('title', '').strip()}")
+            lines.append(f"URL: {result.get('url', '').strip()}")
+            snippet = result.get("snippet", "").strip()
+            if snippet:
+                lines.append(f"Snippet: {snippet[:500]}")
+    if pages:
+        lines.append("Opened sources:")
+        for index, page in enumerate(pages, start=1):
+            lines.append(f"{index}. {page.get('title') or 'Source'}")
+            lines.append(f"URL: {page.get('url', '').strip()}")
+            if page.get("description"):
+                lines.append(f"Description: {str(page['description'])[:400]}")
+            if page.get("evidence"):
+                lines.append("Evidence:")
+                for item in page["evidence"][:6]:
+                    lines.append(f"- {item[:500]}")
+            elif page.get("error"):
+                lines.append(f"Read error: {str(page['error'])[:300]}")
+    if not results and not pages:
+        lines.append("No source data could be extracted.")
+    return "\n".join(lines)[:8000]
+
+
+def evidence_fallback_reply(note: str, task_id: str) -> str:
+    if "Browser automation is disabled" in note:
+        return (
+            "I received the web request, but browser automation is disabled in ChiefChat config. "
+            f"I left `{task_id}` open so a web-capable role can finish it."
+        )
+    if "Browser automation is not installed" in note:
+        return (
+            "I received the web request, but Playwright/browser support is not installed for ChiefChat yet. "
+            f"I left `{task_id}` open. Run `py ChiefChat\\setup_chief_chat.py` when you want to enable local browser research."
+        )
+    if "No source data could be extracted." in note:
+        return (
+            "I opened the web path, but I could not extract enough readable source text automatically. "
+            f"I left `{task_id}` open for a web-capable role to finish it."
+        )
+    source_title = ""
+    source_url = ""
+    evidence: list[str] = []
+    for raw in note.splitlines():
+        line = raw.strip()
+        if not source_title and re.match(r"^\d+\.\s+", line):
+            source_title = re.sub(r"^\d+\.\s+", "", line)
+        elif not source_url and line.startswith("URL:"):
+            source_url = line.split(":", 1)[1].strip()
+        elif line.startswith("- "):
+            evidence.append(line[2:].strip())
+    chunks = ["I found web evidence, but the local chat model did not turn it into a final answer cleanly."]
+    if source_title:
+        chunks.append(f"Top source: {source_title}")
+    if source_url:
+        chunks.append(source_url)
+    if evidence:
+        chunks.append("What I could verify:")
+        chunks.extend(f"- {line[:280]}" for line in evidence[:4])
+    chunks.append(f"I also left `{task_id}` open for deeper follow-up if you want a fuller answer.")
+    return "\n".join(chunks)
+
+
+def looks_like_progress_reply(reply: str, web_context: str) -> bool:
+    if not web_context:
+        return False
+    lowered = reply.lower().strip()
+    progress_phrases = [
+        "i'm checking",
+        "i am checking",
+        "i'll check",
+        "i will check",
+        "i'm looking",
+        "i am looking",
+        "let me check",
+        "let me look",
+        "checking now",
+        "looking that up",
+    ]
+    has_progress = any(phrase in lowered for phrase in progress_phrases)
+    has_answer_signal = bool(re.search(r"\d|source:|http|according to|based on|found|top source", lowered))
+    return has_progress and (len(reply) < 260 or not has_answer_signal)
+
+
+def try_browser_research(root: Path, config: dict[str, str], query: str) -> str:
+    if not parse_bool(config.get("Browser Enabled", "YES"), True):
+        return "Browser automation is disabled in ChiefChat config."
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return "Browser automation is not installed. Run `py ChiefChat\\setup_chief_chat.py` to install/check Playwright."
+
+    max_seconds = parse_int(config.get("Browser Max Run Seconds", "120"), 120)
+    max_results = max(1, parse_int(config.get("Browser Search Results", "5"), 5))
+    pages_to_read = max(0, parse_int(config.get("Browser Pages To Read", "3"), 3))
+    headless = parse_bool(config.get("Browser Headless", "NO"), False)
+    profile = browser_profile_dir(root)
+    profile.mkdir(parents=True, exist_ok=True)
+    timeout_ms = max(5000, max_seconds * 1000)
+    direct_urls = extract_direct_urls(query)
+    with sync_playwright() as playwright:
+        context = playwright.chromium.launch_persistent_context(str(profile), headless=headless)
+        try:
+            results: list[dict[str, str]] = []
+            pages: list[dict[str, Any]] = []
+            if direct_urls:
+                results = [{"title": url, "url": url, "snippet": "Direct URL from operator request."} for url in direct_urls[:max_results]]
+            else:
+                page = context.new_page()
+                try:
+                    search_url = "https://duckduckgo.com/html/?q=" + urllib.parse.quote(query)
+                    page.goto(search_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                    page.wait_for_timeout(1000)
+                    results = extract_search_results(page, max_results)
+                finally:
+                    page.close()
+            for result in results[:pages_to_read]:
+                url = result.get("url", "")
+                if url.startswith("http"):
+                    pages.append(read_page_evidence(context, url, query, timeout_ms))
+            return format_web_research_note(query, results, pages)
+        finally:
+            context.close()
 
 
 def task_exists(root: Path, task_id: str) -> bool:
@@ -301,34 +814,6 @@ def browser_profile_dir(root: Path) -> Path:
     return Path(base) / "AgenticHarness" / "ChiefChat" / "browser-profile"
 
 
-def try_browser_search(root: Path, config: dict[str, str], query: str) -> str:
-    if not parse_bool(config.get("Browser Enabled", "YES"), True):
-        return "Browser automation is disabled in ChiefChat config."
-    try:
-        from playwright.sync_api import sync_playwright
-    except Exception:
-        return "Browser automation is not installed. Run `py ChiefChat\\setup_chief_chat.py` to install/check Playwright."
-
-    max_seconds = parse_int(config.get("Browser Max Run Seconds", "120"), 120)
-    headless = parse_bool(config.get("Browser Headless", "NO"), False)
-    profile = browser_profile_dir(root)
-    profile.mkdir(parents=True, exist_ok=True)
-    search_url = "https://duckduckgo.com/?q=" + urllib.parse.quote(query)
-    with sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(str(profile), headless=headless)
-        try:
-            page = context.new_page()
-            page.goto(search_url, wait_until="domcontentloaded", timeout=max_seconds * 1000)
-            page.wait_for_timeout(1500)
-            title = page.title()
-            body_text = page.locator("body").inner_text(timeout=5000)
-            lines = [line.strip() for line in body_text.splitlines() if line.strip()]
-            useful = "\n".join(lines[:12])
-            return f"Opened browser search for: {query}\nPage title: {title}\nVisible result text:\n{useful[:1800]}"
-        finally:
-            context.close()
-
-
 def setup_failure_reply(config: dict[str, str], error: Exception) -> str:
     provider = config.get("Chat Provider", "openai-compatible")
     if provider in {"openai-compatible", "openai", "lmstudio", "lm-studio"}:
@@ -354,23 +839,54 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
     update_chat_status(root, msg_id, "processing")
     append_event(root, f"PROCESSING - Operator message {msg_id} via {message.get('channel', 'unknown')}")
 
+    body = message.get("body", "")
     extra = ""
-    if is_web_request(message.get("body", "")):
-        task_id = append_web_task(root, message, "ChiefChat created this task before attempting local browser work.")
-        browser_note = try_browser_search(root, config, message.get("body", ""))
-        append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat browser note for {task_id}: {browser_note}")
-        extra = f"Web task created: {task_id}\nLocal browser attempt:\n{browser_note}"
+    web_task_id = ""
+    web_note = ""
+    if is_weather_request(body):
+        web_task_id = append_web_task(root, message, "ChiefChat created this task before deterministic weather lookup.")
+        try:
+            location = extract_weather_location(body)
+            reply = fetch_weather_summary(location, parse_int(config.get("Reply Timeout Seconds", "20"), 20))
+            append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat resolved {web_task_id} via Open-Meteo: {reply}")
+            update_chat_status(root, msg_id, "sent")
+            append_operator_reply(
+                root,
+                reply,
+                human_id=active_human_id(root),
+                from_role=CHIEF_ROLE,
+                channel="all",
+                reply_to=msg_id,
+            )
+            append_event(root, f"REPLIED_WEATHER - Operator message {msg_id}")
+            return True
+        except Exception as exc:
+            append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat weather lookup failed for {web_task_id}: {exc}")
+            web_note = f"Weather lookup failed: {exc}"
+            extra = f"Web task created: {web_task_id}\nFresh web evidence:\n{web_note}"
+    elif is_web_request(body):
+        web_task_id = append_web_task(root, message, "ChiefChat created this task before attempting local browser research.")
+        web_note = try_browser_research(root, config, body)
+        append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat web evidence for {web_task_id}: {web_note}")
+        extra = f"Web task created: {web_task_id}\nFresh web evidence:\n{web_note}"
 
-    prompt = build_prompt(root, message, extra_context=extra)
+    prompt = browser_answer_prompt(root, message, extra) if extra else build_prompt(root, message)
     try:
         reply = model_reply(root, config, prompt, message)
         if not reply:
             raise RuntimeError("model returned an empty reply")
     except Exception as exc:
-        reply = setup_failure_reply(config, exc) if parse_bool(config.get("Status Reply On Model Failure", "YES"), True) else ""
-        update_chat_status(root, msg_id, "failed")
-        append_event(root, f"MODEL_FAILURE - Operator message {msg_id}: {exc}")
+        if extra and web_note:
+            reply = evidence_fallback_reply(web_note, web_task_id or "TASK-WEB")
+            update_chat_status(root, msg_id, "sent")
+            append_event(root, f"WEB_MODEL_FALLBACK - Operator message {msg_id}: {exc}")
+        else:
+            reply = setup_failure_reply(config, exc) if parse_bool(config.get("Status Reply On Model Failure", "YES"), True) else ""
+            update_chat_status(root, msg_id, "failed")
+            append_event(root, f"MODEL_FAILURE - Operator message {msg_id}: {exc}")
     else:
+        if looks_like_progress_reply(reply, extra):
+            reply = evidence_fallback_reply(web_note or extra, web_task_id or "TASK-WEB")
         update_chat_status(root, msg_id, "sent")
 
     if reply:

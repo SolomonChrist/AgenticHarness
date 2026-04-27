@@ -7,7 +7,13 @@ import json
 import tempfile
 from pathlib import Path
 
-from ChiefChat.chief_chat_service import run_once
+from ChiefChat.chief_chat_service import (
+    evidence_fallback_reply,
+    extract_weather_location,
+    looks_like_progress_reply,
+    run_once,
+    weather_code_label,
+)
 from chat_ledger import parse_chat_records
 from operator_messaging import append_operator_message
 
@@ -52,6 +58,26 @@ def assert_contains(text: str, needle: str, label: str) -> None:
 
 
 def main() -> int:
+    if extract_weather_location("Check the weather in Toronto") != "Toronto":
+        raise AssertionError("expected weather location extraction for Toronto")
+    if extract_weather_location("What's the weather for Mississauga right now?") != "Mississauga":
+        raise AssertionError("expected weather location extraction for Mississauga")
+    if weather_code_label(2) != "partly cloudy":
+        raise AssertionError("expected WMO weather code mapping")
+    note = "\n".join(
+        [
+            "Web research completed.",
+            "1. Example Source",
+            "URL: https://example.com",
+            "Evidence:",
+            "- Example evidence with a useful number 123 and enough detail to answer.",
+        ]
+    )
+    fallback = evidence_fallback_reply(note, "TASK-WEB-TEST")
+    assert_contains(fallback, "Example Source", "web fallback source")
+    if not looks_like_progress_reply("Hey! I'm checking that now.", note):
+        raise AssertionError("expected progress-only web reply to be rejected")
+
     root = make_root()
     append_operator_message(root, "Hi", source="telegram", human_id="TestHuman")
     processed = run_once(root)
