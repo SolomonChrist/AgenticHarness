@@ -1,6 +1,6 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-py start.py --open-dashboard
+py start.py
 echo.
 pause

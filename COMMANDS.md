@@ -3,6 +3,8 @@
 ## Start, Stop, And Status
 
 ```powershell
+py start.py
+start.bat
 py ChiefChat\setup_chief_chat.py
 py service_manager.py start core
 py service_manager.py start all
@@ -10,6 +12,8 @@ py service_manager.py stop all
 py service_manager.py status all
 py swarm_status.py
 ```
+
+`py start.py` is the simplest normal startup command. It starts services, prints status, runs `production_check.py`, and checks whether the configured local model server is reachable. `start.bat` is the double-click wrapper.
 
 `core` starts ChiefChat, Runner, and Telegram when Telegram is configured. ChiefChat is the fast Telegram/Visualizer/console conversation layer; Runner is for scheduled role work and heavier harness launches.
 
@@ -98,12 +102,13 @@ mirror has been checked.
 Windows helpers:
 
 ```powershell
+py start.py
 start_all_services.bat
 stop_all_services.bat
 status_all_services.bat
 ```
 
-`start_all_services.bat` starts Runner and Visualizer, opens the Visualizer command center in your browser, and starts Telegram only if `TelegramBot/.env.telegram` has real credentials.
+`start_all_services.bat` now calls `py start.py --open-dashboard`. Use `py start.py --core` when you want only ChiefChat, Runner, and Telegram.
 
 Important: these commands start the infrastructure services only. They do not daemonize `Chief_of_Staff`. After first-run onboarding, run the daemon handoff command below before closing the desktop harness.
 

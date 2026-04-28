@@ -215,6 +215,20 @@ py service_manager.py status all
 Recommended infrastructure launcher on Windows:
 
 ```powershell
+py start.py
+```
+
+Or double-click:
+
+```powershell
+start.bat
+```
+
+`py start.py` is the simplest restart command. It starts services, prints service status, runs `production_check.py`, and checks whether the configured local ChiefChat model endpoint is reachable.
+
+Older launcher:
+
+```powershell
 start_all_services.bat
 ```
 
@@ -229,6 +243,69 @@ py service_manager.py status all
 `ChiefChat` is the always-on, low-cost conversation layer for Telegram, Visualizer, console chat, and future transports. It reads and writes `_messages/CHAT.md`, uses `MEMORY/agents/Chief_of_Staff/SOUL.md` for voice, and calls the configured cheap model path in `ChiefChat/CHIEF_CHAT_CONFIG.md`. Claude Code/OpenCode remain the recommended first-run and deep-work harnesses; ordinary Telegram chat should not spend Claude Code quota.
 
 This keeps the system lightweight and avoids preloading unnecessary structure.
+
+## Restart After Computer Reboot
+
+After restarting the computer, start the production folder from PowerShell:
+
+```powershell
+cd C:\Path\To\AgenticHarness\Production
+py start.py
+```
+
+Or double-click `start.bat` inside the production folder.
+
+`py start.py` starts:
+
+- `chief-chat`
+- `runner`
+- `telegram`, when `TelegramBot/.env.telegram` has real credentials
+- `visualizer`, as an optional service
+
+If you want to skip Visualizer and start only the core communication/runtime services:
+
+```powershell
+py start.py --core
+```
+
+If ChiefChat uses LM Studio, Ollama, OpenCode, or another local model server, start that model server too. Agentic Harness can restart its own daemons, but it cannot make an external local model app load a model unless that provider is already running.
+
+To stop everything cleanly:
+
+```powershell
+py service_manager.py stop all
+```
+
+The service manager is folder-relative. Always run it from the install folder you want to operate.
+
+## Rename An Install Folder
+
+Stop services before renaming an install folder:
+
+```powershell
+cd C:\Path\To\AgenticHarness\TESTING
+py service_manager.py stop all
+
+cd C:\Path\To\AgenticHarness
+Rename-Item -LiteralPath .\TESTING -NewName Production
+cd .\Production
+```
+
+After a rename, update any stored absolute paths that still point at the old folder. The most common ones are:
+
+- `TelegramBot/.env.telegram`, especially `HARNESS_ROOT=...`
+- `Runner/ROLE_LAUNCH_REGISTRY.md`, especially `Working Directory: ...`
+- any Windows Task Scheduler actions or shortcuts created outside the folder
+
+Then restart and verify:
+
+```powershell
+py service_manager.py start core
+py service_manager.py status all
+py production_check.py
+```
+
+If the target folder name already exists, do not overwrite it. Rename the old target folder first, for example `Production_previous_YYYYMMDD_HHMMSS`, then rename the active install.
 
 ## Telegram Chat Mode
 

@@ -88,7 +88,7 @@ Important:
 - manual-call systems should be documented as secondary roles that can still participate, but they are not the first daemon-owned target
 - every specialist role should be manually proven once on its chosen harness before Runner owns that role on timer
 - `Runner/`, `TelegramBot/`, and `Visualizer/` are infrastructure services, not swarm roles; do not add them to `ROLES.md`
-- use `py service_manager.py start all` or `start_all_services.bat` to start those services
+- use `py start.py` or `start.bat` to start those services
 
 The goal is that confirmed roles should auto-launch or auto-nudge on schedule so the system keeps moving without you having to manually tell each harness to check status.
 
@@ -107,10 +107,10 @@ For Claude Code roles, the preferred built-in pattern is short scheduled Claude 
 Preferred infrastructure launcher on Windows:
 
 ```powershell
-start_all_services.bat
+py start.py
 ```
 
-That launcher starts Runner and Visualizer through `service_manager.py`, opens Visualizer in your browser, and starts Telegram only when real Telegram credentials are configured.
+That launcher starts ChiefChat, Runner, Telegram when configured, and the optional Visualizer through `service_manager.py`. It also prints status, runs `production_check.py`, and checks whether the configured local ChiefChat model endpoint is reachable.
 
 Starting services is not the same thing as daemonizing `Chief_of_Staff`. `py service_manager.py start runner` starts the scheduler only. It does not create the background Chief brain unless `Chief_of_Staff` has also been registered with `configure_role_daemon.py`.
 
