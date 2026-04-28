@@ -31,6 +31,7 @@ from role_preflight import config_view, load_role_registry
 
 RUNNING = True
 CHIEF_ROLE = "Chief_of_Staff"
+GENERIC_CHAT_MODEL_NAMES = {"", "default", "local-model-name", "local model name"}
 
 
 def iso_now() -> str:
@@ -147,7 +148,7 @@ def detected_chat_model(config: dict[str, str]) -> str:
     configured = config.get("Chat Model", "").strip()
     provider = config.get("Chat Provider", "openai-compatible").strip().lower()
     timeout = max(1, parse_int(config.get("Model Detection Timeout Seconds", "2"), 2))
-    generic = configured.lower() in {"", "default", "local-model-name", "local model name"}
+    generic = configured.lower() in GENERIC_CHAT_MODEL_NAMES
     if provider in {"fake", "test"}:
         return configured or "fake"
     if provider in {"openai", "openai-compatible", "lmstudio", "lm-studio"}:
@@ -185,6 +186,24 @@ def detected_chat_model(config: dict[str, str]) -> str:
             pass
         return configured or "unknown Ollama model"
     return configured or "provider default"
+
+
+def resolved_chat_model(config: dict[str, str]) -> str:
+    configured = config.get("Chat Model", "").strip()
+    provider = config.get("Chat Provider", "openai-compatible").strip().lower()
+    generic = configured.lower() in GENERIC_CHAT_MODEL_NAMES
+    if provider in {"openai", "openai-compatible", "lmstudio", "lm-studio", "ollama"} and generic:
+        detected = detected_chat_model(config).strip()
+        if detected and detected.lower() not in GENERIC_CHAT_MODEL_NAMES and not detected.lower().startswith("unknown "):
+            return detected
+        if provider in {"openai", "openai-compatible", "lmstudio", "lm-studio"}:
+            endpoint = chat_endpoint_summary(config)
+            raise RuntimeError(
+                "Chat Model is still a placeholder. Load a model in LM Studio, then set "
+                f"`Chat Model` to the exact model id from `{endpoint}/models`."
+            )
+        raise RuntimeError("Chat Model is still a placeholder. Start Ollama and set `Chat Model` to a pulled model name.")
+    return configured or detected_chat_model(config)
 
 
 def runtime_identity_context(root: Path, config: dict[str, str]) -> str:
@@ -421,7 +440,7 @@ def openai_compatible_reply(config: dict[str, str], prompt: str) -> str:
     base = config.get("OpenAI Compatible Base URL", "http://127.0.0.1:1234/v1").rstrip("/")
     url = base if base.endswith("/chat/completions") else f"{base}/chat/completions"
     payload = {
-        "model": config.get("Chat Model", "local-model-name"),
+        "model": resolved_chat_model(config),
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.35,
         "max_tokens": 600,
@@ -438,7 +457,7 @@ def openai_compatible_reply(config: dict[str, str], prompt: str) -> str:
 def ollama_reply(config: dict[str, str], prompt: str) -> str:
     base = config.get("Ollama Base URL", "http://127.0.0.1:11434").rstrip("/")
     payload = {
-        "model": config.get("Chat Model", "llama3.1"),
+        "model": resolved_chat_model(config),
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
     }
@@ -476,6 +495,43 @@ def fake_reply(_config: dict[str, str], message: dict[str, str]) -> str:
     if lowered in {"hi", "hello", "hey"}:
         return "I am here, online, and watching the system. What should we move next?"
     return f"I got it. I saved this in the shared chat and I am ready to route the next step: {text}"
+
+
+def is_presence_ping(text: str) -> bool:
+    lowered = re.sub(r"\s+", " ", text.strip().lower()).strip(" ?!.")
+    return bool(
+        lowered in {
+            "hi",
+            "hello",
+            "hey",
+            "ping",
+            "test",
+            "are you there",
+            "are you available",
+            "are you available again",
+            "you there",
+            "hello are you available again",
+        }
+        or re.search(r"\b(are you|you)\s+(there|online|awake|available|working|running)\??$", lowered)
+    )
+
+
+def presence_ping_reply(root: Path) -> str:
+    status_bits: list[str] = []
+    try:
+        runtime = json.loads(read_text(runtime_file(root)) or "{}")
+        if runtime.get("status"):
+            status_bits.append(f"ChiefChat is {runtime.get('status')}")
+    except Exception:
+        pass
+    try:
+        detected = detected_chat_model(load_config(root))
+        if detected and not detected.startswith("unknown"):
+            status_bits.append(f"local model: {detected}")
+    except Exception:
+        pass
+    suffix = f" ({'; '.join(status_bits)})" if status_bits else ""
+    return f"Yep, I am here and connected{suffix}. Send me what you want to move next."
 
 
 def model_reply(root: Path, config: dict[str, str], prompt: str, message: dict[str, str]) -> str:
@@ -1293,6 +1349,12 @@ def setup_failure_reply(config: dict[str, str], error: Exception) -> str:
     provider = config.get("Chat Provider", "openai-compatible")
     if provider in {"openai-compatible", "openai", "lmstudio", "lm-studio"}:
         target = config.get("OpenAI Compatible Base URL", "http://127.0.0.1:1234/v1")
+        if "timed out" in str(error).lower():
+            return (
+                "I received your message, but the local chat model took too long to answer. "
+                f"LM Studio is reachable at `{target}`, so this is a speed/model-load issue rather than Telegram being down. "
+                "Try again in a moment, or switch ChiefChat to a smaller loaded model in `ChiefChat\\CHIEF_CHAT_CONFIG.md`."
+            )
         return (
             "I received your message, but my cheap local chat model is not reachable yet. "
             f"Start LM Studio or another OpenAI-compatible server at `{target}`, then send the message again. "
@@ -1315,6 +1377,20 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
     append_event(root, f"PROCESSING - Operator message {msg_id} via {message.get('channel', 'unknown')}")
 
     body = message.get("body", "")
+    if is_presence_ping(body):
+        reply = presence_ping_reply(root)
+        update_chat_status(root, msg_id, "sent")
+        append_operator_reply(
+            root,
+            reply,
+            human_id=active_human_id(root),
+            from_role=CHIEF_ROLE,
+            channel="all",
+            reply_to=msg_id,
+        )
+        append_event(root, f"REPLIED_PRESENCE - Operator message {msg_id}")
+        return True
+
     if is_model_identity_request(body):
         reply = model_identity_reply(root, config)
         update_chat_status(root, msg_id, "sent")

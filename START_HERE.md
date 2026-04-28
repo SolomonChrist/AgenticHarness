@@ -89,6 +89,7 @@ Important:
 - every specialist role should be manually proven once on its chosen harness before Runner owns that role on timer
 - `Runner/`, `TelegramBot/`, and `Visualizer/` are infrastructure services, not swarm roles; do not add them to `ROLES.md`
 - use `py start.py` or `start.bat` to start those services
+- use `py dashboard.py` or `dashboard.bat` to see the live CLI dashboard
 
 The goal is that confirmed roles should auto-launch or auto-nudge on schedule so the system keeps moving without you having to manually tell each harness to check status.
 
@@ -108,6 +109,12 @@ Preferred infrastructure launcher on Windows:
 
 ```powershell
 py start.py
+```
+
+Then open the CLI dashboard:
+
+```powershell
+py dashboard.py
 ```
 
 That launcher starts ChiefChat, Runner, Telegram when configured, and the optional Visualizer through `service_manager.py`. It also prints status, runs `production_check.py`, and checks whether the configured local ChiefChat model endpoint is reachable.
@@ -171,6 +178,7 @@ Core job board without Visualizer:
 
 ```powershell
 py role_jobs.py status
+py dashboard.py --once
 py role_jobs.py enable Chief_of_Staff
 py role_jobs.py disable Engineer
 ```

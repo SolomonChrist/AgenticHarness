@@ -51,7 +51,7 @@ SERVICES = {
 
 def read_text(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8", errors="ignore")
+        return path.read_text(encoding="utf-8-sig", errors="ignore")
     except FileNotFoundError:
         return ""
 

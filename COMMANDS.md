@@ -5,6 +5,8 @@
 ```powershell
 py start.py
 start.bat
+py dashboard.py
+dashboard.bat
 py ChiefChat\setup_chief_chat.py
 py service_manager.py start core
 py service_manager.py start all
@@ -13,7 +15,7 @@ py service_manager.py status all
 py swarm_status.py
 ```
 
-`py start.py` is the simplest normal startup command. It starts services, prints status, runs `production_check.py`, and checks whether the configured local model server is reachable. `start.bat` is the double-click wrapper.
+`py start.py` is the simplest normal startup command. It starts services, prints status, runs `production_check.py`, and checks whether the configured local model server is reachable. `start.bat` is the double-click wrapper. `py dashboard.py` opens the live CLI dashboard; `dashboard.bat` is the double-click wrapper.
 
 `core` starts ChiefChat, Runner, and Telegram when Telegram is configured. ChiefChat is the fast Telegram/Visualizer/console conversation layer; Runner is for scheduled role work and heavier harness launches.
 
@@ -46,6 +48,8 @@ Core job board without Visualizer:
 py role_jobs.py status
 py role_jobs.py dashboard
 py role_jobs.py dashboard --watch 2
+py dashboard.py
+py dashboard.py --once
 py role_jobs.py enable Chief_of_Staff
 py role_jobs.py disable Engineer
 ```

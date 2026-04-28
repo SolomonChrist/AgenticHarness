@@ -7,15 +7,18 @@ import json
 import tempfile
 from pathlib import Path
 
+import ChiefChat.chief_chat_service as service
 from ChiefChat.chief_chat_service import (
     apply_voice_cleanup,
     broad_location_clarification,
     evidence_fallback_reply,
     extract_weather_location,
     is_model_identity_request,
+    is_presence_ping,
     looks_like_progress_reply,
     plan_web_search_query,
     requested_route_roles,
+    resolved_chat_model,
     run_once,
     violates_chief_voice,
     weather_code_label,
@@ -100,6 +103,8 @@ def main() -> int:
         raise AssertionError("expected WMO weather code mapping")
     if not is_model_identity_request("What AI model are you running on?"):
         raise AssertionError("expected model identity request detection")
+    if not is_presence_ping("Hello are you available again?"):
+        raise AssertionError("expected presence ping detection")
     query_cases = {
         "Ok can you research events coming up in Toronto?": "upcoming events Toronto this week",
         "What tech meetups and events are happening in downtown Toronto tonight?": "tech meetups and events Downtown Toronto tonight",
@@ -111,6 +116,31 @@ def main() -> int:
         actual = plan_web_search_query(request)
         if actual != expected:
             raise AssertionError(f"expected planned query {expected!r}, got {actual!r}")
+
+    original_http_get_json = service.http_get_json
+    original_http_json = service.http_json
+    try:
+        service.http_get_json = lambda url, timeout: {"data": [{"id": "gemma-test-model"}]}
+
+        def fake_http_json(url: str, payload: dict, timeout: int) -> dict:
+            if payload.get("model") != "gemma-test-model":
+                raise AssertionError(f"expected resolved model id, got {payload.get('model')!r}")
+            return {"choices": [{"message": {"content": "resolved ok"}}]}
+
+        service.http_json = fake_http_json
+        config = {
+            "Chat Provider": "openai-compatible",
+            "Chat Model": "local-model-name",
+            "OpenAI Compatible Base URL": "http://127.0.0.1:1234/v1",
+        }
+        if resolved_chat_model(config) != "gemma-test-model":
+            raise AssertionError("expected placeholder chat model to resolve from /models")
+        if service.openai_compatible_reply(config, "hello") != "resolved ok":
+            raise AssertionError("expected OpenAI-compatible reply to use resolved model id")
+    finally:
+        service.http_get_json = original_http_get_json
+        service.http_json = original_http_json
+
     note = "\n".join(
         [
             "Web research completed.",
@@ -145,6 +175,13 @@ def main() -> int:
     records = parse_chat_records(root)
     if not any(record.get("direction") == "chief_to_operator" for record in records):
         raise AssertionError("expected Chief reply in chat ledger")
+
+    append_operator_message(root, "Hello are you available again?", source="telegram", human_id="TestHuman")
+    processed = run_once(root)
+    if processed != 1:
+        raise AssertionError(f"expected 1 processed presence ping, got {processed}")
+    outbox = (root / "_messages" / "human_TestHuman.md").read_text(encoding="utf-8")
+    assert_contains(outbox, "I am here and connected", "presence ping reply")
 
     append_operator_message(root, "Look up the latest status of example.com", source="telegram", human_id="TestHuman")
     processed = run_once(root)

@@ -205,12 +205,14 @@ py Runner\daily_all_hands.py
 py role_jobs.py status
 py role_jobs.py dashboard
 py role_jobs.py dashboard --watch 2
+py dashboard.py
+dashboard.bat
 py service_manager.py status all
 ```
 
 `Daily All Hands` is enabled by default every 24 hours. It lets quota-paused or idle roles re-check their situation and report/recover without making the operator manually wake every bot. When Runner detects provider login, quota, rate-limit, or credit failure, it pauses that provider path and creates a Chief-owned task asking for replacement harness setup or quota recovery.
 
-`role_jobs.py dashboard` is the CLI dashboard code. It is the fast color view for roles, leases, harnesses, work, and on/off state. Use `py role_jobs.py dashboard --watch 2` when you want a live refresh loop.
+`role_jobs.py dashboard` is the CLI dashboard code. It is the fast color view for roles, leases, harnesses, work, and on/off state. The easy command is `py dashboard.py`, or double-click `dashboard.bat` on Windows. Use `py dashboard.py --once` when you only want one snapshot.
 
 Recommended infrastructure launcher on Windows:
 
@@ -254,6 +256,14 @@ py start.py
 ```
 
 Or double-click `start.bat` inside the production folder.
+
+To open the CLI dashboard after startup:
+
+```powershell
+py dashboard.py
+```
+
+Or double-click `dashboard.bat` inside the production folder.
 
 `py start.py` starts:
 
