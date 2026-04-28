@@ -26,6 +26,7 @@ if str(ROOT) not in sys.path:
 from chat_ledger import pending_operator_messages, update_chat_status
 from coordination_io import append_line, atomic_write_text, read_text
 from operator_messaging import active_human_id, append_operator_reply
+from role_preflight import config_view, load_role_registry
 
 
 RUNNING = True
@@ -89,6 +90,7 @@ def runtime_file(root: Path) -> Path:
 
 def update_runtime(root: Path, status: str, *, last_error: str = "") -> None:
     path = runtime_file(root)
+    config = load_config(root)
     payload = {
         "component": "chief-chat",
         "status": status,
@@ -96,6 +98,9 @@ def update_runtime(root: Path, status: str, *, last_error: str = "") -> None:
         "updated_at": iso_now(),
         "last_error": last_error,
         "chat_ledger": str(root / "_messages" / "CHAT.md"),
+        "chat_provider": config.get("Chat Provider", ""),
+        "chat_model": config.get("Chat Model", ""),
+        "chat_endpoint": chat_endpoint_summary(config),
     }
     atomic_write_text(path, json.dumps(payload, indent=2))
 
@@ -119,11 +124,129 @@ def load_config(root: Path) -> dict[str, str]:
         "Browser Search Results": "5",
         "Browser Pages To Read": "3",
         "Browser Headless": "NO",
+        "Model Detection Timeout Seconds": "2",
         "Poll Seconds": "0.5",
         "Status Reply On Model Failure": "YES",
     }
     values = parse_key_values(config_path(root))
     return {**defaults, **values}
+
+
+def chat_endpoint_summary(config: dict[str, str]) -> str:
+    provider = config.get("Chat Provider", "openai-compatible").strip().lower()
+    if provider in {"openai", "openai-compatible", "lmstudio", "lm-studio"}:
+        return config.get("OpenAI Compatible Base URL", "http://127.0.0.1:1234/v1").rstrip("/")
+    if provider == "ollama":
+        return config.get("Ollama Base URL", "http://127.0.0.1:11434").rstrip("/")
+    if provider == "opencode":
+        return "OpenCode CLI"
+    return provider or "unknown"
+
+
+def detected_chat_model(config: dict[str, str]) -> str:
+    configured = config.get("Chat Model", "").strip()
+    provider = config.get("Chat Provider", "openai-compatible").strip().lower()
+    timeout = max(1, parse_int(config.get("Model Detection Timeout Seconds", "2"), 2))
+    generic = configured.lower() in {"", "default", "local-model-name", "local model name"}
+    if provider in {"fake", "test"}:
+        return configured or "fake"
+    if provider in {"openai", "openai-compatible", "lmstudio", "lm-studio"}:
+        base = chat_endpoint_summary(config)
+        try:
+            result = http_get_json(f"{base}/models", timeout)
+            ids = [
+                str(item.get("id", "")).strip()
+                for item in result.get("data", [])
+                if isinstance(item, dict) and str(item.get("id", "")).strip()
+            ]
+            if configured and configured in ids:
+                return configured
+            if generic and ids:
+                return ids[0]
+            if ids:
+                return f"{configured} (available: {', '.join(ids[:3])})"
+        except Exception:
+            pass
+        return configured or "unknown local model"
+    if provider == "ollama":
+        base = chat_endpoint_summary(config)
+        try:
+            result = http_get_json(f"{base}/api/tags", timeout)
+            models = [
+                str(item.get("name", "")).strip()
+                for item in result.get("models", [])
+                if isinstance(item, dict) and str(item.get("name", "")).strip()
+            ]
+            if configured and configured in models:
+                return configured
+            if generic and models:
+                return models[0]
+        except Exception:
+            pass
+        return configured or "unknown Ollama model"
+    return configured or "provider default"
+
+
+def runtime_identity_context(root: Path, config: dict[str, str]) -> str:
+    provider = config.get("Chat Provider", "openai-compatible").strip()
+    configured = config.get("Chat Model", "").strip() or "provider default"
+    detected = detected_chat_model(config)
+    registry = load_role_registry(root)
+    deep_lines: list[str] = []
+    for role in ("Chief_of_Staff", "Researcher", "Engineer"):
+        raw = registry.get(role)
+        if not raw:
+            continue
+        view = config_view(role, raw)
+        if view.harness_type or view.model_profile:
+            deep_lines.append(
+                f"- {role} deep-work runner: harness={view.harness_type or 'unknown'}, model={view.model_profile or 'default'}"
+            )
+    lines = [
+        "## ChiefChat runtime identity",
+        f"- Live chat path: ChiefChat",
+        f"- Chat provider: {provider}",
+        f"- Chat endpoint: {chat_endpoint_summary(config)}",
+        f"- Configured chat model: {configured}",
+        f"- Detected chat model: {detected}",
+        "- Claude Code/OpenCode/other Runner roles are deeper work paths, not the normal Telegram chat model.",
+    ]
+    if deep_lines:
+        lines.append("Deep-work role registry:")
+        lines.extend(deep_lines)
+    return "\n".join(lines)
+
+
+def model_identity_reply(root: Path, config: dict[str, str]) -> str:
+    provider = config.get("Chat Provider", "openai-compatible").strip()
+    configured = config.get("Chat Model", "").strip() or "provider default"
+    detected = detected_chat_model(config)
+    endpoint = chat_endpoint_summary(config)
+    lines = [
+        "I'm answering through the fast ChiefChat path right now, not a Claude Code worker.",
+        f"Chat provider: {provider}",
+        f"Endpoint: {endpoint}",
+        f"Configured model: {configured}",
+        f"Detected model: {detected}",
+    ]
+    registry = load_role_registry(root)
+    deep_bits: list[str] = []
+    for role, raw in registry.items():
+        view = config_view(role, raw)
+        if view.model_profile:
+            deep_bits.append(f"{role}: {view.harness_type or 'harness'} / {view.model_profile}")
+    if deep_bits:
+        lines.append("Separate deep-work role models: " + "; ".join(deep_bits[:4]))
+    return "\n".join(lines)
+
+
+def is_model_identity_request(text: str) -> bool:
+    lowered = text.lower()
+    return bool(
+        re.search(r"\b(what|which)\s+(ai\s+)?model\b", lowered)
+        or re.search(r"\b(model|provider|llm)\s+(are you|you are|running|using)\b", lowered)
+        or "what are you running on" in lowered
+    )
 
 
 def soul_context(root: Path) -> str:
@@ -165,13 +288,68 @@ def compact_system_summary(root: Path) -> str:
     return "\n".join(lines)
 
 
-def browser_answer_prompt(root: Path, message: dict[str, str], extra_context: str) -> str:
+def chief_voice_contract() -> str:
+    return """## Chief voice contract
+- Lead with the useful answer, not process narration.
+- Sound like a capable human assistant: warm, direct, practical, and specific.
+- Do not use robotic filler such as "Understood, Solomon" or "stand by" as a final answer.
+- Do not say "check these sites" when source evidence is available; answer from the evidence.
+- Be concise for Telegram, but include enough concrete detail to be useful."""
+
+
+def web_intent(text: str) -> str:
+    lowered = text.lower()
+    if is_weather_request(text):
+        return "weather"
+    if re.search(r"\b(events?|meetups?|concerts?|things to do|happening|coming up)\b", lowered):
+        return "events"
+    if re.search(r"\b(hours?|open|close|website)\b", lowered):
+        return "hours"
+    if re.search(r"\b(news|headlines)\b", lowered):
+        return "news"
+    if re.search(r"\b(restaurant|reviews?|best dish|best dishes|menu|dish)\b", lowered):
+        return "restaurant"
+    if re.search(r"\b(gas|fuel|gasoline)\b", lowered):
+        return "gas"
+    if "github" in lowered or re.search(r"\b(repo|repository)\b", lowered):
+        return "github"
+    if re.search(r"\b(book|author|summary|systemology)\b", lowered):
+        return "research"
+    return "general"
+
+
+def web_answer_shape(intent: str) -> str:
+    shapes = {
+        "events": "Return 3-7 concrete events if available. Include event name, date/time, venue/location, why it fits, and source link.",
+        "hours": "Return the venue/site name, today's hours if visible, official/source link, and any uncertainty.",
+        "news": "Return concrete headlines with source names and links. Do not invent dates or sources.",
+        "restaurant": "Recommend dishes only from review/menu evidence. Include why and source links.",
+        "gas": "Return prices/stations only if location and source evidence are clear. Ask for location if missing.",
+        "github": "Summarize what the repo does, who it is for, key signals from README/stars/docs if visible, and source link.",
+        "research": "Summarize what it is, who it is for, key concepts, and source link.",
+    }
+    return shapes.get(
+        intent,
+        "Return a direct answer from source evidence with names, dates, numbers, locations, and links when available.",
+    )
+
+
+def browser_answer_prompt(root: Path, config: dict[str, str], message: dict[str, str], extra_context: str) -> str:
     body = message.get("body", "").strip()
+    intent = web_intent(body)
     return f"""You are Chief_of_Staff. Reply to the operator in a warm, concise Telegram style.
 
 Use ONLY the fresh web evidence below plus the operator message. Do not discuss old provider cooldowns, quota, Runner state, or unrelated tasks.
 Give the actual answer now. Do not say you are checking, searching, looking, or about to do the work.
 If the web evidence is incomplete, say what you could verify, cite the source shown in the evidence, and note that a follow-up task remains open.
+Do not answer with a directory of places the operator can search unless the evidence contains no concrete answer.
+
+{chief_voice_contract()}
+
+{runtime_identity_context(root, config)}
+
+## Expected answer shape
+{web_answer_shape(intent)}
 
 ## Operator message
 {body}
@@ -182,7 +360,7 @@ If the web evidence is incomplete, say what you could verify, cite the source sh
 Give the best useful answer now."""
 
 
-def build_prompt(root: Path, message: dict[str, str], extra_context: str = "") -> str:
+def build_prompt(root: Path, config: dict[str, str], message: dict[str, str], extra_context: str = "") -> str:
     body = message.get("body", "").strip()
     context = soul_context(root)
     chat = recent_chat_context(root)
@@ -201,6 +379,10 @@ You are the orchestration layer. For deep coding, research, or long web work, cr
 Do not mention internal file paths, daemon cycles, or provider errors unless the user asks or it is needed to unblock them.
 Keep the reply concise enough for Telegram.
 {result_instruction}
+
+{chief_voice_contract()}
+
+{runtime_identity_context(root, config)}
 
 {context}
 
@@ -395,7 +577,12 @@ def is_weather_request(text: str) -> bool:
 def clean_location(value: str) -> str:
     text = re.sub(r"https?://\S+", "", value)
     text = re.sub(r"[?!.,;]+$", "", text.strip())
-    text = re.sub(r"\b(right now|today|currently|please|pls|thanks|thank you)\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"\b(right now|today|tonight|tomorrow|this week|this weekend|currently|please|pls|thanks|thank you)\b",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
     text = re.sub(r"\s+", " ", text)
     return text.strip(" -:,\t\r\n")
 
@@ -413,6 +600,40 @@ def extract_weather_location(text: str) -> str:
             return clean_location(match.group(1))
     words = [word for word in re.split(r"\s+", cleaned) if word.lower().strip("'") not in STOPWORDS]
     return clean_location(" ".join(words))
+
+
+AMBIGUOUS_PLACES = {
+    "california": "Did you mean California the state, or a specific city in California?",
+    "georgia": "Did you mean Georgia the country, Georgia the U.S. state, or a specific city?",
+    "washington": "Did you mean Washington state, Washington DC, or a specific city?",
+    "ontario": "Did you mean Ontario the province, or a specific city in Ontario?",
+    "paris": "Did you mean Paris, France, Paris, Ontario, or another Paris?",
+    "london": "Did you mean London, UK, London, Ontario, or another London?",
+}
+
+
+def broad_location_clarification(location: str) -> str:
+    normalized = re.sub(r"\s+", " ", location.strip().lower())
+    if normalized in AMBIGUOUS_PLACES:
+        return AMBIGUOUS_PLACES[normalized]
+    return ""
+
+
+def local_request_needs_location(text: str) -> bool:
+    lowered = text.lower()
+    if "near me" not in lowered and "nearby" not in lowered:
+        return False
+    return not extract_location_hint(text)
+
+
+def location_clarification_reply(text: str, *, kind: str = "request") -> str:
+    if kind == "weather":
+        location = extract_weather_location(text)
+        broad = broad_location_clarification(location)
+        if broad:
+            return broad
+        return "What city or region should I use for the weather?"
+    return "What area should I use for that? Send the city/neighborhood, and I will check it properly."
 
 
 def weather_code_label(code: int) -> str:
@@ -587,7 +808,8 @@ def clean_search_fragment(text: str) -> str:
     value = re.sub(
         r"\b(ok|okay|hey|hi|hello|please|pls|can you|could you|would you|will you|"
         r"tell me|send me|give me|show me|find me|find|look up|google|search|browse|"
-        r"research|online|on the web|right now|now|today|latest|current)\b",
+        r"research|online|on the web|right now|now|today|tonight|tomorrow|this week|"
+        r"this weekend|latest|current|upcoming|coming up)\b",
         " ",
         value,
         flags=re.IGNORECASE,
@@ -666,9 +888,11 @@ def plan_web_search_query(text: str) -> str:
     location = extract_location_hint(original)
 
     if re.search(r"\b(events?|concerts?|things to do|happening|coming up)\b", lowered):
+        time_hint = "tonight" if "tonight" in lowered else "today" if "today" in lowered else "this week"
+        topic = "tech meetups and events" if re.search(r"\b(tech|ai|startup|developer|developers?|meetups?)\b", lowered) else "upcoming events"
         target = location or title_location(re.sub(r".*?\b(?:in|around|near)\b\s+", "", original, flags=re.IGNORECASE))
         target = target or clean_search_fragment(original)
-        return f"upcoming events {target} this week".strip()
+        return f"{topic} {target} {time_hint}".strip()
 
     if re.search(r"\b(coffee|cafe|cafes|coffee shops?)\b", lowered):
         target = location or clean_search_fragment(original)
@@ -839,10 +1063,59 @@ def looks_like_progress_reply(reply: str, web_context: str) -> bool:
         "let me look",
         "checking now",
         "looking that up",
+        "stand by",
+        "i'll route",
+        "i will route",
+        "i am routing",
+        "i'm routing",
+        "i'll search",
+        "i will search",
     ]
     has_progress = any(phrase in lowered for phrase in progress_phrases)
     has_answer_signal = bool(re.search(r"\d|source:|http|according to|based on|found|top source", lowered))
     return has_progress and (len(reply) < 260 or not has_answer_signal)
+
+
+def looks_like_directory_reply(reply: str, web_context: str) -> bool:
+    if not web_context:
+        return False
+    lowered = reply.lower()
+    directory_phrases = [
+        "here are some ways to find",
+        "you can check",
+        "i recommend checking",
+        "for the most accurate",
+        "for accurate and up-to-date",
+        "if you need specific",
+    ]
+    has_directory_phrase = any(phrase in lowered for phrase in directory_phrases)
+    has_concrete_detail = bool(re.search(r"\b(\d{1,2}:\d{2}|\d{1,2}\s?(am|pm)|tonight|today|tomorrow|source:|venue|location)\b", lowered))
+    return has_directory_phrase and not has_concrete_detail
+
+
+def violates_chief_voice(reply: str) -> bool:
+    lowered = reply.lower().strip()
+    banned = [
+        "understood, solomon",
+        "stand by",
+        "awaiting further instructions",
+        "i will ensure",
+    ]
+    return any(phrase in lowered for phrase in banned)
+
+
+def apply_voice_cleanup(reply: str) -> str:
+    cleaned = reply.strip()
+    replacements = {
+        r"^Understood,\s*Solomon\.?\s*": "Got it. ",
+        r"\bI will ensure\b": "I'll make sure",
+        r"\bStand by\.?\b": "",
+        r"\bAwaiting further instructions\.?\b": "",
+    }
+    for pattern, replacement in replacements.items():
+        cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 def try_browser_research(root: Path, config: dict[str, str], query: str, original_request: str = "") -> str:
@@ -923,6 +1196,94 @@ Done When:
     return task_id
 
 
+def known_role_names(root: Path) -> list[str]:
+    names = [role for role in load_role_registry(root).keys() if role != CHIEF_ROLE]
+    if not names:
+        names = ["Researcher", "Engineer"]
+    return names
+
+
+def requested_route_roles(root: Path, text: str) -> list[str]:
+    lowered = text.lower()
+    if not re.search(r"\b(send|route|assign|delegate|give|tell|hand)\b", lowered):
+        return []
+    roles: list[str] = []
+    for role in known_role_names(root):
+        role_text = role.lower().replace("_", " ")
+        aliases = {role.lower(), role_text}
+        if role_text.endswith("er"):
+            aliases.add(role_text[:-2])
+        if any(re.search(rf"\b{re.escape(alias)}\b", lowered) for alias in aliases if alias):
+            roles.append(role)
+    return roles
+
+
+def role_readiness(root: Path, role: str) -> tuple[str, str]:
+    raw = load_role_registry(root).get(role)
+    if not raw:
+        return "unregistered", "needs a harness registration before it can run"
+    view = config_view(role, raw)
+    if not view.enabled:
+        return "disabled", "is registered but disabled"
+    if not view.automation_ready:
+        return "not automation-ready", "is queued, but needs a confirmed harness before it can run automatically"
+    return "ready", "is ready and has been woken"
+
+
+def append_role_task(root: Path, role: str, message: dict[str, str]) -> str:
+    msg_id = message.get("id", "") or "UNKNOWN"
+    safe_role = re.sub(r"[^A-Za-z0-9]+", "-", role).strip("-").upper() or "ROLE"
+    task_id = f"TASK-CHIEFCHAT-{safe_role}-{msg_id.upper()}"
+    if task_exists(root, task_id):
+        append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat confirmed route for {task_id}")
+        append_line(root / "Runner" / "_wake_requests.md", f"[{iso_now()}] {role}: routed_task:{task_id}")
+        return task_id
+    body = message.get("body", "").strip()
+    block = f"""
+## TASK
+ID: {task_id}
+Title: Operator request routed from ChiefChat
+Project: operator-requests
+Owner Role: {role}
+Status: TODO
+Priority: HIGH
+Created By: ChiefChat
+Created At: {iso_now()}
+Source Message: {msg_id}
+Request:
+{body}
+ChiefChat Notes:
+- ChiefChat wrote this task before confirming routing to the operator.
+Done When:
+- {role} reports progress or completion back to Chief_of_Staff.
+""".strip()
+    append_line(root / "LAYER_TASK_LIST.md", block)
+    append_line(root / "Runner" / "_wake_requests.md", f"[{iso_now()}] {role}: routed_task:{task_id}")
+    return task_id
+
+
+def route_tasks_reply(root: Path, message: dict[str, str], roles: list[str]) -> str:
+    routed: list[str] = []
+    blockers: list[str] = []
+    for role in roles:
+        task_id = append_role_task(root, role, message)
+        state, note = role_readiness(root, role)
+        routed.append(f"{role}: {task_id}")
+        if state != "ready":
+            blockers.append(f"{role} {note}")
+    if blockers:
+        return (
+            "Queued. I wrote the task files and wake requests for "
+            f"{', '.join(roles)}.\n\n"
+            + "\n".join(f"- {item}" for item in blockers)
+        )
+    return (
+        "Done. I wrote the task files and wake requests for "
+        f"{', '.join(roles)}.\n\n"
+        "I will watch for their updates and keep the training plan moving."
+    )
+
+
 def browser_profile_dir(root: Path) -> Path:
     base = os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_STATE_HOME") or str(root / ".local_state")
     return Path(base) / "AgenticHarness" / "ChiefChat" / "browser-profile"
@@ -954,14 +1315,56 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
     append_event(root, f"PROCESSING - Operator message {msg_id} via {message.get('channel', 'unknown')}")
 
     body = message.get("body", "")
+    if is_model_identity_request(body):
+        reply = model_identity_reply(root, config)
+        update_chat_status(root, msg_id, "sent")
+        append_operator_reply(
+            root,
+            reply,
+            human_id=active_human_id(root),
+            from_role=CHIEF_ROLE,
+            channel="all",
+            reply_to=msg_id,
+        )
+        append_event(root, f"REPLIED_IDENTITY - Operator message {msg_id}")
+        return True
+
+    route_roles = requested_route_roles(root, body)
+    if route_roles:
+        reply = route_tasks_reply(root, message, route_roles)
+        update_chat_status(root, msg_id, "sent")
+        append_operator_reply(
+            root,
+            reply,
+            human_id=active_human_id(root),
+            from_role=CHIEF_ROLE,
+            channel="all",
+            reply_to=msg_id,
+        )
+        append_event(root, f"ROUTED_TASKS - Operator message {msg_id} to {', '.join(route_roles)}")
+        return True
+
     extra = ""
     web_task_id = ""
     web_note = ""
     if is_weather_request(body):
+        weather_location = extract_weather_location(body)
+        clarification = location_clarification_reply(body, kind="weather") if broad_location_clarification(weather_location) or not weather_location else ""
+        if clarification:
+            update_chat_status(root, msg_id, "sent")
+            append_operator_reply(
+                root,
+                clarification,
+                human_id=active_human_id(root),
+                from_role=CHIEF_ROLE,
+                channel="all",
+                reply_to=msg_id,
+            )
+            append_event(root, f"ASKED_LOCATION_CLARIFICATION - Operator message {msg_id}")
+            return True
         web_task_id = append_web_task(root, message, "ChiefChat created this task before deterministic weather lookup.")
         try:
-            location = extract_weather_location(body)
-            reply = fetch_weather_summary(location, parse_int(config.get("Reply Timeout Seconds", "20"), 20))
+            reply = fetch_weather_summary(weather_location, parse_int(config.get("Reply Timeout Seconds", "20"), 20))
             append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat resolved {web_task_id} via Open-Meteo: {reply}")
             update_chat_status(root, msg_id, "sent")
             append_operator_reply(
@@ -979,6 +1382,18 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
             web_note = f"Weather lookup failed: {exc}"
             extra = f"Web task created: {web_task_id}\nFresh web evidence:\n{web_note}"
     elif is_web_request(body):
+        if local_request_needs_location(body):
+            update_chat_status(root, msg_id, "sent")
+            append_operator_reply(
+                root,
+                location_clarification_reply(body),
+                human_id=active_human_id(root),
+                from_role=CHIEF_ROLE,
+                channel="all",
+                reply_to=msg_id,
+            )
+            append_event(root, f"ASKED_LOCATION_CLARIFICATION - Operator message {msg_id}")
+            return True
         web_task_id = append_web_task(root, message, "ChiefChat created this task before attempting local browser research.")
         search_query = plan_web_search_query(body)
         append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat planned search for {web_task_id}: {search_query}")
@@ -986,7 +1401,7 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
         append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat web evidence for {web_task_id}: {web_note}")
         extra = f"Web task created: {web_task_id}\nFresh web evidence:\n{web_note}"
 
-    prompt = browser_answer_prompt(root, message, extra) if extra else build_prompt(root, message)
+    prompt = browser_answer_prompt(root, config, message, extra) if extra else build_prompt(root, config, message)
     try:
         reply = model_reply(root, config, prompt, message)
         if not reply:
@@ -1001,8 +1416,10 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
             update_chat_status(root, msg_id, "failed")
             append_event(root, f"MODEL_FAILURE - Operator message {msg_id}: {exc}")
     else:
-        if looks_like_progress_reply(reply, extra):
+        if looks_like_progress_reply(reply, extra) or looks_like_directory_reply(reply, extra):
             reply = evidence_fallback_reply(web_note or extra, web_task_id or "TASK-WEB")
+        else:
+            reply = apply_voice_cleanup(reply)
         update_chat_status(root, msg_id, "sent")
 
     if reply:

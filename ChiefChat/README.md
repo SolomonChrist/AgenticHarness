@@ -33,6 +33,12 @@ actual current conditions instead of a "checking now" placeholder. If the cheap
 model fails or only sends a progress update, ChiefChat replies with the extracted
 source evidence and leaves the task open for deeper follow-up.
 
+ChiefChat should be truthful about its own runtime. When asked what model it is
+using, it reports the live ChiefChat provider/model first and distinguishes that
+from deeper Runner role models such as Claude Code. It also asks a quick
+clarifying question for ambiguous places instead of guessing, and it only says a
+task was routed after writing the task and wake-request files.
+
 Claude Code and other heavy harnesses should still be used for bootstrap,
 coding, research, and deep work. ChiefChat is the always-on conversation and
 orchestration path.
