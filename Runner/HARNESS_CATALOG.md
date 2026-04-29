@@ -260,7 +260,7 @@ Capabilities:
 - Browser/Tool Capable: YES, through n8n workflows
 - Local Only: NO
 - Manual Only: YES (for initial setup and workflow design)
-Fallback Instructions: Direct Solomon to n8n UI for workflow configuration.
+Fallback Instructions: Direct the operator to the n8n UI for workflow configuration.
 Prompt / Bootstrap Notes: Workflows configured through UI or imported definitions. Strong candidate for the cheap Chief control plane.
 Last Confirmed:
 Learned From:

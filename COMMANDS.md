@@ -50,9 +50,19 @@ py role_jobs.py dashboard
 py role_jobs.py dashboard --watch 2
 py dashboard.py
 py dashboard.py --once
+py role_jobs.py prompt Researcher
+py role_jobs.py prompt Engineer --claude-command
 py role_jobs.py enable Chief_of_Staff
 py role_jobs.py disable Engineer
 ```
+
+Manual live-harness nudge:
+
+```text
+continue, check your tasks as Researcher
+```
+
+Use `py role_jobs.py prompt <ROLE>` when a harness is fresh and needs the safer lease/task instructions. Use `--claude-command` when you want a ready-to-run Claude Code CLI command.
 
 Backup and restore:
 
@@ -234,7 +244,7 @@ CLI-capable role changes are applied directly to `Runner/ROLE_LAUNCH_REGISTRY.md
 Use these instead of create-only `Write(...)` or shell redirection when a harness needs to reply or wake another role:
 
 ```powershell
-py send_human_reply.py "Hello Solomon, I am online."
+py send_human_reply.py "Hello Operator, I am online."
 py wake_role.py --role Chief_of_Staff --reason telegram_message
 py wake_role.py --role Researcher --reason task_assigned
 ```

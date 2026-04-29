@@ -19,7 +19,7 @@ Human IDs must use:
 
 Example:
 
-- `SolomonChrist4821`
+- `OperatorExample4821`
 - `JaneDoe1044`
 
 ## Record Template

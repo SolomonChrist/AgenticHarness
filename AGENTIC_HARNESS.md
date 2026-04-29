@@ -468,7 +468,7 @@ Human IDs should use:
 
 Example:
 
-- `SolomonChrist4821`
+- `OperatorExample4821`
 
 Human contact details should be stored in `HUMANS.md`.
 
@@ -605,6 +605,9 @@ Human-run rule:
 - a human may take a role through a manual harness session
 - that still uses the same file protocol
 - the Runner should not attempt to auto-launch a human-run role
+- the standard live-harness nudge is `continue, check your tasks as <Role>`
+- `py role_jobs.py prompt <Role>` should print the safer fresh-context version of that same nudge
+- scheduled Runner cycles should behave like the daemon equivalent of that nudge: check cheap file state first, respect leases, do the next role task, write back, and stop cleanly
 
 Role launch registration rule:
 

@@ -11,15 +11,25 @@ import ChiefChat.chief_chat_service as service
 from ChiefChat.chief_chat_service import (
     apply_voice_cleanup,
     broad_location_clarification,
+    detect_operator_intent,
     evidence_fallback_reply,
+    extract_location_hint,
+    extract_numbered_tasks,
     extract_weather_location,
     is_model_identity_request,
+    is_bad_search_result,
     is_presence_ping,
+    is_situational_location_request,
+    is_task_intake_request,
+    is_web_request,
     looks_like_progress_reply,
+    plan_web_search_queries,
     plan_web_search_query,
+    recommend_task_roles,
     requested_route_roles,
     resolved_chat_model,
     run_once,
+    situational_evidence_reply,
     violates_chief_voice,
     weather_code_label,
 )
@@ -105,6 +115,40 @@ def main() -> int:
         raise AssertionError("expected model identity request detection")
     if not is_presence_ping("Hello are you available again?"):
         raise AssertionError("expected presence ping detection")
+    intake_text = "\n".join(
+        [
+            "Add these tasks to the list of tasks that we need to get done and figure out which team members we need:",
+            "1. Create a full course outline for the Introduction to Claude course.",
+            "2. Research and implement the fastest workflow for creating course videos.",
+            "3. Build a simple KPI update system with spreadsheets and dashboards.",
+        ]
+    )
+    if len(extract_numbered_tasks(intake_text)) != 3:
+        raise AssertionError("expected numbered task extraction")
+    if not is_task_intake_request(intake_text):
+        raise AssertionError("expected task intake detection")
+    if is_web_request(intake_text):
+        raise AssertionError("task intake must not be treated as a web request")
+    owner, support = recommend_task_roles("Build a simple KPI update system with spreadsheets and dashboards.")
+    if owner != "Engineer" or "Engineer" not in support:
+        raise AssertionError("expected KPI system to route to Engineer")
+    friend_text = "Today was a lot, and I just need to talk through what to do next."
+    if is_web_request(friend_text):
+        raise AssertionError("normal human conversation with 'today' must not trigger web search")
+    lineup_request = "I'm right now on Bloor and Bathurst in Toronto and there's a big line by a movie theatre. What's going on?"
+    if extract_location_hint(lineup_request) != "Bloor and Bathurst Toronto":
+        raise AssertionError("expected Bloor/Bathurst location extraction")
+    if not is_situational_location_request(lineup_request):
+        raise AssertionError("expected situational lineup request detection")
+    if plan_web_search_query(lineup_request) != "Bloor and Bathurst Toronto lineup event today":
+        raise AssertionError("expected situational query planning")
+    fanout = plan_web_search_queries("Use the search to see what events are going on at the bl ooor Bathurst area right now in Toronto")
+    if "Hot Docs Ted Rogers Cinema schedule today" not in fanout:
+        raise AssertionError(f"expected Hot Docs fan-out query, got {fanout!r}")
+    if is_bad_search_result({"title": "What's on going or whats on go?", "url": "https://textranch.com/c/whats-on-going", "snippet": "grammar"}, "Bloor Bathurst Toronto", lineup_request) is not True:
+        raise AssertionError("expected grammar source filtering")
+    if is_bad_search_result({"title": "Events in Bathurst New Brunswick", "url": "https://example.com", "snippet": "Bathurst, New Brunswick"}, "Bloor Bathurst Toronto", lineup_request) is not True:
+        raise AssertionError("expected wrong Bathurst location filtering")
     query_cases = {
         "Ok can you research events coming up in Toronto?": "upcoming events Toronto this week",
         "What tech meetups and events are happening in downtown Toronto tonight?": "tech meetups and events Downtown Toronto tonight",
@@ -152,13 +196,44 @@ def main() -> int:
     )
     fallback = evidence_fallback_reply(note, "TASK-WEB-TEST")
     assert_contains(fallback, "Example Source", "web fallback source")
+    hot_docs_note = "\n".join(
+        [
+            "Original operator request: I am at Bloor and Bathurst and there is a big lineup near a movie theatre.",
+            "Situational investigation mode: lineup/crowd/current-place request.",
+            "Search results:",
+            "1. Amy Goodman In-Person for Hot Docs Big Ideas screening of Steal This Story, Please!",
+            "URL: https://www.democracynow.org/events/2026/4/amy_goodman_inperson_for_hot_docs_big_ideas_screening_of_steal_this_story_please_1623",
+            "Evidence:",
+            "- Amy Goodman will appear in-person at Hot Docs for the screening of Steal This Story, Please! and for the post-screening discussion, joined by Tia Lessin.",
+            "- 5:00 PM: Big Ideas Cocktail. 6:30 PM: Big Ideas Screening & Discussion.",
+            "- Journalist Amy Goodman joins Oscar-nominated filmmaker Tia Lessin for a conversation about independent journalism.",
+        ]
+    )
+    hot_docs_reply = situational_evidence_reply(hot_docs_note, "TASK-WEB-HOTDOCS")
+    assert_contains(hot_docs_reply, "likely reason", "situational friend-style answer")
+    assert_contains(hot_docs_reply, "Amy Goodman", "situational event guest")
+    assert_contains(hot_docs_reply, "6:30 PM", "situational event time")
+    assert_contains(hot_docs_reply, "Confidence: high", "situational confidence")
     if not looks_like_progress_reply("Hey! I'm checking that now.", note):
         raise AssertionError("expected progress-only web reply to be rejected")
-    if not violates_chief_voice("Understood, Solomon. I will ensure this is handled."):
+    if not violates_chief_voice("Understood, operator. I will ensure this is handled."):
         raise AssertionError("expected robotic voice phrase to be rejected")
-    assert_contains(apply_voice_cleanup("Understood, Solomon. I will ensure this is handled."), "Got it", "voice cleanup")
+    assert_contains(apply_voice_cleanup("Understood, operator. I will ensure this is handled."), "Got it", "voice cleanup")
 
     root = make_root()
+    intent, _reason = detect_operator_intent(root, friend_text)
+    if intent != "chat":
+        raise AssertionError(f"expected friend message to be chat intent, got {intent!r}")
+    intent, _reason = detect_operator_intent(root, "What tech meetups are happening in Toronto tonight?")
+    if intent != "web":
+        raise AssertionError(f"expected events message to be web intent, got {intent!r}")
+    intent, _reason = detect_operator_intent(root, "Can you find me the hours for Eaton Centre in Toronto?")
+    if intent != "web":
+        raise AssertionError(f"expected hours lookup to be web intent, got {intent!r}")
+    intent, _reason = detect_operator_intent(root, intake_text)
+    if intent != "task_intake":
+        raise AssertionError(f"expected backlog list to be task_intake intent, got {intent!r}")
+
     routed_roles = requested_route_roles(
         root,
         "Send these notes over to both engineer and researcher for the n8n training plan.",
@@ -217,6 +292,22 @@ def main() -> int:
     assert_contains(wakes, "Researcher: routed_task", "researcher wake request")
     outbox = (root / "_messages" / "human_TestHuman.md").read_text(encoding="utf-8")
     assert_contains(outbox, "Researcher is queued, but needs a confirmed harness", "not-ready routing honesty")
+
+    intake_root = make_root()
+    append_operator_message(intake_root, intake_text, source="telegram", human_id="TestHuman")
+    processed = run_once(intake_root)
+    if processed != 1:
+        raise AssertionError(f"expected 1 processed task-intake message, got {processed}")
+    intake_tasks = (intake_root / "LAYER_TASK_LIST.md").read_text(encoding="utf-8")
+    intake_wakes = (intake_root / "Runner" / "_wake_requests.md").read_text(encoding="utf-8")
+    assert_contains(intake_tasks, "TASK-INTAKE-", "task intake task creation")
+    assert_contains(intake_tasks, "Prioritize operator backlog", "task intake triage")
+    assert_contains(intake_tasks, "Build a simple KPI update system", "task intake source item")
+    if "TASK-WEB-" in intake_tasks:
+        raise AssertionError("task intake created a web task")
+    assert_contains(intake_wakes, "Engineer: intake_task", "task intake wake request")
+    intake_outbox = (intake_root / "_messages" / "human_TestHuman.md").read_text(encoding="utf-8")
+    assert_contains(intake_outbox, "I did not run a web search", "task intake honest reply")
 
     append_operator_message(root, "What is the weather today in California", source="telegram", human_id="TestHuman")
     processed = run_once(root)

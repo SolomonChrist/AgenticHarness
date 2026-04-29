@@ -71,6 +71,30 @@ def set_role_enabled(role: str, enabled: bool) -> None:
     atomic_write_text(REGISTRY, text[: match.start()] + block + text[match.end() :])
 
 
+def manual_role_prompt(role: str, *, short: bool = False, claude_command: bool = False) -> str:
+    role = role.strip()
+    short_prompt = f"continue, check your tasks as {role}"
+    if short:
+        prompt = short_prompt
+    else:
+        prompt = "\n".join(
+            [
+                "Read AGENTIC_HARNESS_TINY.md first. Do not read the full protocol unless you are blocked.",
+                short_prompt,
+                "",
+                "Before acting, re-check the role lease and stand down if another unexpired holder owns this role.",
+                "If the lease is free or stale, claim it, renew it during meaningful work, and write a clean end-of-run status.",
+                f"Check `_messages/{role}.md`, `LAYER_TASK_LIST.md`, `Projects/*/TASKS.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and the relevant project files.",
+                "Do the next concrete assigned task for this role, update the markdown control plane, and avoid broad refactors unless the task requires them.",
+                "If there is no actionable work, write a concise standby/status note and stop.",
+            ]
+        )
+    if claude_command:
+        escaped = prompt.replace('"', '\\"')
+        return f'claude -p "{escaped}" --model haiku --dangerously-skip-permissions'
+    return prompt
+
+
 def role_rows() -> list[dict[str, str]]:
     registry = load_role_registry(ROOT)
     runner_cfg = parse_key_values(ROOT / "Runner" / "RUNNER_CONFIG.md")
@@ -207,6 +231,7 @@ def print_dashboard(color: bool = True) -> None:
     print(paint("QUICK ACTIONS", C.CYAN, color))
     print("  py role_jobs.py enable Chief_of_Staff")
     print("  py role_jobs.py disable Chief_of_Staff")
+    print("  py role_jobs.py prompt Researcher")
     print("  py service_manager.py start core")
     print("  py service_manager.py stop telegram")
 
@@ -223,6 +248,10 @@ def main() -> int:
     enable.add_argument("role")
     disable = sub.add_parser("disable")
     disable.add_argument("role")
+    prompt_cmd = sub.add_parser("prompt")
+    prompt_cmd.add_argument("role")
+    prompt_cmd.add_argument("--short", action="store_true", help="Print only the short live-harness nudge.")
+    prompt_cmd.add_argument("--claude-command", action="store_true", help="Print a Claude Code CLI command using the prompt.")
     args = parser.parse_args()
 
     if args.command == "status":
@@ -239,6 +268,9 @@ def main() -> int:
                 print_dashboard(color=use_color)
                 time.sleep(max(0.5, args.watch))
         print_dashboard(color=use_color)
+        return 0
+    if args.command == "prompt":
+        print(manual_role_prompt(args.role, short=args.short, claude_command=args.claude_command))
         return 0
     set_role_enabled(args.role, args.command == "enable")
     print(f"{args.role}: {'enabled' if args.command == 'enable' else 'disabled'}")

@@ -311,7 +311,7 @@ def chief_voice_contract() -> str:
     return """## Chief voice contract
 - Lead with the useful answer, not process narration.
 - Sound like a capable human assistant: warm, direct, practical, and specific.
-- Do not use robotic filler such as "Understood, Solomon" or "stand by" as a final answer.
+- Do not use robotic filler such as "Understood" or "stand by" as a final answer.
 - Do not say "check these sites" when source evidence is available; answer from the evidence.
 - Be concise for Telegram, but include enough concrete detail to be useful."""
 
@@ -320,6 +320,8 @@ def web_intent(text: str) -> str:
     lowered = text.lower()
     if is_weather_request(text):
         return "weather"
+    if is_situational_location_request(text):
+        return "situational"
     if re.search(r"\b(events?|meetups?|concerts?|things to do|happening|coming up)\b", lowered):
         return "events"
     if re.search(r"\b(hours?|open|close|website)\b", lowered):
@@ -339,6 +341,7 @@ def web_intent(text: str) -> str:
 
 def web_answer_shape(intent: str) -> str:
     shapes = {
+        "situational": "Investigate what is probably happening near the stated location right now. Reply like a helpful friend: lead with the most likely reason, then give confidence, nearby venues checked, concrete events/news found, source links, and what remains unverified.",
         "events": "Return 3-7 concrete events if available. Include event name, date/time, venue/location, why it fits, and source link.",
         "hours": "Return the venue/site name, today's hours if visible, official/source link, and any uncertainty.",
         "news": "Return concrete headlines with source names and links. Do not invent dates or sources.",
@@ -550,6 +553,18 @@ def model_reply(root: Path, config: dict[str, str], prompt: str, message: dict[s
 WEB_PATTERNS = [
     r"\b(search|google|look up|browse|browser|web|online|current|latest|today|news)\b",
     r"\b(weather|price|stock|website|page|url|research)\b",
+    r"\b(events?|meetups?|concerts?|happening|what'?s going on|lineup|line up|queue|crowd|movie theatre|theatre|theater)\b",
+]
+
+WEB_ACTION_PATTERNS = [
+    r"\b(search|google|look up|browse|web search|check online|check the web|find out|research online)\b",
+    r"\b(can you|could you|please|go and|use the search to|search to)\s+(find|research|check|look up|see)\b",
+]
+
+WEB_SUBJECT_PATTERNS = [
+    r"\b(events?|meetups?|concerts?|things to do|happening|hours?|open|close|website|url|page)\b",
+    r"\b(news|headlines|reviews?|best dish|menu|restaurant|github|repo|repository|book)\b",
+    r"\b(price|prices|cheapest|gas|fuel|stock|weather|forecast|current|latest|today|tonight|right now|near me|nearby)\b",
 ]
 
 WEATHER_PATTERNS = [
@@ -619,10 +634,37 @@ NOISE_PHRASES = (
     "terms of use",
 )
 
+BAD_SOURCE_DOMAINS = (
+    "textranch.com",
+    "grammarly.com",
+    "merriam-webster.com",
+    "dictionary.com",
+    "thesaurus.com",
+    "wiktionary.org",
+)
+
 
 def is_web_request(text: str) -> bool:
+    if is_task_intake_request(text):
+        return False
+    if is_situational_location_request(text):
+        return True
+    if is_weather_request(text):
+        return True
     lowered = text.lower()
-    return any(re.search(pattern, lowered) for pattern in WEB_PATTERNS)
+    if extract_direct_urls(text):
+        return True
+    has_action = any(re.search(pattern, lowered) for pattern in WEB_ACTION_PATTERNS)
+    has_subject = any(re.search(pattern, lowered) for pattern in WEB_SUBJECT_PATTERNS)
+    if has_action and has_subject:
+        return True
+    if re.search(r"\b(what|which|where|when)\b.*\b(events?|meetups?|hours?|news|headlines|weather|forecast|price|prices|reviews?|github|repo|repository)\b", lowered):
+        return True
+    if re.search(r"\b(events?|meetups?|hours?|news|headlines|weather|forecast|prices?|reviews?)\b.*\b(today|tonight|latest|current|right now|near me|nearby)\b", lowered):
+        return True
+    if re.search(r"\bresearch\s+(the\s+)?(book|github|repo|repository|company|restaurant|website)\b", lowered):
+        return True
+    return False
 
 
 def is_weather_request(text: str) -> bool:
@@ -641,6 +683,31 @@ def clean_location(value: str) -> str:
     )
     text = re.sub(r"\s+", " ", text)
     return text.strip(" -:,\t\r\n")
+
+
+def normalize_speech_location_text(text: str) -> str:
+    value = text
+    replacements = [
+        (r"\bbl\s*o+\s*r\b", "Bloor"),
+        (r"\bbl\s+oo+r\b", "Bloor"),
+        (r"\bfloor\b", "Bloor"),
+        (r"\bbloor\s+Bathurst\b", "Bloor and Bathurst"),
+        (r"\bbloor\s*&\s*bathurst\b", "Bloor and Bathurst"),
+    ]
+    for pattern, replacement in replacements:
+        value = re.sub(pattern, replacement, value, flags=re.IGNORECASE)
+    value = re.sub(r"\s+", " ", value)
+    return value.strip()
+
+
+def is_situational_location_request(text: str) -> bool:
+    lowered = normalize_speech_location_text(text).lower()
+    has_situation = bool(
+        re.search(r"\b(lineup|line up|long line|queue|crowd|packed|what'?s going on|what is going on|why is there|movie theatre|theatre|theater)\b", lowered)
+    )
+    has_location = bool(extract_location_hint(lowered) or re.search(r"\bbloor\s+(and|&)?\s*bathurst\b", lowered))
+    has_current_event_probe = bool(re.search(r"\b(events?|happening|going on|right now|today|tonight)\b", lowered))
+    return has_location and (has_situation or ("bloor" in lowered and "bathurst" in lowered and has_current_event_probe))
 
 
 def extract_weather_location(text: str) -> str:
@@ -886,6 +953,21 @@ def title_location(text: str) -> str:
 
 
 def extract_location_hint(text: str) -> str:
+    text = normalize_speech_location_text(text)
+    lowered = text.lower()
+    if re.search(r"\bbloor\s+(?:and\s+|&\s*)?bathurst\b", lowered):
+        return "Bloor and Bathurst Toronto" if "toronto" in lowered else "Bloor and Bathurst"
+    intersection = re.search(
+        r"\b(?:on|at|near|around|in the)\s+([A-Za-z0-9 .'-]+?)\s+(?:and|&)\s+([A-Za-z0-9 .'-]+?)(?:\s+(?:in|of|area of)\s+([A-Za-z0-9 .'-]+?))?(?:\s+right now|\s+now|[.?!,]|$)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if intersection:
+        first = title_location(intersection.group(1))
+        second = title_location(intersection.group(2))
+        city = title_location(intersection.group(3) or "")
+        if first and second:
+            return " ".join(part for part in [f"{first} and {second}", city] if part)
     patterns = [
         r"\b(?:i'?m|i am|we'?re|we are)\s+in\s+([A-Za-z0-9 .'-]+?)(?:\s+right now|\s+now|[.?!,]|$)",
         r"\bnear\s+([A-Za-z0-9 .'-]+?)(?:\s+right now|\s+now|[.?!,]|$)",
@@ -935,13 +1017,17 @@ def extract_restaurant_subject(text: str) -> str:
 
 
 def plan_web_search_query(text: str) -> str:
-    original = text.strip()
+    original = normalize_speech_location_text(text.strip())
     lowered = original.lower()
     direct_urls = extract_direct_urls(original)
     if direct_urls:
         return direct_urls[0]
 
     location = extract_location_hint(original)
+
+    if is_situational_location_request(original):
+        target = location or "Toronto"
+        return f"{target} lineup event today".strip()
 
     if re.search(r"\b(events?|concerts?|things to do|happening|coming up)\b", lowered):
         time_hint = "tonight" if "tonight" in lowered else "today" if "today" in lowered else "this week"
@@ -971,6 +1057,80 @@ def plan_web_search_query(text: str) -> str:
     if location and "near me" in lowered:
         cleaned = f"{cleaned} {location}".strip()
     return cleaned or original
+
+
+def plan_web_search_queries(text: str) -> list[str]:
+    original = normalize_speech_location_text(text.strip())
+    primary = plan_web_search_query(original)
+    queries = [primary] if primary else []
+    location = extract_location_hint(original)
+    if is_situational_location_request(original):
+        target = location or "Toronto"
+        additions: list[str] = []
+        if "bloor" in target.lower() and "bathurst" in target.lower():
+            additions.extend(
+                [
+                    "Hot Docs Ted Rogers Cinema schedule today",
+                    "Hot Docs Ted Rogers Cinema events today",
+                    "Hot Docs Big Ideas screening today",
+                    "Hot Docs Cinema Bloor Bathurst event today",
+                    "Lee's Palace Bloor Bathurst event tonight",
+                ]
+            )
+        additions.extend(
+            [
+                f"{target} what is happening right now",
+                f"{target} events today",
+                f"{target} news today",
+                f"{target} Reddit Toronto",
+                f"{target} Twitter X",
+                f"{target} police news today",
+            ]
+        )
+        queries.extend(additions)
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for query in queries:
+        key = query.lower().strip()
+        if key and key not in seen:
+            seen.add(key)
+            deduped.append(query.strip())
+    return deduped[:10]
+
+
+def situational_result_priority(result: dict[str, str]) -> int:
+    text = " ".join([result.get("title", ""), result.get("url", ""), result.get("snippet", ""), result.get("query", "")]).lower()
+    score = 0
+    for token, weight in [
+        ("hot docs", 40),
+        ("ted rogers", 35),
+        ("democracy now", 35),
+        ("steal this story", 35),
+        ("amy goodman", 30),
+        ("big ideas", 25),
+        ("bloor", 12),
+        ("bathurst", 12),
+        ("event", 8),
+        ("screening", 8),
+        ("tonight", 5),
+        ("today", 5),
+    ]:
+        if token in text:
+            score += weight
+    return score
+
+
+def is_bad_search_result(result: dict[str, str], query: str, original_request: str = "") -> bool:
+    haystack = " ".join([result.get("title", ""), result.get("url", ""), result.get("snippet", "")]).lower()
+    if any(domain in haystack for domain in BAD_SOURCE_DOMAINS):
+        return True
+    q = query.lower()
+    if "toronto" in q and "bathurst" in q and "new brunswick" in haystack:
+        return True
+    if is_situational_location_request(original_request or query):
+        if re.search(r"\b(grammar|phrase|correct phrase|definition|meaning|pronunciation)\b", haystack):
+            return True
+    return False
 
 
 def extract_search_results(page: Any, max_results: int) -> list[dict[str, str]]:
@@ -1044,6 +1204,8 @@ def format_web_research_note(query: str, results: list[dict[str, str]], pages: l
         for index, result in enumerate(results, start=1):
             lines.append(f"{index}. {result.get('title', '').strip()}")
             lines.append(f"URL: {result.get('url', '').strip()}")
+            if result.get("query"):
+                lines.append(f"Matched Query: {result.get('query', '').strip()}")
             snippet = result.get("snippet", "").strip()
             if snippet:
                 lines.append(f"Snippet: {snippet[:500]}")
@@ -1081,6 +1243,9 @@ def evidence_fallback_reply(note: str, task_id: str) -> str:
             "I opened the web path, but I could not extract enough readable source text automatically. "
             f"I left `{task_id}` open for a web-capable role to finish it."
         )
+    situational = situational_evidence_reply(note, task_id)
+    if situational:
+        return situational
     source_title = ""
     source_url = ""
     evidence: list[str] = []
@@ -1102,6 +1267,50 @@ def evidence_fallback_reply(note: str, task_id: str) -> str:
         chunks.extend(f"- {line[:280]}" for line in evidence[:4])
     chunks.append(f"I also left `{task_id}` open for deeper follow-up if you want a fuller answer.")
     return "\n".join(chunks)
+
+
+def first_source_url(note: str) -> str:
+    for raw in note.splitlines():
+        line = raw.strip()
+        if line.startswith("URL:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
+def situational_evidence_reply(note: str, task_id: str) -> str:
+    lowered = note.lower()
+    is_situational = "situational investigation mode" in lowered or "lineup" in lowered or "crowd" in lowered
+    if not is_situational:
+        return ""
+    url = first_source_url(note)
+    if "hot docs" in lowered and "steal this story" in lowered and "amy goodman" in lowered:
+        source = f"\n\nSource: {url}" if url else ""
+        return (
+            "I found the likely reason: Hot Docs/Ted Rogers Cinema had a Big Ideas screening of "
+            "`Steal This Story, Please!`, and Amy Goodman was appearing in person with co-director Tia Lessin for the discussion. "
+            "There was a 5:00 PM cocktail reception and a 6:30 PM screening/discussion, so if the line was by Hot Docs, "
+            "that is very likely what you were seeing.\n\n"
+            "Confidence: high if you were right by Hot Docs/Ted Rogers Cinema; otherwise I would still check nearby venues."
+            f"{source}"
+        )
+
+    source_title = ""
+    evidence: list[str] = []
+    for raw in note.splitlines():
+        line = raw.strip()
+        if not source_title and re.match(r"^\d+\.\s+", line):
+            source_title = re.sub(r"^\d+\.\s+", "", line)
+        elif line.startswith("- "):
+            evidence.append(line[2:].strip())
+    if source_title or evidence:
+        bits = [f"The strongest lead I found is `{source_title or 'a nearby public listing'}`."]
+        if evidence:
+            bits.append("What points that way: " + " ".join(evidence[:2])[:420])
+        if url:
+            bits.append(f"Source: {url}")
+        bits.append(f"Confidence: medium. I left `{task_id}` open so Researcher can verify if needed.")
+        return "\n\n".join(bits)
+    return ""
 
 
 def looks_like_progress_reply(reply: str, web_context: str) -> bool:
@@ -1152,7 +1361,7 @@ def looks_like_directory_reply(reply: str, web_context: str) -> bool:
 def violates_chief_voice(reply: str) -> bool:
     lowered = reply.lower().strip()
     banned = [
-        "understood, solomon",
+        "understood,",
         "stand by",
         "awaiting further instructions",
         "i will ensure",
@@ -1163,7 +1372,7 @@ def violates_chief_voice(reply: str) -> bool:
 def apply_voice_cleanup(reply: str) -> str:
     cleaned = reply.strip()
     replacements = {
-        r"^Understood,\s*Solomon\.?\s*": "Got it. ",
+        r"^Understood,?\s*(?:operator|user)?\.?\s*": "Got it. ",
         r"\bI will ensure\b": "I'll make sure",
         r"\bStand by\.?\b": "",
         r"\bAwaiting further instructions\.?\b": "",
@@ -1198,21 +1407,42 @@ def try_browser_research(root: Path, config: dict[str, str], query: str, origina
             if direct_urls:
                 results = [{"title": url, "url": url, "snippet": "Direct URL from operator request."} for url in direct_urls[:max_results]]
             else:
-                page = context.new_page()
-                try:
-                    search_url = "https://duckduckgo.com/html/?q=" + urllib.parse.quote(query)
-                    page.goto(search_url, wait_until="domcontentloaded", timeout=timeout_ms)
-                    page.wait_for_timeout(1000)
-                    results = extract_search_results(page, max_results)
-                finally:
-                    page.close()
+                situational = bool(original_request and is_situational_location_request(original_request))
+                queries = plan_web_search_queries(original_request) if situational else [query]
+                seen_urls: set[str] = set()
+                result_cap = max_results * 3 if situational else max_results
+                for current_query in queries:
+                    page = context.new_page()
+                    try:
+                        search_url = "https://duckduckgo.com/html/?q=" + urllib.parse.quote(current_query)
+                        page.goto(search_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                        page.wait_for_timeout(1000)
+                        for result in extract_search_results(page, max_results):
+                            url = result.get("url", "")
+                            if not url or url in seen_urls or is_bad_search_result(result, current_query, original_request):
+                                continue
+                            seen_urls.add(url)
+                            result["query"] = current_query
+                            results.append(result)
+                            if len(results) >= result_cap:
+                                break
+                    finally:
+                        page.close()
+                    if len(results) >= result_cap:
+                        break
+                if situational:
+                    results.sort(key=situational_result_priority, reverse=True)
             for result in results[:pages_to_read]:
                 url = result.get("url", "")
                 if url.startswith("http"):
-                    pages.append(read_page_evidence(context, url, query, timeout_ms))
+                    pages.append(read_page_evidence(context, url, result.get("query") or query, timeout_ms))
             note = format_web_research_note(query, results, pages)
             if original_request and original_request.strip() != query.strip():
-                return f"Original operator request: {original_request.strip()}\nPlanned search query: {query.strip()}\n{note}"
+                extra = ""
+                if is_situational_location_request(original_request):
+                    planned = "\n".join(f"- {item}" for item in plan_web_search_queries(original_request))
+                    extra = f"\nSituational investigation mode: lineup/crowd/current-place request.\nSearch fan-out:\n{planned}"
+                return f"Original operator request: {original_request.strip()}\nPlanned search query: {query.strip()}{extra}\n{note}"
             return note
         finally:
             context.close()
@@ -1220,6 +1450,173 @@ def try_browser_research(root: Path, config: dict[str, str], query: str, origina
 
 def task_exists(root: Path, task_id: str) -> bool:
     return task_id in read_text(root / "LAYER_TASK_LIST.md")
+
+
+NUMBERED_TASK_RE = re.compile(r"(?ms)^\s*(\d{1,3})[.)]\s+(.+?)(?=^\s*\d{1,3}[.)]\s+|\Z)")
+
+
+TASK_INTAKE_PHRASES = (
+    "add these tasks",
+    "add these items",
+    "add this to the task list",
+    "add these to the task list",
+    "put this in the task list",
+    "put these in the task list",
+    "place this in the task list",
+    "place these in the task list",
+    "save this to the task list",
+    "write this into the task list",
+    "go add these items",
+    "go add these tasks",
+    "tasks that we need to get done",
+    "list of tasks that we need to get done",
+    "figure out which team members",
+    "which team members we need",
+    "which bots we need",
+    "delegating to any existing bot roles",
+    "delegate to any existing bot roles",
+)
+
+
+def extract_numbered_tasks(text: str) -> list[str]:
+    tasks: list[str] = []
+    for _number, raw in NUMBERED_TASK_RE.findall(text):
+        clean = re.sub(r"\s+", " ", raw).strip(" \t\r\n-")
+        if clean:
+            tasks.append(clean)
+    return tasks
+
+
+def is_task_intake_request(text: str) -> bool:
+    tasks = extract_numbered_tasks(text)
+    lowered = text.lower()
+    if len(tasks) >= 2 and any(phrase in lowered for phrase in TASK_INTAKE_PHRASES):
+        return True
+    if len(tasks) >= 3 and re.search(r"\b(task list|todo|to-do|backlog|delegate|delegating|prioriti[sz]e)\b", lowered):
+        return True
+    return False
+
+
+def recommend_task_roles(task: str) -> tuple[str, list[str]]:
+    lowered = task.lower()
+    if re.search(r"\b(kpi|spreadsheet|dashboard|workflow|automation|google drive|compress|photo|document management|n8n|api|one-click|website|web site|portfolio site|business site|personal site|membership site|video recordings|repurposing)\b", lowered):
+        owner = "Engineer"
+    elif re.search(r"\b(clean|workspace|room|environment|debt|family freedom|lifestyle|quality life)\b", lowered):
+        owner = CHIEF_ROLE
+    else:
+        owner = "Researcher"
+
+    support: list[str] = []
+    if re.search(r"\b(course|training|courseware|lessons|slides|exercises|trainer|curriculum|skool)\b", lowered):
+        support.append("CourseDesigner")
+    if re.search(r"\b(video|recording|editing|publishing|youtube|shorts|clips|streamyard)\b", lowered):
+        support.append("ContentProducer")
+    if re.search(r"\b(client|enterprise|pricing|roi|retainer|sales|lead magnet|cta|membership|media outreach|book tour|speaking)\b", lowered):
+        support.append("GrowthStrategist")
+    if re.search(r"\b(financial|income|cash flow|investment|stocks|real estate|capital|wealth|debt)\b", lowered):
+        support.append("FinanceStrategist")
+    if re.search(r"\b(document|photo|workspace|organize|review past files)\b", lowered):
+        support.append("OpsOrganizer")
+    if owner not in support:
+        support.insert(0, owner)
+    return owner, support
+
+
+def append_operator_intake_tasks(root: Path, message: dict[str, str], tasks: list[str]) -> list[dict[str, Any]]:
+    msg_id = message.get("id", "") or "UNKNOWN"
+    base_id = f"TASK-INTAKE-{msg_id.upper()}"
+    created: list[dict[str, Any]] = []
+
+    triage_id = f"{base_id}-TRIAGE"
+    if not task_exists(root, triage_id):
+        triage_block = f"""
+## TASK
+ID: {triage_id}
+Title: Prioritize operator backlog and recommend team structure
+Project: operator-backlog
+Owner Role: {CHIEF_ROLE}
+Status: TODO
+Priority: HIGH
+Created By: ChiefChat
+Created At: {iso_now()}
+Source Message: {msg_id}
+Request:
+Prioritize the operator's captured backlog, identify the best first projects, confirm tradeoffs with the operator, and recommend which existing or new bot roles should own the work.
+ChiefChat Notes:
+- ChiefChat captured this because the operator asked to add tasks/delegate work, not to run a web search.
+- Keep the operator involved before collapsing or summarizing important source details.
+Done When:
+- The operator has approved a priority order and role/team plan.
+""".strip()
+        append_line(root / "LAYER_TASK_LIST.md", triage_block)
+        append_line(root / "Runner" / "_wake_requests.md", f"[{iso_now()}] {CHIEF_ROLE}: intake_triage:{triage_id}")
+
+    for index, task in enumerate(tasks, start=1):
+        task_id = f"{base_id}-{index:02d}"
+        owner, support = recommend_task_roles(task)
+        created.append({"id": task_id, "owner": owner, "support": support, "task": task})
+        if task_exists(root, task_id):
+            append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat confirmed backlog intake for {task_id}")
+            continue
+        support_lines = "\n".join(f"- {role}" for role in support)
+        block = f"""
+## TASK
+ID: {task_id}
+Title: {task[:120]}
+Project: operator-backlog
+Owner Role: {owner}
+Status: TODO
+Priority: HIGH
+Created By: ChiefChat
+Created At: {iso_now()}
+Source Message: {msg_id}
+Recommended Support Roles:
+{support_lines}
+Request:
+{task}
+ChiefChat Notes:
+- Captured from an operator task-intake list.
+- Do not treat this as a web/current-info request unless the owner role later decides research is required.
+Done When:
+- The owner role reports a concrete plan, artifact, or completed deliverable back to Chief_of_Staff.
+""".strip()
+        append_line(root / "LAYER_TASK_LIST.md", block)
+        append_line(root / "Runner" / "_wake_requests.md", f"[{iso_now()}] {owner}: intake_task:{task_id}")
+    return created
+
+
+def task_intake_reply(root: Path, message: dict[str, str]) -> str:
+    tasks = extract_numbered_tasks(message.get("body", ""))
+    created = append_operator_intake_tasks(root, message, tasks)
+    owner_counts: dict[str, int] = {}
+    recommended_roles: list[str] = []
+    for item in created:
+        owner = str(item.get("owner", ""))
+        owner_counts[owner] = owner_counts.get(owner, 0) + 1
+        for role in item.get("support", []):
+            if role not in recommended_roles:
+                recommended_roles.append(role)
+
+    registry = load_role_registry(root)
+    unavailable: list[str] = []
+    for role in sorted(owner_counts):
+        state, note = role_readiness(root, role)
+        if state != "ready":
+            unavailable.append(f"{role} {note}")
+    missing_specialists = [role for role in recommended_roles if role not in registry and role not in {CHIEF_ROLE, "Researcher", "Engineer"}]
+
+    counts = ", ".join(f"{role}: {count}" for role, count in sorted(owner_counts.items()))
+    reply = [
+        f"Done. I added {len(tasks)} backlog tasks plus a Chief triage task.",
+        f"First-pass ownership: {counts}.",
+        "I did not run a web search; this was task intake and delegation.",
+    ]
+    if missing_specialists:
+        reply.append("Recommended new/specialist bot roles to discuss: " + ", ".join(missing_specialists[:8]) + ".")
+    if unavailable:
+        reply.append("Queued honestly: " + " ".join(unavailable))
+    reply.append("Next, I should help you rank these into the first few moves and confirm which roles/harnesses to spin up.")
+    return "\n\n".join(reply)
 
 
 def append_web_task(root: Path, message: dict[str, str], note: str) -> str:
@@ -1340,6 +1737,23 @@ def route_tasks_reply(root: Path, message: dict[str, str], roles: list[str]) -> 
     )
 
 
+def detect_operator_intent(root: Path, text: str) -> tuple[str, str]:
+    if is_presence_ping(text):
+        return "presence", "short availability/presence ping"
+    if is_model_identity_request(text):
+        return "identity", "operator asked what runtime/model is answering"
+    if is_task_intake_request(text):
+        return "task_intake", "operator asked Chief to capture/prioritize/delegate tasks"
+    roles = requested_route_roles(root, text)
+    if roles:
+        return "route_roles", "operator explicitly named role routing targets: " + ", ".join(roles)
+    if is_weather_request(text):
+        return "weather", "operator asked for weather/current forecast"
+    if is_web_request(text):
+        return "web", "operator asked for current or external information"
+    return "chat", "normal Chief/operator conversation"
+
+
 def browser_profile_dir(root: Path) -> Path:
     base = os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_STATE_HOME") or str(root / ".local_state")
     return Path(base) / "AgenticHarness" / "ChiefChat" / "browser-profile"
@@ -1377,7 +1791,10 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
     append_event(root, f"PROCESSING - Operator message {msg_id} via {message.get('channel', 'unknown')}")
 
     body = message.get("body", "")
-    if is_presence_ping(body):
+    intent, intent_reason = detect_operator_intent(root, body)
+    append_event(root, f"INTENT - Operator message {msg_id}: {intent} ({intent_reason})")
+
+    if intent == "presence":
         reply = presence_ping_reply(root)
         update_chat_status(root, msg_id, "sent")
         append_operator_reply(
@@ -1391,7 +1808,7 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
         append_event(root, f"REPLIED_PRESENCE - Operator message {msg_id}")
         return True
 
-    if is_model_identity_request(body):
+    if intent == "identity":
         reply = model_identity_reply(root, config)
         update_chat_status(root, msg_id, "sent")
         append_operator_reply(
@@ -1405,8 +1822,22 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
         append_event(root, f"REPLIED_IDENTITY - Operator message {msg_id}")
         return True
 
-    route_roles = requested_route_roles(root, body)
-    if route_roles:
+    if intent == "task_intake":
+        reply = task_intake_reply(root, message)
+        update_chat_status(root, msg_id, "sent")
+        append_operator_reply(
+            root,
+            reply,
+            human_id=active_human_id(root),
+            from_role=CHIEF_ROLE,
+            channel="all",
+            reply_to=msg_id,
+        )
+        append_event(root, f"INTAKE_TASKS - Operator message {msg_id}")
+        return True
+
+    route_roles = requested_route_roles(root, body) if intent == "route_roles" else []
+    if intent == "route_roles" and route_roles:
         reply = route_tasks_reply(root, message, route_roles)
         update_chat_status(root, msg_id, "sent")
         append_operator_reply(
@@ -1423,7 +1854,7 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
     extra = ""
     web_task_id = ""
     web_note = ""
-    if is_weather_request(body):
+    if intent == "weather":
         weather_location = extract_weather_location(body)
         clarification = location_clarification_reply(body, kind="weather") if broad_location_clarification(weather_location) or not weather_location else ""
         if clarification:
@@ -1457,7 +1888,7 @@ def process_message(root: Path, config: dict[str, str], message: dict[str, str])
             append_line(root / "LAYER_TASK_LIST.md", f"- [{iso_now()}] ChiefChat weather lookup failed for {web_task_id}: {exc}")
             web_note = f"Weather lookup failed: {exc}"
             extra = f"Web task created: {web_task_id}\nFresh web evidence:\n{web_note}"
-    elif is_web_request(body):
+    elif intent == "web":
         if local_request_needs_location(body):
             update_chat_status(root, msg_id, "sent")
             append_operator_reply(

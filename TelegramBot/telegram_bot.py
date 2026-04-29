@@ -527,8 +527,8 @@ def repair_mojibake(text: str) -> str:
 
 def clean_legacy_reply_line(line: str) -> str:
     # Convert "[timestamp] [Chief_of_Staff] hello" into just "hello".
-    # Human outbox files are operator-facing by definition, so aliases like
-    # [Oyster_Biggs] should be stripped too.
+    # Human outbox files are operator-facing by definition, so bot aliases
+    # should be stripped too.
     match = re.match(r"^\[[^\]]+\]\s+\[[^\]]+\]\s*(.*)$", line.strip())
     if match:
         return match.group(1).strip()

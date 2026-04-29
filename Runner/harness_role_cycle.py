@@ -40,6 +40,7 @@ def build_cycle_prompt(role: str, bootstrap_file: str, prompt_text: str) -> str:
         [
             "",
             f"This run was started by Agentic Harness Runner as a scheduled automation pass for the {role} role.",
+            f"This is the daemon equivalent of the operator typing: continue, check your tasks as {role}",
             "Do one focused automation cycle only, then exit.",
             "This is a low-spend daemon cycle. Prefer direct action over planning.",
             "",

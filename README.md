@@ -18,7 +18,7 @@ That means the orchestration layer stays:
 - resilient to restarts and harness swaps
 
 Website: [AgenticHarness.io](https://agenticharness.io)  
-Vision / OPC framing: [SolomonChrist.com](https://solomonchrist.com)
+Vision / OPC framing: replace this with the operator's organization or project site.
 
 ## Maintainer Fresh-State Reset
 
@@ -207,12 +207,29 @@ py role_jobs.py dashboard
 py role_jobs.py dashboard --watch 2
 py dashboard.py
 dashboard.bat
+py role_jobs.py prompt Researcher
 py service_manager.py status all
 ```
 
 `Daily All Hands` is enabled by default every 24 hours. It lets quota-paused or idle roles re-check their situation and report/recover without making the operator manually wake every bot. When Runner detects provider login, quota, rate-limit, or credit failure, it pauses that provider path and creates a Chief-owned task asking for replacement harness setup or quota recovery.
 
 `role_jobs.py dashboard` is the CLI dashboard code. It is the fast color view for roles, leases, harnesses, work, and on/off state. The easy command is `py dashboard.py`, or double-click `dashboard.bat` on Windows. Use `py dashboard.py --once` when you only want one snapshot.
+
+Daily manual swarm usage is supported on purpose. Open one live harness window per active role in the same AgenticHarness root, such as one Chief_of_Staff, one Researcher, and one Engineer. To continue a role manually, paste:
+
+```text
+continue, check your tasks as Researcher
+```
+
+For a safer fresh-context prompt, generate it:
+
+```powershell
+py role_jobs.py prompt Researcher
+py role_jobs.py prompt Engineer
+py role_jobs.py prompt Chief_of_Staff
+```
+
+Runner uses the same mental model in the background: it performs cheap file checks first, then launches the role only when the role is enabled, lease-free or stale, and has assigned work or a valid wake reason.
 
 Recommended infrastructure launcher on Windows:
 
@@ -336,7 +353,7 @@ When replying through markdown, existing `_messages/human_<HumanID>.md` files mu
 Safe helper commands are available:
 
 ```powershell
-py send_human_reply.py "Hello Solomon, I am online."
+py send_human_reply.py "Hello Operator, I am online."
 py wake_role.py --role Chief_of_Staff --reason telegram_message
 ```
 
@@ -346,6 +363,7 @@ py wake_role.py --role Chief_of_Staff --reason telegram_message
 
 - ChiefChat uses a source-first path for ordinary web/current-info questions: create a durable `TASK-WEB-*` task, gather readable source evidence with Playwright when enabled, then answer from that evidence.
 - Weather requests use a direct Open-Meteo lookup so the operator receives actual current conditions instead of a progress-only "checking now" reply.
+- Situational local requests, such as "I am near Bloor and Bathurst and there is a big lineup, what is going on?", should be treated as an investigation: normalize speech-to-text location errors, search nearby venues/events/news/public discussion, filter grammar and wrong-city noise, and return a sourced best guess with uncertainty.
 - If browser extraction or the cheap model fails, ChiefChat should still send the best extracted evidence and leave the task open for a web-capable role.
 - Harness records should note whether a provider is online, web/search-capable, browser/tool-capable, local-only, or manual-only.
 - Data organization and life-operations projects are expected first-use cases; `Chief_of_Staff` may recommend roles like `Researcher`, `Data Organizer`, `Documentation`, `Operations`, or `Engineer`.
@@ -554,7 +572,7 @@ Human IDs should use:
 
 Example:
 
-- `SolomonChrist4821`
+- `OperatorExample4821`
 
 ## Supporting Folders
 
@@ -595,7 +613,7 @@ Examples:
 
 - `_messages/Chief_of_Staff.md`
 - `_messages/Researcher.md`
-- `_messages/human_SolomonChrist4821.md`
+- `_messages/human_OperatorExample4821.md`
 
 ### `_archive/last_items_done/`
 

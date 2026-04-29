@@ -36,7 +36,7 @@ machine-specific and optional; recreate it on each user's machine.
 Example:
 
 ```powershell
-py n8n_harness\folder_mirror.py --left "C:\Users\info\OneDrive\Desktop\AgenticHarness\TESTING" --right "G:\My Drive\AgenticHarness_MainSystem"
+py n8n_harness\folder_mirror.py --left "C:\Path\To\AgenticHarness\Production" --right "G:\My Drive\AgenticHarness_MainSystem"
 ```
 
 After setup, you can start from the saved config:
@@ -48,7 +48,7 @@ py n8n_harness\folder_mirror.py --config n8n_harness\mirror_config.local.json
 Windows helper:
 
 ```powershell
-n8n_harness\start_folder_mirror.bat "C:\Users\info\OneDrive\Desktop\AgenticHarness\TESTING" "G:\My Drive\AgenticHarness_MainSystem"
+n8n_harness\start_folder_mirror.bat "C:\Path\To\AgenticHarness\Production" "G:\My Drive\AgenticHarness_MainSystem"
 ```
 
 After setup, the Windows helper can run without arguments:

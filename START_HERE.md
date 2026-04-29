@@ -117,6 +117,19 @@ Then open the CLI dashboard:
 py dashboard.py
 ```
 
+For daily manual swarm work, open one harness window per live role in this same folder. Then paste the role nudge into the relevant harness:
+
+```text
+continue, check your tasks as Researcher
+```
+
+For a fuller prompt that reminds the harness about leases, task files, and clean writeback:
+
+```powershell
+py role_jobs.py prompt Researcher
+py role_jobs.py prompt Engineer
+```
+
 That launcher starts ChiefChat, Runner, Telegram when configured, and the optional Visualizer through `service_manager.py`. It also prints status, runs `production_check.py`, and checks whether the configured local ChiefChat model endpoint is reachable.
 
 Starting services is not the same thing as daemonizing `Chief_of_Staff`. `py service_manager.py start runner` starts the scheduler only. It does not create the background Chief brain unless `Chief_of_Staff` has also been registered with `configure_role_daemon.py`.
@@ -179,6 +192,7 @@ Core job board without Visualizer:
 ```powershell
 py role_jobs.py status
 py dashboard.py --once
+py role_jobs.py prompt Researcher
 py role_jobs.py enable Chief_of_Staff
 py role_jobs.py disable Engineer
 ```
