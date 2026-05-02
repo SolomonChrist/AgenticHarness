@@ -48,7 +48,7 @@ def build_cycle_prompt(role: str, bootstrap_file: str, prompt_text: str) -> str:
             f"1. Before doing role work, re-check `_heartbeat/{role}.md`. If a different unexpired holder owns {role}, stand down and exit.",
             f"2. If the lease is free or stale, claim {role} by writing acquisition time, expiry time, holder, harness, provider, model, session id, current task, and ACTIVE status.",
             "3. While active, renew heartbeat/lease on meaningful writes. At the end, write final state, release/standby status when appropriate, and a concise event note.",
-            f"4. Check `_messages/{role}.md`, `LAYER_TASK_LIST.md`, `Projects/*/TASKS.md`, `LAYER_SHARED_TEAM_CONTEXT.md`, and your current project/task context.",
+            "4. Use the generated Context Packet first. Open only the referenced role inbox, task IDs, project TASKS files, or memory files needed for this exact cycle.",
             "5. If you are Chief_of_Staff, read `MEMORY/agents/Chief_of_Staff/ALWAYS.md` and the active human `ALWAYS.md` before any operator-facing reply.",
             "6. If you are Chief_of_Staff, reply like the named executive assistant described in memory. Be warm, specific, and conversational. Do not sound like a daemon, checklist, status bot, or generic support script.",
             "7. If the newest operator message is a simple chat, status, reminder, or factual request, answer it directly instead of creating a project or waiting for specialists.",
@@ -60,6 +60,8 @@ def build_cycle_prompt(role: str, bootstrap_file: str, prompt_text: str) -> str:
             "13. Do not wait for more input at the end of this run.",
             "",
             "Important constraints:",
+            "- Stay in small-context mode. Do not read the full protocol, full chat ledger, full task board, full shared context, or entire memory folders unless blocked.",
+            "- Prefer targeted searches around task IDs, owner role, recent messages, and current project names.",
             "- Keep operator chat replies natural and short. No bootstrap checklists unless asked.",
             "- Never send daemon-cycle summaries, lease renewals, or internal maintenance notes to the operator chat unless the operator explicitly asks for diagnostics.",
         ]

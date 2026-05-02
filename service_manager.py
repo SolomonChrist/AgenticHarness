@@ -41,6 +41,11 @@ SERVICES = {
         "runtime": ROOT / "TelegramBot" / "data" / "runtime.json",
         "log": ROOT / "TelegramBot" / "telegram.log",
     },
+    "telegram-watchdog": {
+        "script": ROOT / "TelegramBot" / "telegram_watchdog.py",
+        "runtime": ROOT / "TelegramBot" / "data" / "watchdog_runtime.json",
+        "log": ROOT / "TelegramBot" / "telegram_watchdog.log",
+    },
     "visualizer": {
         "script": ROOT / "Visualizer" / "visualizer_server.py",
         "runtime": ROOT / "Visualizer" / ".visualizer_runtime.json",
@@ -192,7 +197,7 @@ def print_status(names: list[str]) -> int:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 3 or argv[1] not in {"start", "stop", "status"}:
-        print("Usage: py service_manager.py <start|stop|status> <chief-chat|runner|telegram|visualizer|core|all>")
+        print("Usage: py service_manager.py <start|stop|status> <chief-chat|runner|telegram|telegram-watchdog|visualizer|core|all>")
         return 1
 
     action = argv[1]
@@ -200,12 +205,16 @@ def main(argv: list[str]) -> int:
     if target == "core":
         names = ["chief-chat", "runner"]
         if telegram_configured():
-            names.append("telegram")
+            names.extend(["telegram", "telegram-watchdog"])
+    elif target == "telegram":
+        names = ["telegram", "telegram-watchdog"]
     else:
         names = list(SERVICES) if target == "all" else [target]
-    if action == "start" and target in {"all", "core"} and "telegram" in names and not telegram_configured():
-        names = [name for name in names if name != "telegram"]
+    if action == "start" and target in {"all", "core", "telegram"} and "telegram" in names and not telegram_configured():
+        names = [name for name in names if name not in {"telegram", "telegram-watchdog"}]
         print("telegram: skipped (not configured; optional add-on)")
+    if action == "stop" and "telegram-watchdog" in names:
+        names = ["telegram-watchdog", *[name for name in names if name != "telegram-watchdog"]]
     if any(name not in SERVICES for name in names):
         print("Unknown service.")
         return 1

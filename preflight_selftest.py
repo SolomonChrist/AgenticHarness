@@ -125,6 +125,28 @@ Created At: {iso_now()}
     write(root2 / "_messages" / "Chief_of_Staff.md", f"[{iso_now()}] [operator:visualizer] [operator] hello\n")
     assert_status(evaluate_role_preflight(root2, "Chief_of_Staff", cfg("Chief_of_Staff")), "RUN_ALLOWED")
 
+    root2b = make_root()
+    cheap_cfg = {
+        "Role": "Chief_of_Staff",
+        "Enabled": "YES",
+        "Automation Ready": "YES",
+        "Execution Mode": "interval",
+        "Harness Type": "cheap-chief",
+        "Launch Command": "py cheap_chief_router.py --role {ROLE} --workdir {WORKDIR}",
+    }
+    write(
+        root2b / "LAYER_TASK_LIST.md",
+        """# LAYER TASK LIST
+
+## TASK
+ID: TASK-CHIEF-TRIAGE
+Title: Prioritize backlog
+Owner Role: Chief_of_Staff
+Status: TODO
+""",
+    )
+    assert_status(evaluate_role_preflight(root2b, "Chief_of_Staff", cheap_cfg), "SKIPPED_NO_WORK")
+
     root3 = make_root()
     runner_cfg = {"Daily All Hands Enabled": "YES", "Daily All Hands Interval Hours": "24", "Daily All Hands Quota Retry": "YES"}
     assert_status(evaluate_role_preflight(root3, "Engineer", cfg("Engineer"), runner_cfg=runner_cfg), "DAILY_ALL_HANDS")

@@ -52,7 +52,7 @@ def pending_wake_count() -> int:
 
 def print_services() -> None:
     print("SERVICES")
-    for name in ["chief-chat", "runner", "telegram", "visualizer"]:
+    for name in ["chief-chat", "runner", "telegram", "telegram-watchdog", "visualizer"]:
         status = service_status(name)
         alive = "alive" if status.get("alive") else "down"
         pid = status.get("pid", "-")

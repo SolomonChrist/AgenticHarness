@@ -12,12 +12,15 @@ py service_manager.py start core
 py service_manager.py start all
 py service_manager.py stop all
 py service_manager.py status all
+py service_manager.py start telegram
+py service_manager.py status telegram
+py TelegramBot\telegram_watchdog.py --once
 py swarm_status.py
 ```
 
 `py start.py` is the simplest normal startup command. It starts services, prints status, runs `production_check.py`, and checks whether the configured local model server is reachable. `start.bat` is the double-click wrapper. `py dashboard.py` opens the live CLI dashboard; `dashboard.bat` is the double-click wrapper.
 
-`core` starts ChiefChat, Runner, and Telegram when Telegram is configured. ChiefChat is the fast Telegram/Visualizer/console conversation layer; Runner is for scheduled role work and heavier harness launches.
+`core` starts ChiefChat, Runner, Telegram when configured, and the Telegram watchdog. `py service_manager.py start telegram` also starts both Telegram and its watchdog. `py service_manager.py stop telegram` stops the watchdog first so it does not restart an intentional stop. ChiefChat is the fast Telegram/Visualizer/console conversation layer; Runner is for scheduled role work and heavier harness launches. The Telegram watchdog is intentionally simple: every 5 minutes it checks whether the Telegram bridge is alive, does nothing if it is alive, and starts it if it crashed.
 
 ## Fast Chief Chat
 

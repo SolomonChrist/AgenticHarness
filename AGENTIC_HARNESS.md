@@ -499,6 +499,7 @@ Agentic Harness uses two memory layers:
 Recommended memory structure:
 
 - `MEMORY/agents/<Role>/ALWAYS.md`
+- `MEMORY/agents/<Role>/SKILLS.md`
 - `MEMORY/agents/<Role>/ONBOARDING_STATUS.md`
 - `MEMORY/agents/<Role>/RECENT/YYYY-MM-DD.md`
 - `MEMORY/agents/<Role>/ARCHIVE/YYYY-MM-summary.md`
@@ -513,11 +514,13 @@ Memory rules:
 - `Chief_of_Staff` should read the active operator's human memory before normal operator-facing work.
 - `Chief_of_Staff` should also read `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` if it exists to determine whether first-run operator onboarding has already been completed.
 - Use `ALWAYS.md` for things that must be remembered every time.
+- Use `SKILLS.md` for role/bot-specific workflows, capabilities, commands, and learned methods that should travel with the role across harness swaps.
 - Use `RECENT/` for dated short-term memory notes.
 - When recent memory exceeds 30 days, summarize it into an archive file and keep the archive readable for future context.
 - Archive files remain readable long-term memory and should still be used when relevant.
 - Keep memories searchable, concise, and append-friendly.
 - Do not put private human/operator memories into a specialist role's memory lane unless the operator or `Chief_of_Staff` intentionally shared them.
+- If the operator asks for a named bot's skill to be recorded, resolve the bot name through `_heartbeat/` and role files first, then write the note to `MEMORY/agents/<Role>/SKILLS.md`. Do not create random project-local skill files for bot identity memory.
 
 Chief_of_Staff operator-memory rule:
 

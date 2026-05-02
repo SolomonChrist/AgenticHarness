@@ -102,6 +102,14 @@ py service_manager.py stop telegram
 py service_manager.py status telegram
 ```
 
+`py service_manager.py start telegram` starts both the bridge and the watchdog. `py service_manager.py stop telegram` stops the watchdog first, then the bridge, so an intentional stop stays stopped.
+
+The watchdog is the bridge heartbeat. Every 5 minutes it checks whether `telegram` is alive. If it is alive, it does nothing. If it is down, it starts the bridge again. To run one check manually:
+
+```powershell
+py TelegramBot\telegram_watchdog.py --once
+```
+
 Recommended instruction to give `Chief_of_Staff`:
 
 ```text

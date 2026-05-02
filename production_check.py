@@ -224,6 +224,7 @@ def print_corrective_commands(failures: list[str]) -> None:
         "ChiefChat service": "py service_manager.py start chief-chat",
         "Runner service": "py service_manager.py start runner",
         "Telegram bridge": "py service_manager.py start telegram",
+        "Telegram watchdog": "py service_manager.py start telegram-watchdog",
         "Visualizer": "py service_manager.py start visualizer",
     }
     daemon_failures = {
@@ -254,6 +255,7 @@ def main() -> int:
     runner_status = service_status("runner")
     chief_chat_status = service_status("chief-chat")
     telegram_status = service_status("telegram")
+    telegram_watchdog_status = service_status("telegram-watchdog")
     visualizer_status = service_status("visualizer")
     runner_cfg = read_text(RUNNER_CONFIG)
     chief_block = role_block("Chief_of_Staff")
@@ -266,10 +268,15 @@ def main() -> int:
     check("Runner mode", scalar(runner_cfg, "Runner Mode").upper() == "ACTIVE", scalar(runner_cfg, "Runner Mode") or "missing", failures)
     service_line("Visualizer", "NICE_TO_HAVE", False, visualizer_status, failures, blocking=False)
     service_line("Telegram bridge", "OPTIONAL_AFTER_CONFIG", telegram_configured(), telegram_status, failures)
+    service_line("Telegram watchdog", "OPTIONAL_AFTER_CONFIG", telegram_configured(), telegram_watchdog_status, failures, blocking=False)
     if telegram_configured():
         print(
             f"[INFO] Telegram bridge handoff: chief_ready={telegram_status.get('chief_responder_ready')} "
             f"status={telegram_status.get('chief_responder_status')} runner_alive={telegram_status.get('runner_daemon_alive')}"
+        )
+        print(
+            f"[INFO] Telegram watchdog: action={telegram_watchdog_status.get('last_action', '')} "
+            f"telegram_alive={telegram_watchdog_status.get('telegram_alive', '')}"
         )
 
     print("\nChief Daemon Path:")

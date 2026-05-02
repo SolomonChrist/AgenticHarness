@@ -35,7 +35,7 @@ if str(ROOT) not in sys.path:
 
 from coordination_io import append_line as append_line_safe, atomic_write_text, read_text
 from control_actions import maybe_handle_control_message
-from message_filters import clean_operator_reply
+from message_filters import clean_operator_reply, telegram_plain_text
 from operator_messaging import append_operator_message, collect_telegram_feed
 
 load_dotenv(HERE / ".env.telegram", encoding="utf-8-sig")
@@ -166,7 +166,7 @@ def tg(method: str, **kwargs) -> dict:
 
 
 def send(chat_id: int, text: str) -> bool:
-    safe = html.escape(text, quote=False)
+    safe = html.escape(telegram_plain_text(text), quote=False)
     chunks = [safe[i:i + 3900] for i in range(0, max(len(safe), 1), 3900)]
     ok = True
     for chunk in chunks:
@@ -192,7 +192,17 @@ def iso_now() -> str:
 
 
 def log_event(line: str) -> None:
-    append_line(EVENT_FILE, line)
+    try:
+        append_line(EVENT_FILE, line)
+    except Exception as exc:
+        # Telegram is the operator's live control surface. A transient OneDrive
+        # or stale markdown lock on the shared event log must not kill it.
+        try:
+            TELEGRAM_DIR.mkdir(parents=True, exist_ok=True)
+            with (TELEGRAM_DIR / "telegram_bridge_errors.log").open("a", encoding="utf-8", errors="replace") as handle:
+                handle.write(f"[{iso_now()}] event log write failed: {sanitize_error(str(exc))}\n")
+        except Exception:
+            pass
 
 
 def validate_root() -> bool:
@@ -463,6 +473,53 @@ def queue_reminder(text: str) -> str | None:
     return f"Got it. I'll remind you in {format_relative_due(due_at)}."
 
 
+def parse_due_at(value: str) -> datetime | None:
+    try:
+        due_at = datetime.fromisoformat(str(value))
+        if due_at.tzinfo is None:
+            due_at = due_at.astimezone()
+        return due_at
+    except Exception:
+        return None
+
+
+def forward_due_reminders() -> bool:
+    try:
+        reminders = json.loads(read_text(REMINDERS_FILE) or "[]")
+        if not isinstance(reminders, list):
+            return False
+    except Exception:
+        return False
+    now = datetime.now().astimezone()
+    changed = False
+    sent_any = False
+    for reminder in reminders:
+        if not isinstance(reminder, dict) or reminder.get("status") != "pending":
+            continue
+        if reminder.get("human_id") and reminder.get("human_id") != HUMAN_ID:
+            continue
+        due_at = parse_due_at(str(reminder.get("due_at", "")))
+        if not due_at or due_at > now:
+            continue
+        text = str(reminder.get("text", "")).strip()
+        if not text:
+            reminder["status"] = "cancelled_empty"
+            changed = True
+            continue
+        sent = False
+        for user_id in ALLOWED_USER_IDS:
+            sent = send(user_id, f"Reminder: {text}") or sent
+        if sent:
+            reminder["status"] = "sent"
+            reminder["sent_at"] = iso_now()
+            sent_any = True
+            changed = True
+            log_event(f"[{iso_now()}] [TELEGRAM_BRIDGE] REMINDER_SENT - {reminder.get('id', '')}")
+    if changed:
+        atomic_write_text(REMINDERS_FILE, json.dumps(reminders, indent=2))
+    return sent_any
+
+
 def format_relative_due(due_at: datetime) -> str:
     seconds = max(1, int((due_at - datetime.now().astimezone()).total_seconds()))
     if seconds < 90:
@@ -649,6 +706,7 @@ def wait_for_chief_reply(chat_id: int | None = None) -> bool:
 def poll_human_replies() -> None:
     while RUNNING:
         update_runtime("active")
+        forward_due_reminders()
         forward_new_outbound_messages()
         time.sleep(POLL_INTERVAL)
 

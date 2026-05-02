@@ -124,3 +124,22 @@ def clean_operator_reply(text: str) -> str:
     if is_internal_only(cleaned):
         return ""
     return cleaned
+
+
+def telegram_plain_text(text: str) -> str:
+    """Make operator replies readable in Telegram's plain chat bubbles."""
+
+    cleaned = clean_operator_reply(text)
+    if not cleaned:
+        return ""
+    cleaned = repair_mojibake(cleaned)
+    cleaned = re.sub(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)", r"\1: \2", cleaned)
+    cleaned = re.sub(r"(?m)^\s*[*]\s+", "- ", cleaned)
+    cleaned = re.sub(r"(?m)^(\s*-\s*)\*\*([^*\n:]+):\*\*\s*", r"\1\2: ", cleaned)
+    cleaned = re.sub(r"\*\*([^*\n]+)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"__([^_\n]+)__", r"\1", cleaned)
+    cleaned = re.sub(r"`([^`\n]+)`", r"\1", cleaned)
+    cleaned = cleaned.replace("Â·", "-").replace("·", "-")
+    cleaned = re.sub(r"\bChick[- ]?fil[- ]?A\b", "Chick-fil-A", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()

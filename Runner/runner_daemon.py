@@ -67,6 +67,13 @@ def parse_float(value: str, default: float) -> float:
         return default
 
 
+def clamp_text(text: str, max_chars: int) -> str:
+    clean = (text or "").strip()
+    if max_chars <= 0 or len(clean) <= max_chars:
+        return clean
+    return clean[: max(0, max_chars - 90)].rstrip() + "\n[...truncated by Agentic Harness context budget...]"
+
+
 def parse_iso(value: str) -> Optional[datetime]:
     text = (value or "").strip()
     if not text:
@@ -579,18 +586,142 @@ class RunnerDaemon:
         pid = int(state.get("pid", 0) or 0)
         return process_alive(pid)
 
-    def build_prompt_text(self, config: RoleLaunchConfig) -> str:
-        lines: List[str] = []
-        if config.bootstrap_file:
-            lines.append(f"Read {config.bootstrap_file} first.")
-        if config.startup_prompt:
-            lines.append(config.startup_prompt)
-        return "\n".join(line for line in lines if line.strip()).strip()
+    def role_path_label(self, path: Path) -> str:
+        try:
+            return str(path.relative_to(self.harness_root))
+        except ValueError:
+            return str(path)
 
-    def write_prompt_file(self, config: RoleLaunchConfig) -> Path:
+    def bootstrap_instruction(self, bootstrap_file: str) -> str:
+        if not bootstrap_file:
+            return "Read AGENTIC_HARNESS_TINY.md only if you need the operating rules."
+        if bootstrap_file == "AGENTIC_HARNESS.md":
+            return "Read AGENTIC_HARNESS_TINY.md first. Do not read AGENTIC_HARNESS.md unless you are blocked by missing protocol detail."
+        return f"Read {bootstrap_file} first, then stay inside the context budget."
+
+    def build_context_packet(
+        self,
+        config: RoleLaunchConfig,
+        reason: str,
+        preflight: Optional[Dict[str, object]],
+        runner_cfg: Optional[Dict[str, str]],
+    ) -> str:
+        cfg = runner_cfg or self.load_runner_config()
+        pending_limit = max(1, parse_int(cfg.get("Prompt Pending Work Limit", "6"), 6))
+        message_chars = max(0, parse_int(cfg.get("Prompt Message Tail Chars", "1000"), 1000))
+        shared_chars = max(0, parse_int(cfg.get("Prompt Shared Context Max Chars", "0"), 0))
+        include_shared = parse_bool(cfg.get("Prompt Include Shared Context", "NO"), False)
+
+        lines = [
+            "## Agentic Harness Context Packet",
+            f"Role: {config.role}",
+            f"Launch reason: {reason or 'scheduled_role_runner'}",
+            "Context mode: MICRO",
+            "",
+            "Context budget rules:",
+            "- Start from this packet, not the whole repository.",
+            "- Do not read AGENTIC_HARNESS.md, full chat logs, full task boards, or full memory folders unless this packet is insufficient.",
+            "- Use targeted search or small file excerpts around a task ID/message instead of opening large files.",
+            "- Write durable updates back to the markdown source of truth before claiming work is done.",
+            "",
+        ]
+
+        pending = []
+        if preflight:
+            raw_pending = preflight.get("pending_work", [])
+            if isinstance(raw_pending, list):
+                pending = [item for item in raw_pending if isinstance(item, dict)]
+            lines.extend(
+                [
+                    "Preflight:",
+                    f"- status: {preflight.get('status', '')}",
+                    f"- reason: {preflight.get('reason', '')}",
+                    f"- pending_count: {preflight.get('pending_count', len(pending))}",
+                ]
+            )
+            lease = preflight.get("lease", {})
+            if isinstance(lease, dict):
+                lines.extend(
+                    [
+                        f"- lease_status: {lease.get('status', '')}",
+                        f"- lease_expires_at: {lease.get('lease_expires_at', '')}",
+                    ]
+                )
+            lines.append("")
+
+        lines.append("Pending work snapshot:")
+        if pending:
+            for index, item in enumerate(pending[:pending_limit], start=1):
+                lines.append(
+                    f"{index}. kind={item.get('kind', '')}; reason={item.get('reason', '')}; summary={item.get('summary', '')}"
+                )
+            if len(pending) > pending_limit:
+                lines.append(f"- {len(pending) - pending_limit} more pending items omitted by context budget.")
+        else:
+            lines.append("- No pending work was included. Re-check cheaply before doing any expensive action.")
+        lines.append("")
+
+        message_path = self.messages_root / f"{config.role}.md"
+        message_tail = clamp_text(self.tail_text(message_path, message_chars), message_chars)
+        if message_tail:
+            lines.extend(
+                [
+                    f"Recent direct messages from {self.role_path_label(message_path)}:",
+                    message_tail,
+                    "",
+                ]
+            )
+
+        if include_shared and shared_chars:
+            shared_path = self.harness_root / "LAYER_SHARED_TEAM_CONTEXT.md"
+            shared_tail = clamp_text(self.tail_text(shared_path, shared_chars), shared_chars)
+            if shared_tail:
+                lines.extend(
+                    [
+                        f"Shared context excerpt from {self.role_path_label(shared_path)}:",
+                        shared_tail,
+                        "",
+                    ]
+                )
+
+        lines.extend(
+            [
+                "Useful narrow sources:",
+                f"- Role inbox: _messages/{config.role}.md",
+                "- Tasks: LAYER_TASK_LIST.md and Projects/*/TASKS.md; search by task ID or owner role first.",
+                f"- Role memory: MEMORY/agents/{config.role}/ALWAYS.md, then RECENT only if needed.",
+                "- Heartbeat: _heartbeat/<Role>.md for lease ownership.",
+            ]
+        )
+        return "\n".join(lines).strip()
+
+    def build_prompt_text(
+        self,
+        config: RoleLaunchConfig,
+        reason: str = "",
+        preflight: Optional[Dict[str, object]] = None,
+        runner_cfg: Optional[Dict[str, str]] = None,
+    ) -> str:
+        cfg = runner_cfg or self.load_runner_config()
+        startup_max = max(0, parse_int(cfg.get("Prompt Startup Max Chars", "900"), 900))
+        prompt_max = max(1200, parse_int(cfg.get("Prompt Generated Max Chars", "6000"), 6000))
+        lines: List[str] = []
+        lines.append(self.bootstrap_instruction(config.bootstrap_file))
+        if config.startup_prompt:
+            lines.append(clamp_text(config.startup_prompt, startup_max))
+        lines.append(self.build_context_packet(config, reason, preflight, cfg))
+        return clamp_text("\n\n".join(line for line in lines if line.strip()).strip(), prompt_max)
+
+    def write_prompt_file(
+        self,
+        config: RoleLaunchConfig,
+        reason: str = "",
+        preflight: Optional[Dict[str, object]] = None,
+        runner_cfg: Optional[Dict[str, str]] = None,
+    ) -> Path:
         self.generated_prompt_root.mkdir(parents=True, exist_ok=True)
         prompt_file = self.generated_prompt_root / f"{config.role}.txt"
-        prompt_text = self.build_prompt_text(config)
+        prompt_text = self.build_prompt_text(config, reason=reason, preflight=preflight, runner_cfg=runner_cfg)
         prompt_file.write_text(prompt_text + ("\n" if prompt_text else ""), encoding="utf-8")
         return prompt_file
 
@@ -719,8 +850,8 @@ class RunnerDaemon:
 
     def render_launch_command(self, config: RoleLaunchConfig, prompt_file: Path, reason: str = "") -> str:
         cwd = Path(config.working_directory).expanduser() if config.working_directory else self.harness_root
-        prompt_text = self.build_prompt_text(config)
-        command = self.effective_launch_command(config, prompt_file, cwd)
+        prompt_text = prompt_file.read_text(encoding="utf-8", errors="replace") if prompt_file.exists() else self.build_prompt_text(config, reason=reason)
+        command = self.effective_launch_command(config, prompt_file, cwd, reason)
         replacements = {
             "{ROLE}": config.role,
             "{HARNESS_ROOT}": str(self.harness_root),
@@ -1008,13 +1139,20 @@ Done When:
             f"RUNNER_NUDGE - Nudged {config.role}. Reason: {reason}.",
         )
 
-    def launch_role(self, config: RoleLaunchConfig, reason: str) -> None:
+    def launch_role(
+        self,
+        config: RoleLaunchConfig,
+        reason: str,
+        *,
+        preflight: Optional[Dict[str, object]] = None,
+        runner_cfg: Optional[Dict[str, str]] = None,
+    ) -> None:
         if not config.launch_command:
             log_event(self.event_file, f"RUNNER_SKIP - Role {config.role} has no launch command configured.")
             return
         cwd = Path(config.working_directory).expanduser() if config.working_directory else self.harness_root
         self.ensure_provider_bootstrap_files(config, cwd)
-        prompt_file = self.write_prompt_file(config)
+        prompt_file = self.write_prompt_file(config, reason=reason, preflight=preflight, runner_cfg=runner_cfg)
         command = self.render_launch_command(config, prompt_file, reason)
         self.append_role_message(config.role, self.build_wake_message(config, reason))
         state = self.role_state(config.role)
@@ -1212,7 +1350,7 @@ Done When:
         reason = str(preflight.get("reason", "pending_work"))
         allow_provider_retry = reason.startswith("daily_all_hands_quota_retry")
         if self.allow_launch(config, lease, runner_cfg, reason, allow_provider_retry=allow_provider_retry):
-            self.launch_role(config, reason)
+            self.launch_role(config, reason, preflight=preflight, runner_cfg=runner_cfg)
             if reason.startswith("daily_all_hands"):
                 self.mark_daily_all_hands_attempt(role)
         else:

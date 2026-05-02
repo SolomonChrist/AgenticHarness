@@ -83,6 +83,35 @@ If a provider reports quota, rate-limit, login, or credit failure, Runner:
 - includes the failed role/provider/model, log path, recovery command shape, and resume rule
 - retries through Daily All Hands when configured
 
+## Context Budget
+
+Scheduled role launches should stay small by default. The Runner generates a
+compact prompt packet for each launched role instead of asking the harness to
+read the whole system up front.
+
+The packet includes:
+
+- role name and launch reason
+- preflight status and pending-work summaries
+- a short tail of `_messages/<Role>.md`
+- narrow file targets the role can search if it needs more detail
+
+Tune this in `Runner/RUNNER_CONFIG.md`:
+
+```text
+Prompt Context Mode: MICRO
+Prompt Generated Max Chars: 6000
+Prompt Startup Max Chars: 900
+Prompt Pending Work Limit: 6
+Prompt Message Tail Chars: 1000
+Prompt Include Shared Context: NO
+Prompt Shared Context Max Chars: 0
+```
+
+Keep `Prompt Include Shared Context: NO` unless the swarm is missing important
+standing context. Agents should search by task ID, owner role, or project name
+before opening large files.
+
 ### manual
 
 The role is human-run or manually launched.

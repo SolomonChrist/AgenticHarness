@@ -18,6 +18,7 @@ import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 
 class FileLockTimeout(RuntimeError):
@@ -31,6 +32,50 @@ def _lock_dir_for(path: Path) -> Path:
 def _lock_path_for(path: Path) -> Path:
     safe_name = path.name.replace(":", "_")
     return _lock_dir_for(path) / f"{safe_name}.lock"
+
+
+def _read_lock_payload(lock_path: Path) -> dict[str, Any]:
+    try:
+        return json.loads(lock_path.read_text(encoding="utf-8", errors="ignore"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+
+def _pid_is_alive(pid: object) -> bool:
+    try:
+        pid_int = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid_int <= 0:
+        return False
+
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32
+            process = kernel32.OpenProcess(0x1000, False, pid_int)
+            if not process:
+                return False
+            try:
+                exit_code = ctypes.c_ulong()
+                if not kernel32.GetExitCodeProcess(process, ctypes.byref(exit_code)):
+                    return False
+                return exit_code.value == 259
+            finally:
+                kernel32.CloseHandle(process)
+        except Exception:
+            return True
+
+    try:
+        os.kill(pid_int, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
 
 
 def read_text(path: Path, *, default: str = "") -> str:
@@ -97,7 +142,9 @@ def file_lock(path: Path, *, timeout_seconds: float = 5.0, stale_seconds: float 
                 age = time.time() - lock_path.stat().st_mtime
             except OSError:
                 age = 0.0
-            if age > stale_seconds:
+            payload = _read_lock_payload(lock_path)
+            lock_pid = payload.get("pid")
+            if (lock_pid and not _pid_is_alive(lock_pid)) or age > stale_seconds:
                 try:
                     lock_path.unlink()
                     continue

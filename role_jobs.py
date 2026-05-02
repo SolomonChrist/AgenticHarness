@@ -156,10 +156,10 @@ def print_status(color: bool = True) -> None:
 
 
 def service_rows() -> list[dict[str, object]]:
-    names = ["chief-chat", "runner", "telegram", "visualizer"]
+    names = ["chief-chat", "runner", "telegram", "telegram-watchdog", "visualizer"]
     rows: list[dict[str, object]] = []
     for name in names:
-        if name == "telegram" and not telegram_configured():
+        if name in {"telegram", "telegram-watchdog"} and not telegram_configured():
             rows.append({"name": name, "status": "optional_not_configured", "alive": False, "pid": 0})
             continue
         status = service_status(name)
@@ -206,7 +206,7 @@ def print_dashboard(color: bool = True) -> None:
             line = paint(st.upper(), C.YELLOW, color)
         else:
             line = paint(st.upper(), C.RED, color)
-        print(f"  {row['name']:<10} {line:<18} pid={pid}")
+        print(f"  {row['name']:<17} {line:<18} pid={pid}")
         if row.get("last_error"):
             print(f"    last_error: {row['last_error']}")
     print("")

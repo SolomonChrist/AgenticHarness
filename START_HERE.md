@@ -130,7 +130,16 @@ py role_jobs.py prompt Researcher
 py role_jobs.py prompt Engineer
 ```
 
-That launcher starts ChiefChat, Runner, Telegram when configured, and the optional Visualizer through `service_manager.py`. It also prints status, runs `production_check.py`, and checks whether the configured local ChiefChat model endpoint is reachable.
+That launcher starts ChiefChat, Runner, Telegram when configured, the Telegram watchdog, and the optional Visualizer through `service_manager.py`. It also prints status, runs `production_check.py`, and checks whether the configured local ChiefChat model endpoint is reachable.
+
+The Telegram watchdog is the remote-chat heartbeat. Every 5 minutes it checks whether the Telegram bridge is alive. If Telegram is already running, it does nothing. If Telegram crashed, it starts the bridge again. You can run one manual heartbeat check with:
+
+```powershell
+py service_manager.py start telegram
+py TelegramBot\telegram_watchdog.py --once
+```
+
+`py service_manager.py start telegram` starts both the Telegram bridge and the watchdog. `py service_manager.py stop telegram` stops the watchdog first, then the bridge, so intentional stops stay stopped.
 
 Starting services is not the same thing as daemonizing `Chief_of_Staff`. `py service_manager.py start runner` starts the scheduler only. It does not create the background Chief brain unless `Chief_of_Staff` has also been registered with `configure_role_daemon.py`.
 

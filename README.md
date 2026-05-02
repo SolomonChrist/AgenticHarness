@@ -259,7 +259,9 @@ py service_manager.py start core
 py service_manager.py status all
 ```
 
-`ChiefChat` is the always-on, low-cost conversation layer for Telegram, Visualizer, console chat, and future transports. It reads and writes `_messages/CHAT.md`, uses `MEMORY/agents/Chief_of_Staff/SOUL.md` for voice, and calls the configured cheap model path in `ChiefChat/CHIEF_CHAT_CONFIG.md`. Claude Code/OpenCode remain the recommended first-run and deep-work harnesses; ordinary Telegram chat should not spend Claude Code quota.
+`ChiefChat` is the always-on, low-cost conversation layer for Telegram, Visualizer, console chat, and future transports. It reads and writes `_messages/CHAT.md`, uses `MEMORY/agents/Chief_of_Staff/SOUL.md` for voice, and calls the configured cheap model path in `ChiefChat/CHIEF_CHAT_CONFIG.md`. Claude Code/OpenCode/OpenClaw remain valid first-run and deep-work harnesses; ordinary Telegram chat should not spend Claude Code quota.
+
+ChiefChat now has a small OpenClaw-like interaction layer while staying true to Agentic Harness: it classifies each operator message, performs deterministic file/status/web actions before the model when possible, writes an activity trace to `ChiefChat/data/activity.md`, rejects weak web replies like "I'm checking now" when source evidence exists, and captures/routes work in markdown before saying it was done.
 
 This keeps the system lightweight and avoids preloading unnecessary structure.
 
@@ -287,6 +289,7 @@ Or double-click `dashboard.bat` inside the production folder.
 - `chief-chat`
 - `runner`
 - `telegram`, when `TelegramBot/.env.telegram` has real credentials
+- `telegram-watchdog`, when Telegram is configured
 - `visualizer`, as an optional service
 
 If you want to skip Visualizer and start only the core communication/runtime services:
@@ -348,6 +351,16 @@ If Telegram is active but `ChiefChat` is not running, Telegram should say so cle
 
 If Telegram is active but Runner itself is not alive, Telegram should say so clearly and provide `py service_manager.py start runner`. A bridge-only acknowledgement is not considered a working Chief chat.
 
+Telegram also has a tiny watchdog service. It checks every 5 minutes by default:
+
+```powershell
+py service_manager.py start telegram
+py service_manager.py status telegram
+py TelegramBot\telegram_watchdog.py --once
+```
+
+`py service_manager.py start telegram` starts both the Telegram bridge and the watchdog when Telegram is configured. `py service_manager.py stop telegram` stops the watchdog first, then the bridge, so an intentional stop does not get immediately restarted. If `telegram` is already running, the watchdog does nothing. If the bridge crashed or is not alive, it starts the bridge again. `py start.py` and `py service_manager.py start core` also start the watchdog automatically when Telegram is configured.
+
 When replying through markdown, existing `_messages/human_<HumanID>.md` files must be appended or updated. Do not use a create-only `Write(...)` operation on an existing outbox file.
 
 Safe helper commands are available:
@@ -362,8 +375,10 @@ py wake_role.py --role Chief_of_Staff --reason telegram_message
 `Chief_of_Staff` is expected to answer normal operator questions, including questions that require web or Google-style research.
 
 - ChiefChat uses a source-first path for ordinary web/current-info questions: create a durable `TASK-WEB-*` task, gather readable source evidence with Playwright when enabled, then answer from that evidence.
+- ChiefChat records the classification, plan, task creation, evidence gathering, and reply/fallback steps in `ChiefChat/data/activity.md` so the operator can see what happened without opening a web UI.
 - Weather requests use a direct Open-Meteo lookup so the operator receives actual current conditions instead of a progress-only "checking now" reply.
 - Situational local requests, such as "I am near Bloor and Bathurst and there is a big lineup, what is going on?", should be treated as an investigation: normalize speech-to-text location errors, search nearby venues/events/news/public discussion, filter grammar and wrong-city noise, and return a sourced best guess with uncertainty.
+- Some sites, especially review directories such as Yelp and Tripadvisor, may block automated browsers. ChiefChat must not try to bypass those restrictions. It should skip automated reads on bot-hostile sources, use official sites/search snippets/alternate sources where possible, and leave the `TASK-WEB-*` open for a manual or specialist follow-up when needed.
 - If browser extraction or the cheap model fails, ChiefChat should still send the best extracted evidence and leave the task open for a web-capable role.
 - Harness records should note whether a provider is online, web/search-capable, browser/tool-capable, local-only, or manual-only.
 - Data organization and life-operations projects are expected first-use cases; `Chief_of_Staff` may recommend roles like `Researcher`, `Data Organizer`, `Documentation`, `Operations`, or `Engineer`.
@@ -634,6 +649,7 @@ Use this for:
 Recommended structure:
 
 - `MEMORY/agents/<Role>/ALWAYS.md`
+- `MEMORY/agents/<Role>/SKILLS.md`
 - `MEMORY/agents/<Role>/ONBOARDING_STATUS.md`
 - `MEMORY/agents/<Role>/RECENT/YYYY-MM-DD.md`
 - `MEMORY/agents/<Role>/ARCHIVE/YYYY-MM-summary.md`
@@ -648,6 +664,7 @@ How it works:
 - `Chief_of_Staff` reads the operator's human memory before normal operator-facing work
 - `Chief_of_Staff` reads `MEMORY/agents/Chief_of_Staff/ONBOARDING_STATUS.md` to see whether first-run onboarding has already happened
 - `ALWAYS.md` stores things that should be remembered every session
+- `SKILLS.md` stores role/bot-specific learned workflows and confirmed capabilities that should travel with any replacement harness
 - `RECENT/` stores dated short-term memory files
 - after 30 days, recent memory should be summarized into `ARCHIVE/`
 - archive summaries remain readable as long-term memory
@@ -668,6 +685,10 @@ Recommended structure:
 Reusable patterns and learned behaviors.
 
 If a worker discovers a reusable workflow, prompt pattern, or operational method, it should be stored here so capability compounds over time.
+
+Role-specific bot skills belong first in `MEMORY/agents/<Role>/SKILLS.md`. For example, if Bob Editman currently holds `VideoEditor`, then Bob's transcription workflow belongs in `MEMORY/agents/VideoEditor/SKILLS.md`, not in a random project-local `Bob_Skills.md` file. Project notes can link to the role skill file, but the role memory is what lets a replacement harness inherit the capability.
+
+If the operator asks ChiefChat to "take over Bob", "take over Engineer temporarily", or otherwise switch a live harness into another role, ChiefChat should create a role takeover task, infer or use the role's Runner registration, and start a one-shot local role run when safe. For example, if Bob Editman holds `VideoEditor` through OpenCode, ChiefChat can auto-register `VideoEditor` from `_heartbeat/VideoEditor.md`, run `py Runner\scheduled_role_runner.py --role VideoEditor --reason chief_takeover:...`, and tell the operator whether the launch actually started. If auto-launch is blocked, ChiefChat must give the exact manual prompt, such as `continue, check your tasks as VideoEditor`. The worker role must then do one focused work cycle, write results/status, and return/report to `Chief_of_Staff`.
 
 ## Bots, Leases, and Humans
 

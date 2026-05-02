@@ -462,6 +462,13 @@ def evaluate_role_preflight(
         pending.append({"kind": "wake_request", "summary": wake, "reason": wake})
 
     for task in tasks_for_role(root, role):
+        if is_cheap_chief_config(role, cfg):
+            # The cheap ChiefChat path is a live chat/router service. It can
+            # answer operator messages and daily check-ins, but it does not do
+            # deep task execution from LAYER_TASK_LIST.md. Treat Chief-owned
+            # tasks as visible backlog rather than a reason to relaunch the
+            # cheap router every few seconds.
+            continue
         if provider_remediation_resolved(task, role, cfg):
             continue
         pending.append({"kind": "assigned_task", "summary": task_summary(task), "reason": f"assigned_task:{task_summary(task)}"})
